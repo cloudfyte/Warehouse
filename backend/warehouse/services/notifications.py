@@ -1,9 +1,10 @@
+"""External notification services — email and WhatsApp."""
 from django.conf import settings
 from django.core.mail import send_mail
 
 
 def send_low_stock_alert(product, warehouse, balance):
-    from .models import SystemSettings
+    from warehouse.models import SystemSettings
     cfg = SystemSettings.load()
     recipient = cfg.alert_email or getattr(settings, "WAREHOUSE_ALERT_EMAIL", None)
     if recipient:
@@ -46,13 +47,8 @@ def send_replenishment_request(request):
     return True
 
 
-# ---------------------------------------------------------------------------
-# WhatsApp via Twilio REST API
-# ---------------------------------------------------------------------------
-
 def _send_whatsapp(to_number: str, message: str) -> bool:
-    """Send a WhatsApp message via Twilio. Returns True on success."""
-    from .models import SystemSettings
+    from warehouse.models import SystemSettings
     cfg = SystemSettings.load()
     if not (
         cfg.whatsapp_enabled
@@ -86,7 +82,7 @@ def _send_whatsapp(to_number: str, message: str) -> bool:
 
 
 def send_whatsapp_low_stock_alert(product, warehouse, balance):
-    from .models import EmployeeProfile, SystemSettings
+    from warehouse.models import EmployeeProfile, SystemSettings
     cfg = SystemSettings.load()
     if not cfg.whatsapp_enabled:
         return
@@ -106,8 +102,7 @@ def send_whatsapp_low_stock_alert(product, warehouse, balance):
 
 
 def send_whatsapp_replenishment(request) -> bool:
-    """Send a replenishment WhatsApp to the vendor's contact (if phone on file)."""
-    from .models import SystemSettings
+    from warehouse.models import SystemSettings
     cfg = SystemSettings.load()
     if not cfg.whatsapp_enabled:
         return False
