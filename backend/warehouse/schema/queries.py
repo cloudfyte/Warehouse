@@ -67,6 +67,8 @@ class Query(graphene.ObjectType):
     buyer_returns = graphene.List(BuyerReturnType)
     supplier_returns = graphene.List(SupplierReturnType)
 
+    product_by_barcode = graphene.Field(FinishedProductType, barcode=graphene.String(required=True))
+
     # Misc
     notifications = graphene.List(NotificationType, unread_only=graphene.Boolean())
     unread_notification_count = graphene.Int()
@@ -171,6 +173,11 @@ class Query(graphene.ObjectType):
         from warehouse.models import EmployeeProfile
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.AUDITOR)
         return selectors.get_all_audit_logs(entity_type=entity_type, actor_name=actor_name, limit=limit)
+
+    @login_required
+    def resolve_product_by_barcode(self, info, barcode):
+        from warehouse.models import FinishedProduct
+        return FinishedProduct.objects.filter(barcode=barcode).select_related("item_type", "cloth_color", "cloth_category", "warehouse").first()
 
     @login_required
     def resolve_analytics_stats(self, info):

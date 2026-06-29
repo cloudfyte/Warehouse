@@ -121,18 +121,18 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, onMutate }
             <label style={LBL}>Phone
               <input type="tel" value={editing.phone ?? ""} onChange={e => handlePhoneChange(e.target.value)} style={I} />
             </label>
-            <label style={LBL}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>WhatsApp</span>
-                <label style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 600, fontSize: 10, textTransform: "none", letterSpacing: 0, cursor: "pointer", color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)" }}>
-                  <input type="checkbox" checked={waIsSameAsPhone} onChange={e => handleWaToggle(e.target.checked)} style={{ accentColor: "var(--primary)", width: 11, height: 11 }} />
-                  same as phone
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
+                <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", userSelect: "none" }}>
+                  <input type="checkbox" checked={waIsSameAsPhone} onChange={e => handleWaToggle(e.target.checked)} style={{ accentColor: "var(--primary)", width: 13, height: 13, cursor: "pointer" }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)" }}>Same as phone</span>
                 </label>
               </div>
               <input type="tel" value={editing.whatsapp ?? ""} disabled={waIsSameAsPhone}
                 onChange={e => setEditing(p => ({ ...p, whatsapp: e.target.value }))}
                 style={{ ...I, opacity: waIsSameAsPhone ? 0.5 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text" }} />
-            </label>
+            </div>
             {field("GSTIN", "gstin")}
             <StateCity
               state={editing.state || ""} city={editing.city || ""}

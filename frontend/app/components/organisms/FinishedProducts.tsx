@@ -3,11 +3,14 @@ import { useState } from "react";
 import type { FinishedProduct } from "@/app/types";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { downloadCsv } from "@/app/lib/csv";
+import BarcodeScanner from "@/app/components/atoms/BarcodeScanner";
 
 interface Props {
   products: FinishedProduct[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isStoreKeeper: boolean
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  gql?: (q: string, v?: Record<string, unknown>) => Promise<any>
 }
 
 function printTag(product: FinishedProduct) {
@@ -41,11 +44,13 @@ function printTag(product: FinishedProduct) {
   win.document.close();
 }
 
-export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate }: Props) {
+export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql }: Props) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [selected, setSelected] = useState<FinishedProduct | null>(null);
   const [markingPrinted, setMarkingPrinted] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanResult, setScanResult] = useState<{ found: boolean; product?: FinishedProduct } | null>(null);
 
   const canManage = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
   const filtered = products.filter(p =>
@@ -64,19 +69,50 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
     finally { setMarkingPrinted(false); }
   }
 
+  async function handleBarcode(code: string) {
+    setShowScanner(false);
+    // Try local list first (fast path)
+    const local = products.find(p => p.barcode === code || p.sku === code);
+    if (local) { setSelected(local); return; }
+    // Fall back to server lookup
+    if (gql) {
+      const res = await gql(
+        `query L($b:String!){productByBarcode(barcode:$b){id sku quantity salePrice costPrice size source barcode barcodeSvg tagsPrinted createdAt itemType{id name} clothColor{id name hexCode} clothCategory{id name} warehouse{id name}}}`,
+        { b: code }
+      ).catch(() => null);
+      if (res?.productByBarcode) { setSelected(res.productByBarcode); return; }
+    }
+    setScanResult({ found: false });
+    setTimeout(() => setScanResult(null), 3500);
+  }
+
   return (
     <div style={{ padding: 24 }}>
+      {showScanner && <BarcodeScanner onDetected={handleBarcode} onClose={() => setShowScanner(false)} />}
+
+      {scanResult && !scanResult.found && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a2e", color: "#fff", padding: "14px 24px", borderRadius: 12, zIndex: 100, fontSize: 14, fontWeight: 600, boxShadow: "0 8px 32px #0006" }}>
+          No product found for that barcode
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <h2 style={{ margin: 0 }}>Finished Goods <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({products.length} SKUs)</span></h2>
-        <button onClick={() => downloadCsv(`finished_goods_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(p => ({
-          "SKU": p.sku, "Item Type": p.itemType.name, "Size": p.size || "", "Color": p.clothColor?.name || "",
-          "Source": p.source, "Quantity": p.quantity, "Sale Price (₹)": p.salePrice,
-          "Cost Price (₹)": p.costPrice, "Warehouse": p.warehouse?.name || "",
-          "Barcode": p.barcode, "Created": formatDateShort(p.createdAt),
-        })))}
-          style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-          ⬇ Export CSV
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setShowScanner(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+            📷 Scan Barcode
+          </button>
+          <button onClick={() => downloadCsv(`finished_goods_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(p => ({
+            "SKU": p.sku, "Item Type": p.itemType.name, "Size": p.size || "", "Color": p.clothColor?.name || "",
+            "Source": p.source, "Quantity": p.quantity, "Sale Price (₹)": p.salePrice,
+            "Cost Price (₹)": p.costPrice, "Warehouse": p.warehouse?.name || "",
+            "Barcode": p.barcode, "Created": formatDateShort(p.createdAt),
+          })))}
+            style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+            ⬇ Export CSV
+          </button>
+        </div>
       </div>
       <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <input placeholder="Search SKU, item type, or barcode…" value={search} onChange={e => setSearch(e.target.value)}
