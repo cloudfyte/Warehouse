@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Mail, MessageSquare, ArrowLeft, Loader2 } from "lucide-react";
 
 interface Props {
@@ -72,6 +72,17 @@ export default function Login({ onLogin }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [brandName, setBrandName] = useState("GarmentFlow");
+  const [brandSubtitle, setBrandSubtitle] = useState("Warehouse ERP");
+
+  useEffect(() => {
+    gql(`{ systemSettings { appName appSubtitle } }`)
+      .then(d => {
+        if (d?.systemSettings?.appName) setBrandName(d.systemSettings.appName);
+        if (d?.systemSettings?.appSubtitle) setBrandSubtitle(d.systemSettings.appSubtitle);
+      })
+      .catch(() => {});
+  }, []);
 
   const identType = detectType(identifier);
   const identHint: Record<string, string> = {
@@ -159,10 +170,10 @@ export default function Login({ onLogin }: Props) {
             </div>
             <div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", letterSpacing: -0.4, lineHeight: 1.2 }}>
-                GarmentFlow
+                {brandName}
               </div>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>
-                Warehouse ERP
+                {brandSubtitle || "Warehouse ERP"}
               </div>
             </div>
           </div>
@@ -318,7 +329,7 @@ export default function Login({ onLogin }: Props) {
           )}
 
           <p style={{ textAlign: "center", marginTop: 24, fontSize: 11.5, color: "var(--muted)" }}>
-            GarmentFlow ERP · Secure Login
+            {brandName} · Secure Login
           </p>
         </div>
       </div>
