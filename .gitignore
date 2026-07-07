@@ -25,3 +25,6 @@ backend/.env*
 ssl/*.pem
 ssl/*.key
 ssl/*.crt
+
+# Django collected static files
+backend/staticfiles/
