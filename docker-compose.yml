@@ -38,6 +38,8 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+    ports:
+      - "8000:8000"
     env_file:
       - ./backend/.env
 
@@ -78,6 +80,8 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    ports:
+      - "3000:3000"
     environment:
       - WATCHPACK_POLLING=true
     command: npm run dev

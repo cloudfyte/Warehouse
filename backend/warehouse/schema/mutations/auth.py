@@ -1,5 +1,6 @@
 import graphene
 import graphql_jwt
+from graphql import GraphQLError
 from graphql_jwt.shortcuts import get_token
 
 from warehouse.models import FCMToken, OTPCode
