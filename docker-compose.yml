@@ -76,15 +76,15 @@ services:
   frontend:
     build: ./frontend
     container_name: warehouse_frontend
+    restart: unless-stopped
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    environment:
-      - WATCHPACK_POLLING=true
-      - NEXT_PUBLIC_GRAPHQL_URL=http://localhost:8000/graphql/
-    command: npm run dev
     ports:
       - "3000:3000"
+    environment:
+      - WATCHPACK_POLLING=true
+    command: npm run dev
 
 volumes:
   warehouse_postgres_data:

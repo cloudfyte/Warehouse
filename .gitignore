@@ -20,3 +20,11 @@ Thumbs.db
 backend/.env
 backend/.env.*
 backend/.env*
+
+# TLS certs
+ssl/*.pem
+ssl/*.key
+ssl/*.crt
+
+# Django collected static files
+backend/staticfiles/
