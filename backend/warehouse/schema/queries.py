@@ -169,9 +169,12 @@ class Query(graphene.ObjectType):
 
     @login_required
     def resolve_all_audit_logs(self, info, entity_type="", actor_name="", limit=200):
-        from warehouse.permissions import require_role
+        from warehouse.permissions import get_profile
         from warehouse.models import EmployeeProfile
-        require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.AUDITOR)
+        profile = get_profile(info.context.user)
+        allowed = {EmployeeProfile.Role.SUPER_ADMIN, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.AUDITOR}
+        if profile.role not in allowed:
+            return []
         return selectors.get_all_audit_logs(entity_type=entity_type, actor_name=actor_name, limit=limit)
 
     @login_required
