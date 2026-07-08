@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { CreditTransaction } from "@/app/types";
 import { CREDIT_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
+import { friendlyError } from "@/app/lib/errors";
 import Modal from "@/app/components/atoms/Modal";
 import { downloadCsv } from "@/app/lib/csv";
 
@@ -61,7 +62,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
       );
       setDetail(null);
       setPayForm({ amount: "", method: "CASH", reference: "", notes: "" });
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 

@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { CuttingAssignment, Employee, RawClothBatch, ItemType } from "@/app/types";
 import { CUTTING_STATUS_LABELS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
+import { friendlyError } from "@/app/lib/errors";
 import Modal from "@/app/components/atoms/Modal";
 
 interface Props {
@@ -119,7 +120,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       );
       setShowForm(false);
       setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", notes: "" });
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 
@@ -135,7 +136,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
         { id: selected.id, status: update.status || undefined, pc: Number.isFinite(pc) ? pc : undefined, cu: Number.isFinite(cu) ? cu : undefined, cw: Number.isFinite(cw) ? cw : undefined }
       );
       setSelected(null);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 

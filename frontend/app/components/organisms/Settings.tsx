@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { applyBrandColors } from "@/app/lib/theme";
+import { friendlyError } from "@/app/lib/errors";
 
 interface SettingsData {
   id?: string
@@ -122,7 +123,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
       setSaved(true);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed to save"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 

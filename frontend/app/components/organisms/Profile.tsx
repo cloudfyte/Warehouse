@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Eye, EyeOff, User, Mail, Phone, Shield, Warehouse, KeyRound, CheckCircle2 } from "lucide-react";
 import { ROLE_LABELS } from "@/app/lib/constants";
+import { friendlyError } from "@/app/lib/errors";
 
 interface EmployeeProfile {
   id: string;
@@ -84,7 +85,7 @@ export default function Profile({ profile, onMutate, onProfileUpdated }: Props) 
       setInfoMsg("Profile updated successfully.");
       onProfileUpdated();
     } catch (err: unknown) {
-      setInfoErr(err instanceof Error ? err.message : "Failed to update profile");
+      setInfoErr(friendlyError(err));
     } finally { setSaving(false); }
   }
 
@@ -102,7 +103,7 @@ export default function Profile({ profile, onMutate, onProfileUpdated }: Props) 
       setPwMsg("Password changed successfully. Use your new password next time you log in.");
       setCurPw(""); setNewPw(""); setConfirmPw("");
     } catch (err: unknown) {
-      setPwErr(err instanceof Error ? err.message : "Failed to change password");
+      setPwErr(friendlyError(err));
     } finally { setPwSaving(false); }
   }
 

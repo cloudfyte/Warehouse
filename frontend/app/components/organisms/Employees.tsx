@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { Employee, WarehouseLocation } from "@/app/types";
 import { ROLE_LABELS } from "@/app/lib/constants";
 import Modal from "@/app/components/atoms/Modal";
+import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
   employees: Employee[]; warehouses: WarehouseLocation[]
@@ -80,7 +81,7 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
         );
       }
       setEditing(null); setNewPass("");
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 
@@ -91,7 +92,7 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
     try {
       await onMutate(`mutation R($id:ID!,$pw:String!){resetEmployeePassword(id:$id,newPassword:$pw){ok}}`, { id: showResetFor, pw: resetPw });
       setShowResetFor(null); setResetPw(""); setResetPw2("");
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 
