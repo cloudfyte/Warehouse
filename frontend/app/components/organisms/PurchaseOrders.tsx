@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { PurchaseOrder, Supplier, WarehouseLocation, ClothCategory, ClothColor, ItemType } from "@/app/types";
 import { PO_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
+import { friendlyError } from "@/app/lib/errors";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
@@ -100,7 +101,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         { sup: supplierId, wh: warehouseId, type: orderType, del: expectedDelivery || undefined, notes: poNotes || undefined, items: gqlItems }
       );
       setShowNew(false); resetForm();
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 
@@ -109,7 +110,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     try {
       await onMutate(`mutation U($id:ID!,$s:String!){updatePurchaseOrderStatus(id:$id,status:$s){purchaseOrder{id status}}}`, { id, s: status });
       setDetail(d => d ? { ...d, status } : null);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 

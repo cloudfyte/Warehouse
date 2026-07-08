@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { Supplier } from "@/app/types";
 import { SUPPLY_TYPE_LABELS } from "@/app/lib/constants";
+import { friendlyError } from "@/app/lib/errors";
 import StateCity from "@/app/components/atoms/StateCity";
 import Modal from "@/app/components/atoms/Modal";
 
@@ -57,7 +58,7 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, onMutate }
       const cd = editing.creditDays != null ? parseInt(String(editing.creditDays), 10) : undefined;
       await onMutate(m, { id: editing.id, name: editing.name, cp: editing.contactPerson, email: editing.email, phone: editing.phone, wa: editing.whatsapp, addr: editing.address, city: editing.city, state: editing.state, gstin: editing.gstin, st: editing.supplyType, cd: Number.isFinite(cd as number) ? cd : undefined, notes: editing.notes, active: editing.active });
       setEditing(null);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 

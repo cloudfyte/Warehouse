@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Mail, MessageSquare, ArrowLeft, Loader2 } from "lucide-react";
+import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
   onLogin: (token: string, refreshToken: string) => void;
@@ -61,6 +62,10 @@ const LBL: React.CSSProperties = {
   letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6, display: "block",
 };
 
+const ERR: React.CSSProperties = {
+  fontSize: 12, color: "#e53e3e", marginTop: 5, display: "block", fontWeight: 500,
+};
+
 export default function Login({ onLogin }: Props) {
   const [mode, setMode] = useState<"password" | "otp">("password");
   const [identifier, setIdentifier] = useState("");
@@ -70,7 +75,10 @@ export default function Login({ onLogin }: Props) {
   const [otpStep, setOtpStep] = useState<"request" | "verify">("request");
   const [otpCode, setOtpCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState("");        // server / API errors
+  const [identErr, setIdentErr] = useState("");  // inline: identifier field
+  const [passErr, setPassErr] = useState("");    // inline: password field
+  const [otpErr, setOtpErr] = useState("");      // inline: OTP field
   const [info, setInfo] = useState("");
   const [brandName, setBrandName] = useState("GarmentFlow");
   const [brandSubtitle, setBrandSubtitle] = useState("Warehouse ERP");
@@ -91,14 +99,20 @@ export default function Login({ onLogin }: Props) {
     username: identifier ? "✓ Username" : "",
   };
 
+  function clearFieldErrors() { setIdentErr(""); setPassErr(""); setOtpErr(""); }
+
   function switchMode(m: "password" | "otp") {
-    setMode(m); setError(""); setInfo(""); setOtpStep("request"); setOtpCode("");
+    setMode(m); setError(""); setInfo(""); setOtpStep("request"); setOtpCode(""); clearFieldErrors();
   }
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!identifier.trim()) return;
-    setError(""); setLoading(true);
+    setIdentErr(""); setPassErr(""); setError("");
+    let ok = true;
+    if (!identifier.trim()) { setIdentErr("Please enter your username, email or phone."); ok = false; }
+    if (!password) { setPassErr("Please enter your password."); ok = false; }
+    if (!ok) return;
+    setLoading(true);
     try {
       const d = await gql(
         `mutation L($id:String!,$pw:String!){loginWithCredentials(identifier:$id,password:$pw){token refreshToken}}`,
@@ -106,14 +120,15 @@ export default function Login({ onLogin }: Props) {
       );
       onLogin(d.loginWithCredentials.token, d.loginWithCredentials.refreshToken ?? "");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(friendlyError(err));
     } finally { setLoading(false); }
   }
 
   async function handleRequestOTP(e: React.FormEvent) {
     e.preventDefault();
-    if (!identifier.trim()) return;
-    setError(""); setLoading(true);
+    setIdentErr(""); setError("");
+    if (!identifier.trim()) { setIdentErr("Please enter your username, email or phone."); return; }
+    setLoading(true);
     try {
       await gql(
         `mutation R($u:String!,$c:String!){requestOtp(username:$u,purpose:"LOGIN",channel:$c){emailSent smsSent waSent message}}`,
@@ -123,13 +138,15 @@ export default function Login({ onLogin }: Props) {
       setInfo(`OTP sent to your registered ${dest}. Check and enter the 6-digit code below.`);
       setOtpStep("verify");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to send OTP");
+      setError(friendlyError(err));
     } finally { setLoading(false); }
   }
 
   async function handleVerifyOTP(e: React.FormEvent) {
     e.preventDefault();
-    setError(""); setLoading(true);
+    setOtpErr(""); setError("");
+    if (!otpCode.trim()) { setOtpErr("Please enter the OTP code sent to you."); return; }
+    setLoading(true);
     try {
       const d = await gql(
         `mutation V($u:String!,$c:String!){verifyOtpLogin(username:$u,code:$c){token refreshToken}}`,
@@ -137,7 +154,7 @@ export default function Login({ onLogin }: Props) {
       );
       onLogin(d.verifyOtpLogin.token, d.verifyOtpLogin.refreshToken ?? "");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Invalid OTP");
+      setError(friendlyError(err));
     } finally { setLoading(false); }
   }
 
@@ -223,18 +240,21 @@ export default function Login({ onLogin }: Props) {
                 {identType === "email" ? "Email address" : identType === "phone" ? "Phone number" : "Identifier"}
               </label>
               <input
-                style={I}
+                style={{ ...I, borderColor: identErr ? "#e53e3e" : undefined }}
                 placeholder="Username, email, or phone"
                 value={identifier}
-                onChange={e => setIdentifier(e.target.value)}
+                onChange={e => { setIdentifier(e.target.value); if (identErr) setIdentErr(""); }}
                 autoFocus
                 autoComplete="username"
               />
-              {identHint[identType] && (
-                <span style={{ fontSize: 11, color: "var(--primary)", marginTop: 5, display: "block", fontWeight: 600 }}>
-                  {identHint[identType]}
-                </span>
-              )}
+              {identErr
+                ? <span style={ERR}>{identErr}</span>
+                : identHint[identType] && (
+                    <span style={{ fontSize: 11, color: "var(--primary)", marginTop: 5, display: "block", fontWeight: 600 }}>
+                      {identHint[identType]}
+                    </span>
+                  )
+              }
             </div>
           )}
 
@@ -245,12 +265,11 @@ export default function Login({ onLogin }: Props) {
                 <label style={LBL}>Password</label>
                 <div style={{ position: "relative" }}>
                   <input
-                    style={{ ...I, paddingRight: 48 }}
+                    style={{ ...I, paddingRight: 48, borderColor: passErr ? "#e53e3e" : undefined }}
                     type={showPass ? "text" : "password"}
                     placeholder="Your password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
+                    onChange={e => { setPassword(e.target.value); if (passErr) setPassErr(""); }}
                     autoComplete="current-password"
                   />
                   <button type="button" onClick={() => setShowPass(p => !p)} style={{
@@ -261,8 +280,9 @@ export default function Login({ onLogin }: Props) {
                     {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                 </div>
+                {passErr && <span style={ERR}>{passErr}</span>}
               </div>
-              <button style={BTN} disabled={loading || !identifier.trim() || !password}>
+              <button style={BTN} disabled={loading}>
                 {loading ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Signing in…</> : "Sign in"}
               </button>
             </form>
@@ -289,7 +309,7 @@ export default function Login({ onLogin }: Props) {
                   ))}
                 </div>
               </div>
-              <button style={BTN} disabled={loading || !identifier.trim()}>
+              <button style={BTN} disabled={loading}>
                 {loading
                   ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Sending…</>
                   : `Send OTP via ${CHANNELS.find(c => c.id === channel)?.label}`}
@@ -307,14 +327,18 @@ export default function Login({ onLogin }: Props) {
                   style={{
                     ...I, letterSpacing: 14, fontSize: 28, textAlign: "center",
                     fontWeight: 800, fontFamily: "monospace", padding: "14px",
+                    borderColor: otpErr ? "#e53e3e" : undefined,
                   }}
                   placeholder="------" value={otpCode} maxLength={6}
-                  onChange={e => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                  required autoFocus
+                  onChange={e => { setOtpCode(e.target.value.replace(/\D/g, "")); if (otpErr) setOtpErr(""); }}
+                  autoFocus
                 />
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, textAlign: "center" }}>
-                  Sent to your {channel === "EMAIL" ? "email" : channel === "WHATSAPP" ? "WhatsApp" : "SMS"}
-                </div>
+                {otpErr
+                  ? <span style={{ ...ERR, textAlign: "center" }}>{otpErr}</span>
+                  : <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, textAlign: "center" }}>
+                      Sent to your {channel === "EMAIL" ? "email" : channel === "WHATSAPP" ? "WhatsApp" : "SMS"}
+                    </div>
+                }
               </div>
               <button style={BTN} disabled={loading || otpCode.length < 6}>
                 {loading

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { friendlyError } from "@/app/lib/errors";
 
 interface Option { id: string; name: string }
 
@@ -39,7 +40,7 @@ export default function CreatableSelect({ label, options, value, onChange, onCre
       setAdding(false);
       setNewName("");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed");
+      setError(friendlyError(e));
     } finally { setLoading(false); }
   }
 

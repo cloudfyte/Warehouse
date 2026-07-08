@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { WarehouseLocation } from "@/app/types";
 import StateCity from "@/app/components/atoms/StateCity";
 import Modal from "@/app/components/atoms/Modal";
+import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
   warehouses: WarehouseLocation[]; isSuperAdmin: boolean; isAdmin: boolean
@@ -57,7 +58,7 @@ export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate
         );
       }
       setEditing(null);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 

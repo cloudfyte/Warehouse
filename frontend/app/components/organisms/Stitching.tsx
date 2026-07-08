@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { StitchingJob, CuttingAssignment, Employee } from "@/app/types";
 import { STITCHING_STATUS_LABELS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
+import { friendlyError } from "@/app/lib/errors";
 import Modal from "@/app/components/atoms/Modal";
 
 interface Props {
@@ -126,7 +127,7 @@ export default function Stitching({ jobs, assignments, tailors, isAdmin, isSuper
         { a: form.assignmentId, t: form.tailorId, p: +form.pieces, notes: form.notes }
       );
       setShowForm(false); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" });
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 
@@ -139,7 +140,7 @@ export default function Stitching({ jobs, assignments, tailors, isAdmin, isSuper
         { id: selected.id, status: upd.status || undefined, pc: Number.isFinite(Number(upd.piecesCompleted)) ? Number(upd.piecesCompleted) : undefined, pr: Number.isFinite(Number(upd.piecesRejected)) ? Number(upd.piecesRejected) : undefined }
       );
       setSelected(null);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 
