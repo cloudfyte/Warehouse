@@ -27,13 +27,13 @@ const MAP: [RegExp | string, string | ((m: string) => string)][] = [
   // Stock / inventory
   ["Total meters must be greater", "Quantity must be greater than zero."],
   ["Quantity must be greater",     "Quantity must be greater than zero."],
-  ["Only",                         (m: string) => m], // keep "Only X pieces available" as-is
+  ["Only",                         (m: string) => m],
 
-  // Validation
-  ["is required",                  (m: string) => m], // keep field-required messages as-is
-  ["must be",                      (m: string) => m], // keep constraint messages as-is
+  // Validation — pass through as-is
+  ["is required",                  (m: string) => m],
+  ["must be",                      (m: string) => m],
 
-  // Entities not found — keep concise
+  // Entities not found — pass through as-is
   ["not found",                    (m: string) => m.replace(/\.$/, "") + "."],
 
   // Generic fallback — must be last
@@ -55,7 +55,7 @@ export function friendlyError(err: unknown): string {
     }
   }
 
-  // If it looks like a clean sentence from the backend, show it directly
+  // Clean backend sentence — show directly
   if (raw && raw.length < 120 && !raw.includes("Exception") && !raw.includes("Error:") && !raw.includes("\n")) {
     return raw;
   }
