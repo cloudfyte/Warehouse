@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { graphql, refreshAccessToken, DASHBOARD_QUERY, SETTINGS_QUERY } from "@/app/lib/graphql";
+import { friendlyError } from "@/app/lib/errors";
 import { applyBrandColors, applyDarkMode } from "@/app/lib/theme";
 import { TAB_TITLES } from "@/app/lib/constants";
 import {
@@ -192,7 +193,7 @@ function DirectStockModal({ suppliers, warehouses, categories, colors, itemTypes
         });
       }
       onClose();
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
 
@@ -354,7 +355,7 @@ export default function Home() {
         localStorage.removeItem("jwt"); localStorage.removeItem("refreshToken");
         setToken(null);
       } else {
-        setError(msg || "Failed to load");
+        setError(friendlyError(e));
       }
     } finally { setLoading(false); }
   }, []);
