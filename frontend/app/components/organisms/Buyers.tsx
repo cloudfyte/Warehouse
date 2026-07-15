@@ -167,9 +167,23 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, onMutate }: Prop
             <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, color: (editing.notes?.length ?? 0) > 170 ? "#e07" : "var(--muted)", pointerEvents: "none" }}>{editing.notes?.length ?? 0}/200</span>
           </div>
           {!isNew && (
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 14, cursor: "pointer" }}>
-              <input type="checkbox" checked={editing.active ?? true} onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))} />
-              <span>Active buyer</span>
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10, marginTop: 16,
+              padding: "10px 14px", borderRadius: 9, border: "1px solid var(--line)",
+              background: (editing.active ?? true) ? "#f0fdf4" : "#fff8f8",
+              cursor: "pointer", userSelect: "none",
+            }}>
+              <input type="checkbox" checked={editing.active ?? true}
+                onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))}
+                style={{ accentColor: "var(--primary)", width: 16, height: 16, cursor: "pointer" }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: (editing.active ?? true) ? "#166534" : "#991b1b" }}>
+                  {(editing.active ?? true) ? "Active buyer" : "Inactive buyer"}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>
+                  {(editing.active ?? true) ? "Buyer is available for sales orders and credit" : "Buyer will be hidden from selection lists"}
+                </div>
+              </div>
             </label>
           )}
         </Modal>

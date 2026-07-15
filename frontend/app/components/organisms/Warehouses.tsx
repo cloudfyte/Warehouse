@@ -116,9 +116,23 @@ export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate
             <input value={editing.address || ""} onChange={e => setEditing(p => ({ ...p, address: e.target.value }))} style={I} />
           </label>
           {!isNew && (
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, marginTop: 14, cursor: "pointer" }}>
-              <input type="checkbox" checked={editing.active ?? true} onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))} />
-              <span>Active location</span>
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10, marginTop: 16,
+              padding: "10px 14px", borderRadius: 9, border: "1px solid var(--line)",
+              background: (editing.active ?? true) ? "#f0fdf4" : "#fff8f8",
+              cursor: "pointer", userSelect: "none",
+            }}>
+              <input type="checkbox" checked={editing.active ?? true}
+                onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))}
+                style={{ accentColor: "var(--primary)", width: 16, height: 16, cursor: "pointer" }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: (editing.active ?? true) ? "#166534" : "#991b1b" }}>
+                  {(editing.active ?? true) ? "Active location" : "Inactive location"}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>
+                  {(editing.active ?? true) ? "Warehouse is available for stock and orders" : "Location will be hidden from selection lists"}
+                </div>
+              </div>
             </label>
           )}
         </Modal>

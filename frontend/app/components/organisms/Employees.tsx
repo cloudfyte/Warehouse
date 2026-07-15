@@ -206,9 +206,23 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
               </div>
             </label>
             {!isNew && (
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
-                <input type="checkbox" checked={editing.active ?? true} onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))} />
-                <span>Active account</span>
+              <label style={{
+                display: "flex", alignItems: "center", gap: 10, marginTop: 4,
+                padding: "10px 14px", borderRadius: 9, border: "1px solid var(--line)",
+                background: (editing.active ?? true) ? "#f0fdf4" : "#fff8f8",
+                cursor: "pointer", userSelect: "none",
+              }}>
+                <input type="checkbox" checked={editing.active ?? true}
+                  onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))}
+                  style={{ accentColor: "var(--primary)", width: 16, height: 16, cursor: "pointer" }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: (editing.active ?? true) ? "#166534" : "#991b1b" }}>
+                    {(editing.active ?? true) ? "Active account" : "Inactive account"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>
+                    {(editing.active ?? true) ? "Employee can log in and access the system" : "Employee is deactivated and cannot log in"}
+                  </div>
+                </div>
               </label>
             )}
           </div>
