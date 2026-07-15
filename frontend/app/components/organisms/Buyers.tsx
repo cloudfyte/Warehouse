@@ -131,19 +131,16 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, onMutate }: Prop
             <label style={LBL}>Phone
               <input type="tel" value={editing?.phone ?? ""} onChange={e => handlePhoneChange(e.target.value)} style={I} />
             </label>
-            {/* WhatsApp with inline toggle — no extra height added to grid row */}
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
-                  <Toggle checked={waIsSameAsPhone} onChange={handleWaToggle} />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)", whiteSpace: "nowrap" }}>Same as phone</span>
-                </label>
-              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
               <input type="tel" value={editing?.whatsapp ?? ""} disabled={waIsSameAsPhone}
                 onChange={e => setEditing(p => ({ ...p, whatsapp: e.target.value }))}
                 placeholder={waIsSameAsPhone ? editing?.phone ?? "" : ""}
                 style={{ ...I, opacity: waIsSameAsPhone ? 0.55 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text" }} />
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none", marginTop: 2 }}>
+                <Toggle checked={waIsSameAsPhone} onChange={handleWaToggle} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)" }}>Same as phone</span>
+              </label>
             </div>
             {inp("GSTIN", "gstin")}
             <StateCity
