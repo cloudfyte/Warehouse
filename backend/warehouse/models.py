@@ -262,6 +262,73 @@ class PurchaseOrderItem(models.Model):
         return f"{self.purchase_order.po_number} — {self.item_kind}"
 
 
+# ─── direct purchase bills ────────────────────────────────────────────────────
+
+class PurchaseBill(models.Model):
+    """Direct walk-in purchase — items bought and received in one step (no formal PO needed)."""
+    class PaymentStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PARTIAL = "PARTIAL", "Partially Paid"
+        PAID = "PAID", "Fully Paid"
+
+    bill_number = models.CharField(max_length=30, unique=True, editable=False)
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="purchase_bills")
+    warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="purchase_bills")
+    bill_date = models.DateField(default=timezone.now)
+    invoice_ref = models.CharField(max_length=100, blank=True, help_text="Supplier's invoice / bill number")
+    bill_image = models.TextField(blank=True, help_text="Base64-encoded photo of the bill")
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    amount_paid = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    payment_status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="purchase_bills")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.bill_number:
+            self.bill_number = _serial("PB", PurchaseBill)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.bill_number
+
+    @property
+    def amount_pending(self):
+        return self.total_amount - self.amount_paid
+
+
+class PurchaseBillItem(models.Model):
+    class ItemKind(models.TextChoices):
+        RAW_CLOTH = "RAW_CLOTH", "Raw Cloth"
+        READYMADE = "READYMADE", "Readymade"
+
+    bill = models.ForeignKey(PurchaseBill, on_delete=models.CASCADE, related_name="items")
+    item_kind = models.CharField(max_length=20, choices=ItemKind.choices)
+
+    # Raw cloth fields
+    cloth_category = models.ForeignKey(ClothCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="bill_items")
+    cloth_color = models.ForeignKey(ClothColor, null=True, blank=True, on_delete=models.SET_NULL, related_name="bill_items")
+    total_meters = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    cost_per_meter = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    bin_location = models.CharField(max_length=100, blank=True)
+    cloth_code = models.CharField(max_length=20, blank=True)
+
+    # Readymade fields
+    item_type = models.ForeignKey(ItemType, null=True, blank=True, on_delete=models.SET_NULL, related_name="bill_items")
+    size = models.CharField(max_length=30, blank=True)
+    quantity = models.PositiveIntegerField(default=0)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    total_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    notes = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return f"{self.bill.bill_number} — {self.item_kind}"
+
+
 # ─── raw cloth inventory ──────────────────────────────────────────────────────
 
 class RawClothBatch(models.Model):
@@ -275,6 +342,7 @@ class RawClothBatch(models.Model):
     total_meters = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
     available_meters = models.DecimalField(max_digits=10, decimal_places=2)
     cost_per_meter = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    cloth_code = models.CharField(max_length=20, blank=True, help_text="Smart price-embedded code e.g. K7200")
     bin_location = models.CharField(max_length=80, blank=True, help_text="Shelf / rack in warehouse")
     received_date = models.DateField(default=timezone.now)
     notes = models.TextField(blank=True)

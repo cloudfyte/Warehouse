@@ -17,6 +17,7 @@ import Dashboard from "@/app/components/organisms/Dashboard";
 import Suppliers from "@/app/components/organisms/Suppliers";
 import Buyers from "@/app/components/organisms/Buyers";
 import PurchaseOrders from "@/app/components/organisms/PurchaseOrders";
+import PurchaseBills from "@/app/components/organisms/PurchaseBills";
 import Cutting from "@/app/components/organisms/Cutting";
 import Stitching from "@/app/components/organisms/Stitching";
 import FinishedProducts from "@/app/components/organisms/FinishedProducts";
@@ -41,7 +42,7 @@ import type { AppSettings, Tab } from "@/app/types";
 // ─── Role-based tab visibility ────────────────────────────────────────────────
 
 const ALL_TABS: Tab[] = [
-  "dashboard", "analytics", "suppliers", "buyers", "purchase_orders",
+  "dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills",
   "raw_cloth", "readymade_stock", "cutting", "stitching",
   "finished_products", "sales_orders", "credit", "returns",
   "employees", "warehouses", "notifications", "audit_log", "settings", "profile",
@@ -54,8 +55,8 @@ function getVisibleTabs(role: string): Tab[] {
   if (["MANAGER"].includes(role)) return [...ALL_TABS.filter(t => t !== "profile" && t !== "settings" && t !== "audit_log"), ...profileTab];
   if (role === "CUTTING_MASTER") return ["dashboard", "cutting", "notifications", ...profileTab];
   if (role === "TAILOR") return ["dashboard", "stitching", "notifications", ...profileTab];
-  if (role === "STORE_KEEPER") return ["dashboard", "raw_cloth", "readymade_stock", "finished_products", "notifications", ...profileTab];
-  if (role === "AUDITOR") return ["dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "raw_cloth", "readymade_stock", "finished_products", "sales_orders", "credit", "returns", "notifications", "audit_log", ...profileTab];
+  if (role === "STORE_KEEPER") return ["dashboard", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "notifications", ...profileTab];
+  if (role === "AUDITOR") return ["dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "sales_orders", "credit", "returns", "notifications", "audit_log", ...profileTab];
   return ["dashboard", "notifications", ...profileTab];
 }
 
@@ -65,7 +66,7 @@ interface SidebarSection { label: string; tabs: Tab[] }
 
 const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
-  { label: "Procurement", tabs: ["suppliers", "buyers", "purchase_orders"] },
+  { label: "Procurement", tabs: ["suppliers", "buyers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
   { label: "Sales", tabs: ["sales_orders", "credit", "returns"] },
@@ -79,6 +80,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   suppliers: <Truck size={16} />,
   buyers: <UserCheck size={16} />,
   purchase_orders: <ShoppingCart size={16} />,
+  purchase_bills: <ShoppingCart size={16} />,
   raw_cloth: <Package size={16} />,
   readymade_stock: <Boxes size={16} />,
   cutting: <Scissors size={16} />,
@@ -316,6 +318,9 @@ export default function Home() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [rawClothSearch, setRawClothSearch] = useState("");
   const [readymadeSearch, setReadymadeSearch] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [addToProducts, setAddToProducts] = useState<{ item: any; salePrice: string; qty: string } | null>(null);
+  const [addingToProducts, setAddingToProducts] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => { applyDarkMode(darkMode); }, [darkMode]);
@@ -724,6 +729,20 @@ export default function Home() {
             onMutate={mutate}
           />
         )}
+        {currentTab === "purchase_bills" && (
+          <div style={{ padding: 24 }}>
+            <PurchaseBills
+              bills={data?.purchaseBills || []}
+              suppliers={data?.suppliers || []}
+              warehouses={data?.warehouseLocations || []}
+              clothCategories={data?.clothCategories || []}
+              clothColors={data?.clothColors || []}
+              itemTypes={data?.itemTypes || []}
+              isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
+              onMutate={mutate}
+            />
+          </div>
+        )}
         {currentTab === "raw_cloth" && (
           <div style={{ padding: 24 }}>
             <h2 style={{ margin: "0 0 16px" }}>Raw Cloth Batches <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({(data?.rawClothBatches || []).length})</span></h2>
@@ -779,7 +798,7 @@ export default function Home() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "var(--bg)", fontSize: 12, color: "var(--muted)", textAlign: "left" }}>
-                    {["Item Type", "Color", "Size", "Received", "Available", "Cost/pc", "Warehouse", "Date"].map(h => (
+                    {["Item Type", "Color", "Size", "Received", "Available", "Cost/pc", "Warehouse", "Date", ""].map(h => (
                       <th key={h} style={{ padding: "10px 14px", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{h}</th>
                     ))}
                   </tr>
@@ -803,16 +822,70 @@ export default function Home() {
                       <td style={{ padding: "11px 14px" }}>₹{s.costPrice}</td>
                       <td style={{ padding: "11px 14px" }}>{s.warehouse?.name}</td>
                       <td style={{ padding: "11px 14px", fontSize: 12 }}>{s.receivedDate ? new Date(s.receivedDate).toLocaleDateString("en-IN") : "—"}</td>
+                      <td style={{ padding: "11px 14px" }}>
+                        {canAddStock && s.quantityAvailable > 0 && (
+                          <button onClick={() => setAddToProducts({ item: s, salePrice: "", qty: String(s.quantityAvailable) })}
+                            style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                            → Add to Products
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {!(data?.readymadeStock?.length) && (
-                    <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
-                      No readymade stock. Click "+ Add Stock" above to add existing inventory.
+                    <tr><td colSpan={9} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
+                      No readymade stock. Click &quot;+ Add Stock&quot; above to add existing inventory.
                     </td></tr>
                   )}
                 </tbody>
               </table>
             </div>
+
+            {/* Convert readymade stock → Finished Product modal */}
+            {addToProducts && (
+              <Modal title="Add to Finished Products" subtitle={`${addToProducts.item.itemType?.name} · ${addToProducts.item.clothColor?.name || ""} · ${addToProducts.item.size || ""}`.replace(/ · $/, "").replace(/^ · /, "")}
+                onClose={() => setAddToProducts(null)} width={420}
+                footer={<div style={{ display: "flex", gap: 10 }}>
+                  <button disabled={addingToProducts || !addToProducts.salePrice || !addToProducts.qty}
+                    onClick={async () => {
+                      setAddingToProducts(true);
+                      try {
+                        await mutate(
+                          `mutation A($rsId:ID!,$itId:ID!,$wId:ID!,$qty:Int!,$cp:Float!,$sp:Float!,$col:ID,$sz:String){createFinishedProducts(readymadeStockId:$rsId,itemTypeId:$itId,warehouseId:$wId,quantity:$qty,costPrice:$cp,salePrice:$sp,clothColorId:$col,size:$sz){finishedProduct{id sku}}}`,
+                          { rsId: addToProducts.item.id, itId: addToProducts.item.itemType?.id, wId: addToProducts.item.warehouse?.id,
+                            qty: parseInt(addToProducts.qty), cp: parseFloat(addToProducts.item.costPrice),
+                            sp: parseFloat(addToProducts.salePrice), col: addToProducts.item.clothColor?.id || undefined,
+                            sz: addToProducts.item.size || undefined }
+                        );
+                        setAddToProducts(null);
+                        if (token) loadData(token);
+                      } catch (e: unknown) { alert(friendlyError(e)); }
+                      finally { setAddingToProducts(false); }
+                    }}
+                    style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
+                    {addingToProducts ? "Adding…" : "Add to Products"}
+                  </button>
+                  <button onClick={() => setAddToProducts(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+                </div>}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ background: "var(--canvas)", borderRadius: 9, padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>
+                    Cost price: <strong style={{ color: "var(--ink)" }}>₹{addToProducts.item.costPrice}</strong> · Available: <strong style={{ color: "var(--ink)" }}>{addToProducts.item.quantityAvailable} pcs</strong>
+                  </div>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>
+                    Quantity to add *
+                    <input type="number" min="1" max={addToProducts.item.quantityAvailable} value={addToProducts.qty}
+                      onChange={e => setAddToProducts(p => p ? { ...p, qty: e.target.value } : p)}
+                      style={{ padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, outline: "none" }} />
+                  </label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>
+                    Sale Price (₹) *
+                    <input type="number" min="0" step="0.01" placeholder="0.00" value={addToProducts.salePrice}
+                      onChange={e => setAddToProducts(p => p ? { ...p, salePrice: e.target.value } : p)}
+                      style={{ padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, outline: "none" }} autoFocus />
+                  </label>
+                </div>
+              </Modal>
+            )}
           </div>
         )}
         {currentTab === "cutting" && (

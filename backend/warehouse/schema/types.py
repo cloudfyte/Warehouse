@@ -15,6 +15,8 @@ from warehouse.models import (
     ItemType,
     Notification,
     OTPCode,
+    PurchaseBill,
+    PurchaseBillItem,
     PurchaseOrder,
     PurchaseOrderItem,
     RawClothBatch,
@@ -90,6 +92,48 @@ class PurchaseOrderType(DjangoObjectType):
     class Meta:
         model = PurchaseOrder
         fields = "__all__"
+
+
+class PurchaseBillItemType(DjangoObjectType):
+    total_price = graphene.Float()
+    total_meters = graphene.Float()
+    cost_per_meter = graphene.Float()
+    unit_price = graphene.Float()
+
+    class Meta:
+        model = PurchaseBillItem
+        fields = "__all__"
+
+    def resolve_total_price(self, info):
+        return float(self.total_price)
+
+    def resolve_total_meters(self, info):
+        return float(self.total_meters) if self.total_meters else None
+
+    def resolve_cost_per_meter(self, info):
+        return float(self.cost_per_meter) if self.cost_per_meter else None
+
+    def resolve_unit_price(self, info):
+        return float(self.unit_price) if self.unit_price else None
+
+
+class PurchaseBillType(DjangoObjectType):
+    total_amount = graphene.Float()
+    amount_paid = graphene.Float()
+    amount_pending = graphene.Float()
+
+    class Meta:
+        model = PurchaseBill
+        fields = "__all__"
+
+    def resolve_total_amount(self, info):
+        return float(self.total_amount)
+
+    def resolve_amount_paid(self, info):
+        return float(self.amount_paid)
+
+    def resolve_amount_pending(self, info):
+        return float(self.amount_pending)
 
 
 class RawClothBatchType(DjangoObjectType):

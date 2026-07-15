@@ -17,6 +17,7 @@ from .types import (
     FinishedProductType,
     ItemTypeType,
     NotificationType,
+    PurchaseBillType,
     PurchaseOrderType,
     RawClothBatchType,
     ReadymadeStockType,
@@ -49,6 +50,7 @@ class Query(graphene.ObjectType):
 
     # Inventory
     purchase_orders = graphene.List(PurchaseOrderType, status=graphene.String(), limit=graphene.Int())
+    purchase_bills = graphene.List(PurchaseBillType, limit=graphene.Int())
     raw_cloth_batches = graphene.List(RawClothBatchType, category_id=graphene.ID(), color_id=graphene.ID(), warehouse_id=graphene.ID())
     readymade_stock = graphene.List(ReadymadeStockType, item_type_id=graphene.ID(), warehouse_id=graphene.ID())
 
@@ -118,6 +120,10 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_purchase_orders(self, info, status=None, limit=50):
         return selectors.get_purchase_orders(info.context.user, status=status, limit=limit)
+
+    @login_required
+    def resolve_purchase_bills(self, info, limit=50):
+        return selectors.get_purchase_bills(info.context.user, limit=limit)
 
     @login_required
     def resolve_raw_cloth_batches(self, info, category_id=None, color_id=None, warehouse_id=None):

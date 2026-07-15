@@ -10,7 +10,8 @@ interface Props {
   assignments: CuttingAssignment[]; batches: RawClothBatch[]
   cuttingMasters: Employee[]; itemTypes: ItemType[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isCuttingMaster: boolean
-  onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
 }
 
 const I: React.CSSProperties = {
@@ -97,6 +98,57 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   const [update, setUpdate] = useState({ piecesCompleted: 0, clothUsed: 0, clothWasted: 0, status: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Local item type list (grows when user creates new ones inline)
+  const [localItemTypes, setLocalItemTypes] = useState<ItemType[]>(itemTypes);
+  const [newItemTypeName, setNewItemTypeName] = useState("");
+  const [addingItemType, setAddingItemType] = useState(false);
+  const [itemTypeCreating, setItemTypeCreating] = useState(false);
+
+  // Local cutting master list (grows when user creates new ones inline)
+  const [localMasters, setLocalMasters] = useState<Employee[]>(cuttingMasters);
+  const [newMasterName, setNewMasterName] = useState("");
+  const [newMasterPass, setNewMasterPass] = useState("");
+  const [addingMaster, setAddingMaster] = useState(false);
+  const [masterCreating, setMasterCreating] = useState(false);
+
+  async function createItemTypeInline() {
+    if (!newItemTypeName.trim()) return;
+    setItemTypeCreating(true);
+    try {
+      const r = await onMutate(
+        `mutation C($n:String!){createItemType(name:$n,category:"OTHER",clothLengthPerPiece:1.0){itemType{id name}}}`,
+        { n: newItemTypeName.trim() }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ) as any;
+      const created = r?.createItemType?.itemType;
+      if (created) {
+        setLocalItemTypes(p => [...p, created]);
+        setForm(p => ({ ...p, itemTypeId: created.id }));
+        setNewItemTypeName(""); setAddingItemType(false);
+      }
+    } catch (e: unknown) { setError(friendlyError(e)); }
+    finally { setItemTypeCreating(false); }
+  }
+
+  async function createMasterInline() {
+    if (!newMasterName.trim() || !newMasterPass.trim()) return;
+    setMasterCreating(true);
+    try {
+      const r = await onMutate(
+        `mutation C($u:String!,$p:String!){createEmployee(username:$u,password:$p,role:"CUTTING_MASTER"){employee{id username}}}`,
+        { u: newMasterName.trim(), p: newMasterPass.trim() }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ) as any;
+      const created = r?.createEmployee?.employee;
+      if (created) {
+        setLocalMasters(p => [...p, created]);
+        setForm(p => ({ ...p, masterId: created.id }));
+        setNewMasterName(""); setNewMasterPass(""); setAddingMaster(false);
+      }
+    } catch (e: unknown) { setError(friendlyError(e)); }
+    finally { setMasterCreating(false); }
+  }
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
@@ -188,8 +240,45 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {selField("Raw Cloth Batch *", form.batchId, v => setForm(p => ({ ...p, batchId: v })),
               batches.map(b => ({ value: b.id, label: `${b.batchNumber} — ${b.clothCategory.name} ${b.clothColor.name} (${b.availableMeters}m available)` })))}
-            {selField("Cutting Master *", form.masterId, v => setForm(p => ({ ...p, masterId: v })), cuttingMasters.map(m => ({ value: m.id, label: m.username })))}
-            {selField("Item Type *", form.itemTypeId, v => setForm(p => ({ ...p, itemTypeId: v })), itemTypes.map(t => ({ value: t.id, label: t.name })))}
+
+            {/* Cutting Master with inline create */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>Cutting Master *</span>
+              <select value={form.masterId} onChange={e => setForm(p => ({ ...p, masterId: e.target.value }))} style={I}>
+                <option value="">Select…</option>
+                {localMasters.map(m => <option key={m.id} value={m.id}>{m.username}</option>)}
+              </select>
+              {!addingMaster
+                ? <button type="button" onClick={() => setAddingMaster(true)} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}>+ Create new cutting master</button>
+                : <div style={{ background: "var(--canvas)", borderRadius: 8, padding: 12, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input placeholder="Username" value={newMasterName} onChange={e => setNewMasterName(e.target.value)} style={I} />
+                    <input placeholder="Password" type="password" value={newMasterPass} onChange={e => setNewMasterPass(e.target.value)} style={I} />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button type="button" onClick={createMasterInline} disabled={masterCreating || !newMasterName.trim() || !newMasterPass.trim()} style={{ ...BTN_PRI, flex: "none", padding: "8px 16px", fontSize: 13 }}>{masterCreating ? "Creating…" : "Create"}</button>
+                      <button type="button" onClick={() => { setAddingMaster(false); setNewMasterName(""); setNewMasterPass(""); }} style={{ ...BTN_SEC, flex: "none", padding: "8px 16px", fontSize: 13 }}>Cancel</button>
+                    </div>
+                  </div>
+              }
+            </div>
+
+            {/* Item Type with inline create */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>Item Type *</span>
+              <select value={form.itemTypeId} onChange={e => setForm(p => ({ ...p, itemTypeId: e.target.value }))} style={I}>
+                <option value="">Select…</option>
+                {localItemTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              {!addingItemType
+                ? <button type="button" onClick={() => setAddingItemType(true)} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}>+ Create new item type</button>
+                : <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input placeholder="Item type name (e.g. Shirt, Kurti…)" value={newItemTypeName} onChange={e => setNewItemTypeName(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && createItemTypeInline()} style={{ ...I, flex: 1 }} autoFocus />
+                    <button type="button" onClick={createItemTypeInline} disabled={itemTypeCreating || !newItemTypeName.trim()} style={{ ...BTN_PRI, flex: "none", padding: "10px 14px", fontSize: 13 }}>{itemTypeCreating ? "…" : "Create"}</button>
+                    <button type="button" onClick={() => { setAddingItemType(false); setNewItemTypeName(""); }} style={{ ...BTN_SEC, flex: "none", padding: "10px 14px", fontSize: 13 }}>✕</button>
+                  </div>
+              }
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <label style={LBL}>Meters Assigned *<input type="number" step="0.01" value={form.meters} placeholder="0.00" onChange={e => setForm(p => ({ ...p, meters: e.target.value }))} style={I} /></label>
               <label style={LBL}>Target Pieces *<input type="number" value={form.targetPieces} placeholder="0" onChange={e => setForm(p => ({ ...p, targetPieces: e.target.value }))} style={I} /></label>

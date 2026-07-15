@@ -9,7 +9,8 @@ import Modal from "@/app/components/atoms/Modal";
 interface Props {
   jobs: StitchingJob[]; assignments: CuttingAssignment[]; tailors: Employee[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isTailor: boolean
-  onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
 }
 
 const I: React.CSSProperties = {
@@ -107,6 +108,32 @@ export default function Stitching({ jobs, assignments, tailors, isAdmin, isSuper
   const [upd, setUpd] = useState({ status: "", piecesCompleted: 0, piecesRejected: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Local tailor list (grows when user creates new ones inline)
+  const [localTailors, setLocalTailors] = useState<Employee[]>(tailors);
+  const [newTailorName, setNewTailorName] = useState("");
+  const [newTailorPass, setNewTailorPass] = useState("");
+  const [addingTailor, setAddingTailor] = useState(false);
+  const [tailorCreating, setTailorCreating] = useState(false);
+
+  async function createTailorInline() {
+    if (!newTailorName.trim() || !newTailorPass.trim()) return;
+    setTailorCreating(true);
+    try {
+      const r = await onMutate(
+        `mutation C($u:String!,$p:String!){createEmployee(username:$u,password:$p,role:"TAILOR"){employee{id username}}}`,
+        { u: newTailorName.trim(), p: newTailorPass.trim() }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ) as any;
+      const created = r?.createEmployee?.employee;
+      if (created) {
+        setLocalTailors(p => [...p, created]);
+        setForm(p => ({ ...p, tailorId: created.id }));
+        setNewTailorName(""); setNewTailorPass(""); setAddingTailor(false);
+      }
+    } catch (e: unknown) { setError(friendlyError(e)); }
+    finally { setTailorCreating(false); }
+  }
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
@@ -117,7 +144,7 @@ export default function Stitching({ jobs, assignments, tailors, isAdmin, isSuper
     (!statusFilter || j.status === statusFilter) &&
     (!q || j.tailor.username.toLowerCase().includes(q) || j.cuttingAssignment.itemType.name.toLowerCase().includes(q))
   );
-  const readyAssignments = assignments.filter(a => a.status === "COMPLETED" && a.piecesCompleted > 0);
+  const readyAssignments = assignments.filter(a => a.piecesCompleted > 0 && a.status !== "PENDING");
 
   async function createJob() {
     setLoading(true); setError("");
@@ -185,12 +212,24 @@ export default function Stitching({ jobs, assignments, tailors, isAdmin, isSuper
                 {readyAssignments.map(a => <option key={a.id} value={a.id}>{a.assignmentNumber} — {a.itemType.name} ({a.piecesCompleted} pieces ready)</option>)}
               </select>
             </label>
-            <label style={LBL}>Tailor *
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>Tailor *</span>
               <select value={form.tailorId} onChange={e => setForm(p => ({ ...p, tailorId: e.target.value }))} style={I}>
                 <option value="">Select…</option>
-                {tailors.map(t => <option key={t.id} value={t.id}>{t.username}</option>)}
+                {localTailors.map(t => <option key={t.id} value={t.id}>{t.username}</option>)}
               </select>
-            </label>
+              {!addingTailor
+                ? <button type="button" onClick={() => setAddingTailor(true)} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}>+ Create new tailor</button>
+                : <div style={{ background: "var(--canvas)", borderRadius: 8, padding: 12, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input placeholder="Username" value={newTailorName} onChange={e => setNewTailorName(e.target.value)} style={I} autoFocus />
+                    <input placeholder="Password" type="password" value={newTailorPass} onChange={e => setNewTailorPass(e.target.value)} style={I} />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button type="button" onClick={createTailorInline} disabled={tailorCreating || !newTailorName.trim() || !newTailorPass.trim()} style={{ ...BTN_PRI, flex: "none", padding: "8px 16px", fontSize: 13 }}>{tailorCreating ? "Creating…" : "Create"}</button>
+                      <button type="button" onClick={() => { setAddingTailor(false); setNewTailorName(""); setNewTailorPass(""); }} style={{ ...BTN_SEC, flex: "none", padding: "8px 16px", fontSize: 13 }}>Cancel</button>
+                    </div>
+                  </div>
+              }
+            </div>
             <label style={LBL}>Pieces Assigned *
               <input type="number" value={form.pieces} placeholder="0" onChange={e => setForm(p => ({ ...p, pieces: e.target.value }))} style={I} />
             </label>

@@ -12,6 +12,7 @@ from .production import (
     CreateCuttingAssignment, CreateFinishedProducts,
     CreateStitchingJob, UpdateCuttingAssignment, UpdateStitchingJob,
 )
+from .purchase_bill import CreatePurchaseBill
 from .purchase_order import CreatePurchaseOrder, ReceivePurchaseOrder, UpdatePurchaseOrderStatus
 from .stock import CreateRawClothBatch, CreateReadymadeStock
 from .sales import CreateSalesOrder, RecordCreditPayment, UpdateSalesOrderStatus
@@ -55,6 +56,9 @@ class Mutation(graphene.ObjectType):
     create_purchase_order = CreatePurchaseOrder.Field()
     update_purchase_order_status = UpdatePurchaseOrderStatus.Field()
     receive_purchase_order = ReceivePurchaseOrder.Field()
+
+    # Direct purchase bills
+    create_purchase_bill = CreatePurchaseBill.Field()
 
     # Direct stock entry
     create_raw_cloth_batch = CreateRawClothBatch.Field()

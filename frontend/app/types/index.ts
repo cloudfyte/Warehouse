@@ -163,7 +163,7 @@ export interface SystemSettings extends AppSettings {
 
 export type Tab =
   | "dashboard" | "analytics" | "suppliers" | "buyers"
-  | "purchase_orders" | "raw_cloth" | "readymade_stock"
+  | "purchase_orders" | "purchase_bills" | "raw_cloth" | "readymade_stock"
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns"
   | "employees" | "warehouses" | "notifications" | "audit_log" | "settings" | "profile"

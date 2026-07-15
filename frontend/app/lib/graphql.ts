@@ -95,6 +95,16 @@ export const DASHBOARD_QUERY = `
       items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name } }
     }
+    purchaseBills(limit: 100) {
+      id billNumber billDate invoiceRef billImage totalAmount amountPaid amountPending paymentStatus notes createdAt
+      supplier { id name }
+      warehouse { id name }
+      items {
+        id itemKind totalMeters costPerMeter binLocation clothCode
+        size quantity unitPrice totalPrice notes
+        clothCategory { id name } clothColor { id name hexCode } itemType { id name }
+      }
+    }
     rawClothBatches {
       id batchNumber totalMeters availableMeters costPerMeter binLocation receivedDate
       supplier { id name }

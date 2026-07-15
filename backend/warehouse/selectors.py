@@ -13,6 +13,7 @@ from .models import (
     FinishedProduct,
     ItemType,
     Notification,
+    PurchaseBill,
     PurchaseOrder,
     RawClothBatch,
     ReadymadeStock,
@@ -116,6 +117,22 @@ def get_purchase_order(user, po_id):
         .prefetch_related("items__cloth_category", "items__cloth_color", "items__item_type")
         .get(pk=po_id, warehouse__in=accessible_warehouses(user))
     )
+
+
+# ─── purchase bills (direct walk-in purchases) ────────────────────────────────
+
+def get_purchase_bills(user, limit=50):
+    profile = get_profile(user)
+    if profile.role not in MANAGEMENT_ROLES:
+        return PurchaseBill.objects.none()
+    return (
+        PurchaseBill.objects
+        .select_related("supplier", "warehouse", "created_by")
+        .prefetch_related(
+            "items__cloth_category", "items__cloth_color", "items__item_type",
+        )
+        .filter(warehouse__in=accessible_warehouses(user))
+    )[: min(limit, 200)]
 
 
 # ─── inventory ────────────────────────────────────────────────────────────────

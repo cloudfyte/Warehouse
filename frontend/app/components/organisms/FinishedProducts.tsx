@@ -16,31 +16,54 @@ interface Props {
 function printTag(product: FinishedProduct) {
   const win = window.open("", "_blank");
   if (!win) return;
-  win.document.write(`
-    <!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
-    <style>
-      body { margin: 0; display: flex; flex-wrap: wrap; gap: 4mm; padding: 4mm; font-family: sans-serif; }
-      .tag { width: 70mm; height: 40mm; border: 1px solid #333; border-radius: 2mm; padding: 3mm; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
-      .name { font-size: 11pt; font-weight: 700; }
-      .detail { font-size: 8pt; color: #555; }
-      .prices { display: flex; justify-content: space-between; align-items: flex-end; }
-      .price { font-size: 13pt; font-weight: 700; }
-      .cost { font-size: 8pt; color: #888; text-decoration: line-through; }
-      .barcode { width: 100%; }
-      @media print { body { margin: 0; } }
-    </style></head><body>
+  const desc = [product.clothColor?.name, product.size].filter(Boolean).join(" · ");
+  const mrp = Number(product.salePrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; background: #fff; }
+    .page { display: flex; flex-wrap: wrap; gap: 6mm; padding: 6mm; }
+    .tag {
+      width: 72mm; min-height: 48mm;
+      border: 1.5px solid #222; border-radius: 3mm;
+      padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1.5mm;
+      page-break-inside: avoid;
+    }
+    .brand { font-size: 7pt; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+    .name { font-size: 13pt; font-weight: 800; line-height: 1.1; color: #111; }
+    .desc { font-size: 8pt; color: #444; }
+    .barcode-wrap { width: 100%; display: flex; justify-content: center; margin: 1mm 0; }
+    .barcode-wrap svg { max-width: 100%; height: 14mm; }
+    .barcode-text { font-family: monospace; font-size: 7pt; color: #555; text-align: center; }
+    .bottom { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding-top: 1mm; border-top: 1px solid #ddd; }
+    .mrp-label { font-size: 7pt; color: #555; font-weight: 600; }
+    .mrp { font-size: 18pt; font-weight: 900; color: #111; line-height: 1; }
+    .sku { font-size: 7pt; color: #666; font-family: monospace; text-align: right; }
+    @media print { body { margin: 0; } @page { margin: 0; } }
+  </style></head><body>
+  <div class="page">
     <div class="tag">
+      <div class="brand">Garment Tag</div>
       <div class="name">${product.itemType.name}</div>
-      <div class="detail">${[product.clothColor?.name, product.size].filter(Boolean).join(" · ")} · SKU: ${product.sku}</div>
-      ${product.barcodeSvg ? `<div class="barcode">${product.barcodeSvg}</div>` : `<div class="detail">${product.barcode}</div>`}
-      <div class="prices">
-        <span class="cost">₹${product.costPrice}</span>
-        <span class="price">₹${product.salePrice}</span>
+      ${desc ? `<div class="desc">${desc}</div>` : ""}
+      <div class="barcode-wrap">
+        ${product.barcodeSvg ? product.barcodeSvg : `<span style="font-family:monospace;font-size:9pt;">${product.barcode}</span>`}
+      </div>
+      <div class="barcode-text">${product.barcode}</div>
+      <div class="bottom">
+        <div>
+          <div class="mrp-label">MRP (incl. taxes)</div>
+          <div class="mrp">₹${mrp}</div>
+        </div>
+        <div class="sku">
+          <div>SKU</div>
+          <div>${product.sku}</div>
+        </div>
       </div>
     </div>
-    <script>window.onload=()=>{window.print();}<\/script>
-    </body></html>
-  `);
+  </div>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
   win.document.close();
 }
 

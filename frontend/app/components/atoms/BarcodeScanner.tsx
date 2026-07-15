@@ -15,11 +15,14 @@ declare global {
   }
 }
 
+// BarcodeDetector is Chrome/Android only — not available on iOS Safari
+const isCameraSupported = typeof window !== "undefined" && "BarcodeDetector" in window;
+
 export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
-  const [mode, setMode] = useState<"camera" | "manual">("camera");
+  const [mode, setMode] = useState<"camera" | "manual">(isCameraSupported ? "camera" : "manual");
   const [manual, setManual] = useState("");
   const [error, setError] = useState("");
   const [scanning, setScanning] = useState(false);
@@ -32,8 +35,7 @@ export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerPr
 
   const startCamera = useCallback(async () => {
     setError("");
-    if (!("BarcodeDetector" in window)) {
-      setError("Camera barcode scanning not supported in this browser. Use manual entry.");
+    if (!isCameraSupported) {
       setMode("manual");
       return;
     }
@@ -91,9 +93,9 @@ export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerPr
           </button>
         </div>
 
-        {/* Mode tabs */}
+        {/* Mode tabs — Camera tab hidden on unsupported browsers (iOS Safari) */}
         <div style={{ display: "flex", borderBottom: "1px solid var(--line)" }}>
-          {(["camera", "manual"] as const).map(m => (
+          {(["camera", "manual"] as const).filter(m => m !== "camera" || isCameraSupported).map(m => (
             <button key={m} onClick={() => setMode(m)}
               style={{ flex: 1, padding: "11px 0", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
                 background: mode === m ? "var(--primary)" : "transparent",
@@ -103,6 +105,11 @@ export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerPr
             </button>
           ))}
         </div>
+        {!isCameraSupported && (
+          <div style={{ padding: "8px 20px", background: "#fef9ec", borderBottom: "1px solid #fde68a", fontSize: 12, color: "#92400e" }}>
+            Camera scanning isn&apos;t supported on this device. Use manual entry below.
+          </div>
+        )}
 
         <div style={{ padding: 24 }}>
           {mode === "camera" && (
