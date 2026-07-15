@@ -1,6 +1,16 @@
 "use client";
 import { useState } from "react";
 import type { Supplier } from "@/app/types";
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div onClick={() => onChange(!checked)} style={{ width: 30, height: 17, borderRadius: 9, flexShrink: 0,
+      background: checked ? "var(--primary)" : "#bbb", position: "relative", cursor: "pointer", transition: "background 0.18s" }}>
+      <div style={{ position: "absolute", top: 2.5, left: checked ? 15 : 2.5, width: 12, height: 12,
+        borderRadius: "50%", background: "#fff", transition: "left 0.15s", boxShadow: "0 1px 3px #0004" }} />
+    </div>
+  );
+}
 import { SUPPLY_TYPE_LABELS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
 import StateCity from "@/app/components/atoms/StateCity";
@@ -122,19 +132,19 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, onMutate }
             <label style={LBL}>Phone
               <input type="tel" value={editing.phone ?? ""} onChange={e => handlePhoneChange(e.target.value)} style={I} />
             </label>
-            {/* WhatsApp with "same as phone" toggle */}
+            {/* WhatsApp with inline toggle — no extra height added to grid row */}
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
+                  <Toggle checked={waIsSameAsPhone} onChange={handleWaToggle} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)", whiteSpace: "nowrap" }}>Same as phone</span>
+                </label>
+              </div>
               <input type="tel" value={editing.whatsapp ?? ""} disabled={waIsSameAsPhone}
                 onChange={e => setEditing(p => ({ ...p, whatsapp: e.target.value }))}
-                style={{ ...I, opacity: waIsSameAsPhone ? 0.5 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text" }} />
-              <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none", marginTop: 2 }}>
-                <input type="checkbox" checked={waIsSameAsPhone} onChange={e => handleWaToggle(e.target.checked)}
-                  style={{ accentColor: "var(--primary)", width: 15, height: 15, cursor: "pointer" }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)" }}>
-                  Same as phone
-                </span>
-              </label>
+                placeholder={waIsSameAsPhone ? editing.phone ?? "" : ""}
+                style={{ ...I, opacity: waIsSameAsPhone ? 0.55 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text" }} />
             </div>
             {field("GSTIN", "gstin")}
             <StateCity
