@@ -84,6 +84,7 @@ export const DASHBOARD_QUERY = `
       totalSuppliers totalBuyers
       supplierTotalPurchased supplierTotalPaid supplierTotalPending
       creditReceived creditOverdue creditSettled
+      expensesThisMonth expensesThisYear
     }
     clothCategories { id name description active }
     clothColors { id name hexCode active }
@@ -96,6 +97,10 @@ export const DASHBOARD_QUERY = `
       warehouse { id name code }
       items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name } }
+    }
+    expenses(limit: 500) {
+      id expenseNumber category amount expenseDate description reference createdAt
+      warehouse { id name }
     }
     purchaseBills(limit: 100) {
       id billNumber billDate invoiceRef billImage totalAmount amountPaid amountPending paymentStatus notes createdAt

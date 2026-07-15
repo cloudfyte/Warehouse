@@ -26,6 +26,30 @@ export interface Buyer {
   buyerType: string; creditLimit: number; notes: string; active: boolean
 }
 
+// ─── expenses ────────────────────────────────────────────────────────────────
+
+export interface Expense {
+  id: string; expenseNumber: string; category: string; amount: number
+  expenseDate: string; description: string; reference: string
+  warehouse: WarehouseLocation; createdAt: string
+}
+
+// ─── purchase bills ──────────────────────────────────────────────────────────
+
+export interface PurchaseBillItem {
+  id: string; itemKind: string; clothCategory?: { id: string; name: string }
+  clothColor?: { id: string; name: string; hexCode: string }; itemType?: { id: string; name: string }
+  totalMeters?: number; costPerMeter?: number; size?: string; quantity?: number
+  unitPrice: number; totalPrice: number; binLocation: string; clothCode: string; notes: string
+}
+
+export interface PurchaseBill {
+  id: string; billNumber: string; supplier: Supplier; warehouse: WarehouseLocation
+  billDate: string; invoiceRef: string; billImage?: string
+  totalAmount: number; amountPaid: number; amountPending: number
+  paymentStatus: string; notes: string; items: PurchaseBillItem[]; createdAt: string
+}
+
 // ─── purchase orders ─────────────────────────────────────────────────────────
 
 export interface POItem {
@@ -146,6 +170,7 @@ export interface DashboardStats {
   supplierTotalPurchased: number; supplierTotalPaid: number; supplierTotalPending: number
   // Buyer credit breakdown
   creditReceived: number; creditOverdue: number; creditSettled: number
+  expensesThisMonth: number; expensesThisYear: number
 }
 
 // ─── app shell ────────────────────────────────────────────────────────────────
@@ -169,7 +194,7 @@ export type Tab =
   | "dashboard" | "analytics" | "suppliers" | "buyers"
   | "purchase_orders" | "purchase_bills" | "raw_cloth" | "readymade_stock"
   | "cutting" | "stitching" | "finished_products"
-  | "sales_orders" | "credit" | "returns"
+  | "sales_orders" | "credit" | "returns" | "expenses"
   | "employees" | "warehouses" | "notifications" | "audit_log" | "settings" | "profile"
 
 export interface Modal {

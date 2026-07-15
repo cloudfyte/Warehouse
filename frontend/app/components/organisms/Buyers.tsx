@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { Buyer } from "@/app/types";
+import type { Buyer, SalesOrder, CreditTransaction, BuyerReturn } from "@/app/types";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -17,9 +17,15 @@ import { friendlyError } from "@/app/lib/errors";
 import StateCity from "@/app/components/atoms/StateCity";
 import Modal from "@/app/components/atoms/Modal";
 
-interface Props { buyers: Buyer[]; isAdmin: boolean; isSuperAdmin: boolean; isManager?: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
+interface Props {
+  buyers: Buyer[]; isAdmin: boolean; isSuperAdmin: boolean; isManager?: boolean
+  salesOrders?: SalesOrder[]; creditTransactions?: CreditTransaction[]; buyerReturns?: BuyerReturn[]
+  onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
+}
 
 const BUYER_COLORS: Record<string, string> = { WHOLESALE: "#7c3aed", RETAIL: "#2563eb", EXPORT: "#059669" };
+const ORDER_STATUS_COLORS: Record<string, string> = { PENDING: "#f59e0b", PROCESSING: "#2563eb", COMPLETED: "#16a34a", CANCELLED: "#dc2626", DELIVERED: "#16a34a" };
+const CREDIT_STATUS_COLORS: Record<string, string> = { ACTIVE: "#2563eb", OVERDUE: "#dc2626", SETTLED: "#16a34a" };
 
 const I: React.CSSProperties = {
   padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
@@ -42,8 +48,125 @@ function Badge({ label, color }: { label: string; color: string }) {
   return <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: color + "18", color, border: `1px solid ${color}33` }}>{label}</span>;
 }
 
-export default function Buyers({ buyers, isAdmin, isSuperAdmin, onMutate }: Props) {
+function MiniCard({ label, value, color = "var(--primary)" }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{ background: "var(--paper)", border: "1px solid var(--line)", borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "10px 14px" }}>
+      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 17, fontWeight: 700 }}>{value}</div>
+    </div>
+  );
+}
+
+function BuyerHistory({ buyer, salesOrders, creditTransactions, buyerReturns, onClose }: {
+  buyer: Buyer; salesOrders: SalesOrder[]; creditTransactions: CreditTransaction[]
+  buyerReturns: BuyerReturn[]; onClose: () => void
+}) {
+  const orders = salesOrders.filter(o => o.buyer?.id === buyer.id);
+  const credits = creditTransactions.filter(c => c.buyer?.id === buyer.id);
+  const returns = buyerReturns.filter(r => r.buyer?.id === buyer.id);
+
+  const totalSpent = orders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+  const totalPaid = orders.reduce((s, o) => s + (o.amountPaid || 0), 0);
+  const outstanding = credits.reduce((s, c) => s + (c.amountDue || 0), 0);
+
+  return (
+    <Modal title={buyer.name} subtitle={`${buyer.contactPerson || ""} · ${buyer.phone || ""} · ${BUYER_TYPE_LABELS[buyer.buyerType] || buyer.buyerType}`} onClose={onClose} width={680}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+        <MiniCard label="Total Orders" value={`${orders.length}`} />
+        <MiniCard label="Total Billed" value={formatMoney(totalSpent)} color="#2563eb" />
+        <MiniCard label="Total Collected" value={formatMoney(totalPaid)} color="#16a34a" />
+        <MiniCard label="Outstanding" value={formatMoney(outstanding)} color={outstanding > 0 ? "#dc2626" : "#16a34a"} />
+      </div>
+
+      {orders.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Sales Orders</div>
+          <div style={{ border: "1px solid var(--line)", borderRadius: 9, overflow: "hidden", marginBottom: 18 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "var(--canvas)" }}>
+                  {["Order #", "Date", "Status", "Total", "Paid", "Due"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", fontWeight: 700, fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, textAlign: "left", borderBottom: "1px solid var(--line)" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map(o => (
+                  <tr key={o.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: "9px 12px", fontWeight: 600, fontFamily: "monospace" }}>{o.orderNumber}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--muted)" }}>{o.orderDate?.slice(0, 10)}</td>
+                    <td style={{ padding: "9px 12px" }}><Badge label={o.status} color={ORDER_STATUS_COLORS[o.status] || "#666"} /></td>
+                    <td style={{ padding: "9px 12px", fontWeight: 600 }}>{formatMoney(o.totalAmount)}</td>
+                    <td style={{ padding: "9px 12px", color: "#16a34a", fontWeight: 600 }}>{formatMoney(o.amountPaid)}</td>
+                    <td style={{ padding: "9px 12px", color: o.amountDue > 0 ? "#dc2626" : "var(--muted)", fontWeight: o.amountDue > 0 ? 700 : 400 }}>{formatMoney(o.amountDue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {credits.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Credit Accounts</div>
+          <div style={{ border: "1px solid var(--line)", borderRadius: 9, overflow: "hidden", marginBottom: 18 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "var(--canvas)" }}>
+                  {["Order", "Total", "Paid", "Due", "Due Date", "Status"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", fontWeight: 700, fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, textAlign: "left", borderBottom: "1px solid var(--line)" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {credits.map(c => (
+                  <tr key={c.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: 11 }}>{c.salesOrder?.orderNumber || "—"}</td>
+                    <td style={{ padding: "9px 12px", fontWeight: 600 }}>{formatMoney(c.totalAmount)}</td>
+                    <td style={{ padding: "9px 12px", color: "#16a34a" }}>{formatMoney(c.amountPaid)}</td>
+                    <td style={{ padding: "9px 12px", color: c.amountDue > 0 ? "#dc2626" : "var(--muted)", fontWeight: c.amountDue > 0 ? 700 : 400 }}>{formatMoney(c.amountDue)}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--muted)" }}>{c.dueDate?.slice(0, 10) || "—"}</td>
+                    <td style={{ padding: "9px 12px" }}><Badge label={c.status} color={CREDIT_STATUS_COLORS[c.status] || "#666"} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {returns.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Returns ({returns.length})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {returns.map(r => (
+              <div key={r.id} style={{ background: "var(--canvas)", borderRadius: 8, padding: "9px 13px", fontSize: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <span style={{ fontWeight: 600 }}>{r.returnNumber}</span>
+                  <span style={{ color: "var(--muted)", marginLeft: 10 }}>{r.finishedProduct?.itemType?.name}</span>
+                  <span style={{ color: "var(--muted)", marginLeft: 8 }}>× {r.quantity}</span>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "var(--muted)" }}>{r.condition}</span>
+                  <Badge label={r.status} color={r.status === "APPROVED" ? "#16a34a" : r.status === "REJECTED" ? "#dc2626" : "#f59e0b"} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {orders.length === 0 && credits.length === 0 && returns.length === 0 && (
+        <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: "40px 0" }}>No transactions yet for this buyer.</div>
+      )}
+    </Modal>
+  );
+}
+
+export default function Buyers({ buyers, isAdmin, isSuperAdmin, salesOrders = [], creditTransactions = [], buyerReturns = [], onMutate }: Props) {
   const [editing, setEditing] = useState<Partial<Buyer> | null>(null);
+  const [historyBuyer, setHistoryBuyer] = useState<Buyer | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -100,15 +223,21 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, onMutate }: Prop
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Buyers</h2>
           <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{buyers.length} buyers</p>
         </div>
-        {canEdit && (
-          <button onClick={openNew} className="primary-button">
-            + Add Buyer
-          </button>
-        )}
+        {canEdit && <button onClick={openNew} className="primary-button">+ Add Buyer</button>}
       </div>
 
       <input placeholder="Search buyers…" value={search} onChange={e => setSearch(e.target.value)}
         style={{ ...I, maxWidth: 360, marginBottom: 16 }} />
+
+      {historyBuyer && (
+        <BuyerHistory
+          buyer={historyBuyer}
+          salesOrders={salesOrders}
+          creditTransactions={creditTransactions}
+          buyerReturns={buyerReturns}
+          onClose={() => setHistoryBuyer(null)}
+        />
+      )}
 
       {editing && (
         <Modal
@@ -202,8 +331,10 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, onMutate }: Prop
             {filtered.map(b => (
               <tr key={b.id} style={{ borderBottom: "1px solid var(--panel-border)", opacity: b.active ? 1 : 0.5 }}>
                 <td style={{ padding: "13px 16px" }}>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{b.name}</div>
-                  {b.city && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{b.city}, {b.state}</div>}
+                  <button onClick={() => setHistoryBuyer(b)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--primary)", textDecoration: "underline", textDecorationStyle: "dotted" }}>{b.name}</div>
+                    {b.city && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{b.city}, {b.state}</div>}
+                  </button>
                 </td>
                 <td style={{ padding: "13px 16px" }}>
                   <div style={{ fontSize: 13 }}>{b.contactPerson}</div>

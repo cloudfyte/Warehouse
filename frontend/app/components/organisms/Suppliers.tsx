@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { Supplier } from "@/app/types";
+import type { Supplier, PurchaseBill, PurchaseOrder, SupplierReturn } from "@/app/types";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -16,7 +16,11 @@ import { friendlyError } from "@/app/lib/errors";
 import StateCity from "@/app/components/atoms/StateCity";
 import Modal from "@/app/components/atoms/Modal";
 
-interface Props { suppliers: Supplier[]; isSuperAdmin: boolean; isAdmin: boolean; isManager?: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
+interface Props {
+  suppliers: Supplier[]; isSuperAdmin: boolean; isAdmin: boolean; isManager?: boolean
+  purchaseBills?: PurchaseBill[]; purchaseOrders?: PurchaseOrder[]; supplierReturns?: SupplierReturn[]
+  onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
+}
 
 const empty = (): Partial<Supplier> => ({ name: "", contactPerson: "", email: "", phone: "", whatsapp: "", address: "", city: "", state: "", gstin: "", supplyType: "RAW_CLOTH", creditDays: 0, notes: "" });
 
@@ -43,8 +47,128 @@ function Badge({ label, color }: { label: string; color: string }) {
   return <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: color + "18", color, border: `1px solid ${color}33` }}>{label}</span>;
 }
 
-export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, onMutate }: Props) {
+function MiniCard({ label, value, color = "var(--primary)" }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{ background: "var(--paper)", border: "1px solid var(--line)", borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "10px 14px" }}>
+      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 17, fontWeight: 700 }}>{value}</div>
+    </div>
+  );
+}
+
+import { formatMoney } from "@/app/lib/formatters";
+
+const BILL_STATUS_COLORS: Record<string, string> = { PENDING: "#f59e0b", PARTIAL: "#2563eb", PAID: "#16a34a" };
+const PO_STATUS_COLORS: Record<string, string> = { DRAFT: "#94a3b8", CONFIRMED: "#2563eb", RECEIVED: "#16a34a", CANCELLED: "#dc2626", PARTIAL: "#f59e0b" };
+
+function SupplierHistory({ supplier, purchaseBills, purchaseOrders, supplierReturns, onClose }: {
+  supplier: Supplier; purchaseBills: PurchaseBill[]; purchaseOrders: PurchaseOrder[]
+  supplierReturns: SupplierReturn[]; onClose: () => void
+}) {
+  const bills = purchaseBills.filter(b => b.supplier?.id === supplier.id);
+  const orders = purchaseOrders.filter(o => o.supplier?.id === supplier.id);
+  const returns = supplierReturns.filter(r => r.supplier?.id === supplier.id);
+
+  const totalBilled = bills.reduce((s, b) => s + (b.totalAmount || 0), 0);
+  const totalPaid = bills.reduce((s, b) => s + (b.amountPaid || 0), 0);
+  const totalPending = bills.reduce((s, b) => s + (b.amountPending || 0), 0);
+
+  return (
+    <Modal title={supplier.name} subtitle={`${supplier.contactPerson || ""} · ${supplier.phone || ""} · ${SUPPLY_TYPE_LABELS[supplier.supplyType] || supplier.supplyType}`} onClose={onClose} width={680}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+        <MiniCard label="Total Bills" value={`${bills.length}`} />
+        <MiniCard label="Total Purchased" value={formatMoney(totalBilled)} color="#2563eb" />
+        <MiniCard label="Amount Paid" value={formatMoney(totalPaid)} color="#16a34a" />
+        <MiniCard label="Pending" value={formatMoney(totalPending)} color={totalPending > 0 ? "#dc2626" : "#16a34a"} />
+      </div>
+
+      {bills.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Purchase Bills</div>
+          <div style={{ border: "1px solid var(--line)", borderRadius: 9, overflow: "hidden", marginBottom: 18 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "var(--canvas)" }}>
+                  {["Bill #", "Date", "Invoice Ref", "Total", "Paid", "Pending", "Status"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", fontWeight: 700, fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, textAlign: "left", borderBottom: "1px solid var(--line)" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bills.map(b => (
+                  <tr key={b.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: "9px 12px", fontWeight: 600, fontFamily: "monospace" }}>{b.billNumber}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--muted)" }}>{b.billDate?.slice(0, 10)}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--muted)", fontSize: 11 }}>{b.invoiceRef || "—"}</td>
+                    <td style={{ padding: "9px 12px", fontWeight: 600 }}>{formatMoney(b.totalAmount)}</td>
+                    <td style={{ padding: "9px 12px", color: "#16a34a" }}>{formatMoney(b.amountPaid)}</td>
+                    <td style={{ padding: "9px 12px", color: b.amountPending > 0 ? "#dc2626" : "var(--muted)", fontWeight: b.amountPending > 0 ? 700 : 400 }}>{formatMoney(b.amountPending)}</td>
+                    <td style={{ padding: "9px 12px" }}><Badge label={b.paymentStatus} color={BILL_STATUS_COLORS[b.paymentStatus] || "#666"} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {orders.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Purchase Orders</div>
+          <div style={{ border: "1px solid var(--line)", borderRadius: 9, overflow: "hidden", marginBottom: 18 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: "var(--canvas)" }}>
+                  {["PO #", "Date", "Type", "Total", "Status"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", fontWeight: 700, fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, textAlign: "left", borderBottom: "1px solid var(--line)" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map(o => (
+                  <tr key={o.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: "9px 12px", fontWeight: 600, fontFamily: "monospace" }}>{o.poNumber}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--muted)" }}>{o.orderDate?.slice(0, 10)}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--muted)" }}>{o.orderType}</td>
+                    <td style={{ padding: "9px 12px", fontWeight: 600 }}>{formatMoney(o.totalAmount)}</td>
+                    <td style={{ padding: "9px 12px" }}><Badge label={o.status} color={PO_STATUS_COLORS[o.status] || "#666"} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {returns.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Returns ({returns.length})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {returns.map(r => (
+              <div key={r.id} style={{ background: "var(--canvas)", borderRadius: 8, padding: "9px 13px", fontSize: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <span style={{ fontWeight: 600 }}>{r.returnNumber}</span>
+                  <span style={{ color: "var(--muted)", marginLeft: 10 }}>{r.returnKind}</span>
+                  {r.metersReturned ? <span style={{ color: "var(--muted)", marginLeft: 8 }}>{r.metersReturned}m</span> : null}
+                  {r.quantityReturned ? <span style={{ color: "var(--muted)", marginLeft: 8 }}>× {r.quantityReturned}</span> : null}
+                </div>
+                <Badge label={r.status} color={r.status === "APPROVED" ? "#16a34a" : r.status === "REJECTED" ? "#dc2626" : "#f59e0b"} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {bills.length === 0 && orders.length === 0 && returns.length === 0 && (
+        <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: "40px 0" }}>No transactions yet for this supplier.</div>
+      )}
+    </Modal>
+  );
+}
+
+export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, purchaseBills = [], purchaseOrders = [], supplierReturns = [], onMutate }: Props) {
   const [editing, setEditing] = useState<Partial<Supplier> | null>(null);
+  const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -109,6 +233,16 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, onMutate }
 
       <input placeholder="Search suppliers…" value={search} onChange={e => setSearch(e.target.value)}
         style={{ ...I, maxWidth: 360, marginBottom: 16 }} />
+
+      {historySupplier && (
+        <SupplierHistory
+          supplier={historySupplier}
+          purchaseBills={purchaseBills}
+          purchaseOrders={purchaseOrders}
+          supplierReturns={supplierReturns}
+          onClose={() => setHistorySupplier(null)}
+        />
+      )}
 
       {editing && (
         <Modal
@@ -207,8 +341,10 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, onMutate }
             {filtered.map(s => (
               <tr key={s.id} style={{ borderBottom: "1px solid var(--panel-border)", opacity: s.active ? 1 : 0.5 }}>
                 <td style={{ padding: "13px 16px" }}>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
-                  {s.city && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{s.city}, {s.state}</div>}
+                  <button onClick={() => setHistorySupplier(s)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--primary)", textDecoration: "underline", textDecorationStyle: "dotted" }}>{s.name}</div>
+                    {s.city && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{s.city}, {s.state}</div>}
+                  </button>
                 </td>
                 <td style={{ padding: "13px 16px" }}>
                   <div style={{ fontSize: 13 }}>{s.contactPerson}</div>

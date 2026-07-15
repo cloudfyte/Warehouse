@@ -12,6 +12,7 @@ from .production import (
     CreateCuttingAssignment, CreateFinishedProducts,
     CreateStitchingJob, UpdateCuttingAssignment, UpdateStitchingJob,
 )
+from .expense import CreateExpense, UpdateExpense, DeleteExpense
 from .purchase_bill import CreatePurchaseBill
 from .purchase_order import CreatePurchaseOrder, ReceivePurchaseOrder, UpdatePurchaseOrderStatus
 from .stock import CreateRawClothBatch, CreateReadymadeStock
@@ -79,6 +80,11 @@ class Mutation(graphene.ObjectType):
     # FCM push tokens
     save_fcm_token = SaveFcmToken.Field()
     delete_fcm_token = DeleteFcmToken.Field()
+
+    # Expenses
+    create_expense = CreateExpense.Field()
+    update_expense = UpdateExpense.Field()
+    delete_expense = DeleteExpense.Field()
 
     # Misc
     mark_notifications_read = MarkNotificationsRead.Field()

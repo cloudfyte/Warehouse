@@ -31,6 +31,8 @@ import Analytics from "@/app/components/organisms/Analytics";
 import Settings from "@/app/components/organisms/Settings";
 import Profile from "@/app/components/organisms/Profile";
 import AuditLogs from "@/app/components/organisms/AuditLogs";
+import Expenses from "@/app/components/organisms/Expenses";
+import QuickSearch from "@/app/components/organisms/QuickSearch";
 
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
 import Modal from "@/app/components/atoms/Modal";
@@ -44,7 +46,7 @@ import type { AppSettings, Tab } from "@/app/types";
 const ALL_TABS: Tab[] = [
   "dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills",
   "raw_cloth", "readymade_stock", "cutting", "stitching",
-  "finished_products", "sales_orders", "credit", "returns",
+  "finished_products", "sales_orders", "credit", "returns", "expenses",
   "employees", "warehouses", "notifications", "audit_log", "settings", "profile",
 ];
 
@@ -70,6 +72,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
   { label: "Sales", tabs: ["sales_orders", "credit", "returns"] },
+  { label: "Finance", tabs: ["expenses"] },
   { label: "Admin", tabs: ["employees", "warehouses"] },
   { label: "System", tabs: ["notifications", "audit_log", "settings"] },
 ];
@@ -89,6 +92,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   sales_orders: <Receipt size={16} />,
   credit: <Landmark size={16} />,
   returns: <RefreshCcw size={16} />,
+  expenses: <Receipt size={16} />,
   employees: <Users size={16} />,
   warehouses: <Warehouse size={16} />,
   notifications: <Bell size={16} />,
@@ -322,8 +326,18 @@ export default function Home() {
   const [addToProducts, setAddToProducts] = useState<{ item: any; salePrice: string; qty: string } | null>(null);
   const [addingToProducts, setAddingToProducts] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => { applyDarkMode(darkMode); }, [darkMode]);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "/" && !showSearch && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+        e.preventDefault(); setShowSearch(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSearch]);
   useEffect(() => {
     if (data?.systemSettings) applyBrandColors(data.systemSettings);
   }, [data?.systemSettings]);
@@ -674,7 +688,16 @@ export default function Home() {
             )}
             <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{TAB_TITLES[currentTab]}</h1>
           </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
+            {token && (
+              <button
+                onClick={() => setShowSearch(true)}
+                title="Quick Search (press /)"
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--muted)", cursor: "pointer", fontSize: 13 }}>
+                🔍 <span style={{ fontSize: 12 }}>Search</span>
+                <kbd style={{ fontSize: 9, background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 3, padding: "1px 4px", marginLeft: 2 }}>/</kbd>
+              </button>
+            )}
             {currentTab === "raw_cloth" && canAddStock && (
               <button onClick={() => setDirectEntry("raw_cloth")}
                 style={{ padding: "7px 16px", borderRadius: 7, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
@@ -704,18 +727,30 @@ export default function Home() {
           />
         )}
 
+        {/* ── Quick Search ── */}
+        {showSearch && (
+          <QuickSearch
+            finishedProducts={data?.finishedProducts || []}
+            suppliers={data?.suppliers || []}
+            buyers={data?.buyers || []}
+            rawBatches={data?.rawClothBatches || []}
+            onNavigate={t => setTab(t)}
+            onClose={() => setShowSearch(false)}
+          />
+        )}
+
         {/* ── Tab content ── */}
         {currentTab === "analytics" && (
           <Analytics gql={(q) => graphql(q, {}, token!)} />
         )}
         {currentTab === "dashboard" && (
-          <Dashboard stats={data?.dashboardStats} profile={data?.employeeProfile} rawBatches={data?.rawClothBatches || []} readymadeStock={data?.readymadeStock || []} role={role} cuttingAssignments={data?.cuttingAssignments || []} stitchingJobs={data?.stitchingJobs || []} />
+          <Dashboard stats={data?.dashboardStats} profile={data?.employeeProfile} rawBatches={data?.rawClothBatches || []} readymadeStock={data?.readymadeStock || []} role={role} cuttingAssignments={data?.cuttingAssignments || []} stitchingJobs={data?.stitchingJobs || []} onNavigate={t => setTab(t)} />
         )}
         {currentTab === "suppliers" && (
-          <Suppliers suppliers={data?.suppliers || []} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} onMutate={mutate} />
+          <Suppliers suppliers={data?.suppliers || []} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} purchaseBills={data?.purchaseBills || []} purchaseOrders={data?.purchaseOrders || []} supplierReturns={data?.supplierReturns || []} onMutate={mutate} />
         )}
         {currentTab === "buyers" && (
-          <Buyers buyers={data?.buyers || []} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} onMutate={mutate} />
+          <Buyers buyers={data?.buyers || []} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} salesOrders={data?.salesOrders || []} creditTransactions={data?.creditTransactions || []} buyerReturns={data?.buyerReturns || []} onMutate={mutate} />
         )}
         {currentTab === "purchase_orders" && (
           <PurchaseOrders
@@ -930,6 +965,14 @@ export default function Home() {
         )}
         {currentTab === "returns" && (
           <Returns buyerReturns={data?.buyerReturns || []} supplierReturns={data?.supplierReturns || []} />
+        )}
+        {currentTab === "expenses" && (
+          <Expenses
+            expenses={data?.expenses || []}
+            warehouses={data?.warehouseLocations || []}
+            isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager}
+            onMutate={mutate}
+          />
         )}
         {currentTab === "employees" && (
           <Employees

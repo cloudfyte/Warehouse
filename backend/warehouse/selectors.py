@@ -17,6 +17,7 @@ from .models import (
     PurchaseOrder,
     RawClothBatch,
     ReadymadeStock,
+    Expense,
     SalesOrder,
     SalesOrderItem,
     StitchingJob,
@@ -321,6 +322,11 @@ def get_dashboard_stats(user):
         credit.filter(status="SETTLED").aggregate(t=Sum("total_amount"))["t"] or 0
     )
 
+    # Expense totals
+    expenses = Expense.objects.filter(warehouse__in=warehouses)
+    expenses_month = float(expenses.filter(expense_date__gte=month_start).aggregate(t=Sum("amount"))["t"] or 0)
+    expenses_year  = float(expenses.filter(expense_date__gte=year_start).aggregate(t=Sum("amount"))["t"] or 0)
+
     return DashboardStats(
         total_raw_meters=float(total_raw_meters),
         total_finished_pieces=total_finished_pieces,
@@ -343,6 +349,8 @@ def get_dashboard_stats(user):
         credit_received=credit_received,
         credit_overdue=credit_overdue,
         credit_settled=credit_settled,
+        expenses_this_month=expenses_month,
+        expenses_this_year=expenses_year,
     )
 
 
@@ -356,6 +364,15 @@ def get_supplier_returns(user):
     return SupplierReturn.objects.select_related(
         "supplier", "raw_cloth_batch", "readymade_stock", "warehouse"
     ).order_by("-created_at")
+
+
+def get_expenses(user, limit=200):
+    warehouses = accessible_warehouses(user)
+    return (
+        Expense.objects.filter(warehouse__in=warehouses)
+        .select_related("warehouse", "created_by")
+        .order_by("-expense_date", "-created_at")[:limit]
+    )
 
 
 # ─── notifications ────────────────────────────────────────────────────────────

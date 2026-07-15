@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { formatMoney, formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
+import { downloadCsv } from "@/app/lib/csv";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -245,11 +246,17 @@ export default function PurchaseBills({
           <div style={{ fontWeight: 700, fontSize: 18 }}>Purchase Bills</div>
           <div style={{ fontSize: 13, color: "var(--muted)" }}>Direct supplier purchases — items go to stock immediately</div>
         </div>
-        {canCreate && (
-          <button onClick={() => { setShowForm(true); setErr(""); }} style={BTN()}>
-            + Record Purchase
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => downloadCsv(`purchase-bills-${new Date().toISOString().slice(0,10)}.csv`, bills.map(b => ({ "Bill #": b.billNumber, Date: b.billDate?.slice(0,10), Supplier: b.supplier?.name, Warehouse: b.warehouse?.name, "Invoice Ref": b.invoiceRef, Total: b.totalAmount, Paid: b.amountPaid, Pending: b.amountPending, Status: b.paymentStatus })))}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+            ↓ Export CSV
           </button>
-        )}
+          {canCreate && (
+            <button onClick={() => { setShowForm(true); setErr(""); }} style={BTN()}>
+              + Record Purchase
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Bills list */}

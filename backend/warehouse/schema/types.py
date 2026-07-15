@@ -4,6 +4,7 @@ from graphene_django import DjangoObjectType
 from warehouse.models import (
     AuditLog,
     Buyer,
+    Expense,
     BuyerReturn,
     ClothCategory,
     ClothColor,
@@ -258,6 +259,17 @@ class AnalyticsStats(graphene.ObjectType):
     top_buyers = graphene.List(TopBuyerStat)
 
 
+class ExpenseType(DjangoObjectType):
+    amount = graphene.Float()
+
+    class Meta:
+        model = Expense
+        fields = "__all__"
+
+    def resolve_amount(self, info):
+        return float(self.amount)
+
+
 class SystemSettingsType(DjangoObjectType):
     class Meta:
         model = SystemSettings
@@ -286,3 +298,6 @@ class DashboardStats(graphene.ObjectType):
     credit_received = graphene.Float()
     credit_overdue = graphene.Float()
     credit_settled = graphene.Float()
+    # Expenses
+    expenses_this_month = graphene.Float()
+    expenses_this_year = graphene.Float()

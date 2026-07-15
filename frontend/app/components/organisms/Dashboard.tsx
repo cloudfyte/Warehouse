@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { X } from "lucide-react";
-import type { DashboardStats, Employee } from "@/app/types";
+import type { DashboardStats, Employee, Tab } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 
 interface RawBatch { id: string; batchNumber: string; availableMeters: number; clothCategory: { name: string }; clothColor: { name: string; hexCode?: string }; warehouse: { name: string } }
@@ -54,13 +54,64 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
   );
 }
 
+const FLOW_STEPS: { tab: Tab; icon: string; label: string; getValue: (s: DashboardStats) => string; getAlert?: (s: DashboardStats) => boolean }[] = [
+  { tab: "suppliers",        icon: "🏭", label: "Suppliers",    getValue: s => `${s.totalSuppliers ?? 0} vendors` },
+  { tab: "purchase_bills",   icon: "🧾", label: "Purchase",     getValue: s => formatMoney(s.supplierTotalPurchased ?? 0), getAlert: s => (s.supplierTotalPending ?? 0) > 0 },
+  { tab: "raw_cloth",        icon: "🧵", label: "Raw Cloth",    getValue: s => `${(s.totalRawMeters ?? 0).toFixed(0)} m` },
+  { tab: "cutting",          icon: "✂️", label: "Cutting",      getValue: s => `${s.cuttingInProgress ?? 0} active`,     getAlert: s => (s.cuttingInProgress ?? 0) > 0 },
+  { tab: "stitching",        icon: "🪡", label: "Stitching",    getValue: s => `${s.stitchingInProgress ?? 0} active`,   getAlert: s => (s.stitchingInProgress ?? 0) > 0 },
+  { tab: "finished_products",icon: "👕", label: "Finished",     getValue: s => `${s.totalFinishedPieces ?? 0} pcs` },
+  { tab: "sales_orders",     icon: "🛍️", label: "Sales",        getValue: s => `${s.activeSalesOrders ?? 0} orders`,     getAlert: s => (s.activeSalesOrders ?? 0) > 0 },
+  { tab: "credit",           icon: "💰", label: "Payments",     getValue: s => formatMoney(s.creditOutstanding ?? 0),    getAlert: s => (s.creditOutstanding ?? 0) > 0 },
+];
+
+function WorkflowGuide({ stats, onNavigate }: { stats: DashboardStats; onNavigate?: (tab: Tab) => void }) {
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <SectionLabel>Production Pipeline</SectionLabel>
+      <div style={{ overflowX: "auto", paddingBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, minWidth: "max-content" }}>
+          {FLOW_STEPS.map((step, i) => {
+            const val = stats ? step.getValue(stats) : "—";
+            const alert = stats && step.getAlert ? step.getAlert(stats) : false;
+            return (
+              <div key={step.tab} style={{ display: "flex", alignItems: "center" }}>
+                <button
+                  onClick={() => onNavigate?.(step.tab)}
+                  style={{
+                    display: "flex", flexDirection: "column", alignItems: "center",
+                    background: "var(--paper)", border: `1.5px solid ${alert ? "#f59e0b66" : "var(--line)"}`,
+                    borderRadius: 10, padding: "10px 14px", cursor: "pointer",
+                    minWidth: 88, transition: "box-shadow 0.15s, border-color 0.15s",
+                    gap: 3,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,0.10)")}
+                  onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
+                >
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>{step.icon}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: alert ? "#b45309" : "var(--ink)", marginTop: 4, whiteSpace: "nowrap" }}>{val}</span>
+                  <span style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>{step.label}</span>
+                </button>
+                {i < FLOW_STEPS.length - 1 && (
+                  <span style={{ fontSize: 14, color: "var(--muted)", padding: "0 5px", flexShrink: 0 }}>→</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard({
   stats, profile, rawBatches = [], readymadeStock = [], role = "STORE_KEEPER",
-  cuttingAssignments = [], stitchingJobs = [],
+  cuttingAssignments = [], stitchingJobs = [], onNavigate,
 }: {
   stats?: DashboardStats; profile?: Employee; role?: string;
   rawBatches?: RawBatch[]; readymadeStock?: ReadymadeItem[];
   cuttingAssignments?: CuttingJob[]; stitchingJobs?: StitchingJob[];
+  onNavigate?: (tab: Tab) => void;
 }) {
   const [alertsDismissed, setAlertsDismissed] = useState(false);
 
@@ -213,6 +264,7 @@ export default function Dashboard({
       {/* ─── MANAGER / ADMIN / SUPER_ADMIN / AUDITOR view ───────────── */}
       {showFullStats && (
         <>
+          <WorkflowGuide stats={stats} onNavigate={onNavigate} />
           {totalAlerts > 0 && !alertsDismissed && (
             <div style={{ marginBottom: 28 }}>
               <div style={{ marginBottom: 10, fontSize: 11, fontWeight: 700, color: "#b45309", textTransform: "uppercase", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6 }}>
@@ -276,6 +328,12 @@ export default function Dashboard({
                   color={(stats.supplierTotalPending ?? 0) > 0 ? "#e65100" : "#2e7d32"}
                   sub={(stats.supplierTotalPending ?? 0) > 0 ? "Amount still owed" : "All settled"}
                 />
+              </div>
+
+              <SectionLabel>Expenses</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
+                <StatCard label="Expenses This Month" value={formatMoney(stats.expensesThisMonth ?? 0)} color="#dc2626" />
+                <StatCard label="Expenses This Year" value={formatMoney(stats.expensesThisYear ?? 0)} color="#b91c1c" />
               </div>
 
               <SectionLabel>Buyer Credit & Payments</SectionLabel>

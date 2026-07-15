@@ -709,6 +709,40 @@ class SupplierReturn(models.Model):
         return f"{self.return_number} — {self.supplier.name}"
 
 
+# ─── expenses ─────────────────────────────────────────────────────────────────
+
+class Expense(models.Model):
+    class Category(models.TextChoices):
+        UTILITIES    = "UTILITIES",    "Utilities (Electricity / Water)"
+        RENT         = "RENT",         "Rent"
+        MAINTENANCE  = "MAINTENANCE",  "Machine / Equipment Maintenance"
+        TRANSPORT    = "TRANSPORT",    "Transport / Delivery"
+        PACKAGING    = "PACKAGING",    "Packaging Material"
+        LABOR        = "LABOR",        "Contract Labour"
+        OTHER        = "OTHER",        "Other"
+
+    expense_number = models.CharField(max_length=40, unique=True, editable=False)
+    category    = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
+    amount      = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    expense_date = models.DateField()
+    description = models.TextField()
+    reference   = models.CharField(max_length=100, blank=True, help_text="Bill no / voucher / receipt ref")
+    warehouse   = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="expenses")
+    created_by  = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="expenses_created")
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-expense_date", "-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.expense_number:
+            self.expense_number = _serial("EXP", Expense)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.expense_number} — {self.get_category_display()} ₹{self.amount}"
+
+
 class FCMToken(models.Model):
     """Firebase Cloud Messaging registration token for browser push notifications."""
     user = models.ForeignKey(
