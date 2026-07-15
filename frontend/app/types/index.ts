@@ -142,6 +142,10 @@ export interface DashboardStats {
   inhousePieces: number; activePurchaseOrders: number; activeSalesOrders: number
   cuttingInProgress: number; stitchingInProgress: number; creditOutstanding: number
   revenueThisMonth: number; revenueThisYear: number; totalSuppliers: number; totalBuyers: number
+  // Supplier payment summary
+  supplierTotalPurchased: number; supplierTotalPaid: number; supplierTotalPending: number
+  // Buyer credit breakdown
+  creditReceived: number; creditOverdue: number; creditSettled: number
 }
 
 // ─── app shell ────────────────────────────────────────────────────────────────

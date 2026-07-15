@@ -275,6 +275,7 @@ def get_dashboard_stats(user):
     credit = CreditTransaction.objects.filter(sales_order__warehouse__in=warehouses)
     cutting = CuttingAssignment.objects.filter(raw_cloth_batch__warehouse__in=warehouses)
     stitching = StitchingJob.objects.filter(cutting_assignment__raw_cloth_batch__warehouse__in=warehouses)
+    bills = PurchaseBill.objects.filter(warehouse__in=warehouses)
 
     today = timezone.now().date()
     month_start = today.replace(day=1)
@@ -302,6 +303,24 @@ def get_dashboard_stats(user):
         .aggregate(t=Sum("amount_due"))["t"] or 0
     )
 
+    # Supplier payment stats (purchase bills)
+    bill_agg = bills.aggregate(
+        total=Sum("total_amount"),
+        paid=Sum("amount_paid"),
+    )
+    supplier_total = float(bill_agg["total"] or 0)
+    supplier_paid = float(bill_agg["paid"] or 0)
+    supplier_pending = supplier_total - supplier_paid
+
+    # Buyer credit breakdown
+    credit_received = float(credit.aggregate(t=Sum("amount_paid"))["t"] or 0)
+    credit_overdue = float(
+        credit.filter(status="OVERDUE").aggregate(t=Sum("amount_due"))["t"] or 0
+    )
+    credit_settled = float(
+        credit.filter(status="SETTLED").aggregate(t=Sum("total_amount"))["t"] or 0
+    )
+
     return DashboardStats(
         total_raw_meters=float(total_raw_meters),
         total_finished_pieces=total_finished_pieces,
@@ -318,6 +337,12 @@ def get_dashboard_stats(user):
         revenue_this_year=float(revenue_year),
         total_suppliers=Supplier.objects.filter(active=True).count(),
         total_buyers=Buyer.objects.filter(active=True).count(),
+        supplier_total_purchased=supplier_total,
+        supplier_total_paid=supplier_paid,
+        supplier_total_pending=supplier_pending,
+        credit_received=credit_received,
+        credit_overdue=credit_overdue,
+        credit_settled=credit_settled,
     )
 
 

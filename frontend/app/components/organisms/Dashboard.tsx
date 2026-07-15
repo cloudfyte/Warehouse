@@ -252,11 +252,58 @@ export default function Dashboard({
 
           {!isAuditor && (
             <>
-              <SectionLabel>Revenue & Credit</SectionLabel>
+              <SectionLabel>Revenue</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
+                <StatCard label="Revenue This Month" value={`₹${formatMoney(stats.revenueThisMonth ?? 0)}`} color="var(--accent)" />
+                <StatCard label="Revenue This Year" value={`₹${formatMoney(stats.revenueThisYear ?? 0)}`} color="var(--accent)" />
+              </div>
+
+              <SectionLabel>Supplier Payments (Purchase Bills)</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
+                <StatCard
+                  label="Total Purchased"
+                  value={`₹${formatMoney(stats.supplierTotalPurchased ?? 0)}`}
+                  color="var(--ink)"
+                />
+                <StatCard
+                  label="Paid to Suppliers"
+                  value={`₹${formatMoney(stats.supplierTotalPaid ?? 0)}`}
+                  color="#2e7d32"
+                />
+                <StatCard
+                  label="Pending to Suppliers"
+                  value={`₹${formatMoney(stats.supplierTotalPending ?? 0)}`}
+                  color={(stats.supplierTotalPending ?? 0) > 0 ? "#e65100" : "#2e7d32"}
+                  sub={(stats.supplierTotalPending ?? 0) > 0 ? "Amount still owed" : "All settled"}
+                />
+              </div>
+
+              <SectionLabel>Buyer Credit & Payments</SectionLabel>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
-                <StatCard label="Revenue This Month" value={formatMoney(stats.revenueThisMonth ?? 0)} color="var(--accent)" />
-                <StatCard label="Revenue This Year" value={formatMoney(stats.revenueThisYear ?? 0)} color="var(--accent)" />
-                <StatCard label="Credit Outstanding" value={formatMoney(stats.creditOutstanding ?? 0)} color={(stats.creditOutstanding ?? 0) > 0 ? "#f44336" : "#4caf50"} />
+                <StatCard
+                  label="Outstanding (Unpaid)"
+                  value={`₹${formatMoney(stats.creditOutstanding ?? 0)}`}
+                  color={(stats.creditOutstanding ?? 0) > 0 ? "#f44336" : "#4caf50"}
+                  sub="Pending from buyers"
+                />
+                <StatCard
+                  label="Received from Buyers"
+                  value={`₹${formatMoney(stats.creditReceived ?? 0)}`}
+                  color="#1565c0"
+                  sub="Paid on credit accounts"
+                />
+                <StatCard
+                  label="Overdue"
+                  value={`₹${formatMoney(stats.creditOverdue ?? 0)}`}
+                  color={(stats.creditOverdue ?? 0) > 0 ? "#b71c1c" : "#4caf50"}
+                  sub="Past due date"
+                />
+                <StatCard
+                  label="Fully Settled"
+                  value={`₹${formatMoney(stats.creditSettled ?? 0)}`}
+                  color="#2e7d32"
+                  sub="Closed credit accounts"
+                />
               </div>
             </>
           )}

@@ -82,6 +82,8 @@ export const DASHBOARD_QUERY = `
       cuttingInProgress stitchingInProgress
       creditOutstanding revenueThisMonth revenueThisYear
       totalSuppliers totalBuyers
+      supplierTotalPurchased supplierTotalPaid supplierTotalPending
+      creditReceived creditOverdue creditSettled
     }
     clothCategories { id name description active }
     clothColors { id name hexCode active }

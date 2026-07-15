@@ -278,3 +278,11 @@ class DashboardStats(graphene.ObjectType):
     revenue_this_year = graphene.Float()
     total_suppliers = graphene.Int()
     total_buyers = graphene.Int()
+    # Supplier payment summary (via Purchase Bills)
+    supplier_total_purchased = graphene.Float()
+    supplier_total_paid = graphene.Float()
+    supplier_total_pending = graphene.Float()
+    # Buyer credit breakdown
+    credit_received = graphene.Float()
+    credit_overdue = graphene.Float()
+    credit_settled = graphene.Float()
