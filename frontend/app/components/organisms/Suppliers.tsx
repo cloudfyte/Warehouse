@@ -118,21 +118,23 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, onMutate }
             {field("Company Name *", "name")}
             {field("Contact Person", "contactPerson")}
             {field("Email", "email", "email")}
-            {/* Phone with WhatsApp-same-as-phone toggle */}
+            {/* Phone */}
             <label style={LBL}>Phone
               <input type="tel" value={editing.phone ?? ""} onChange={e => handlePhoneChange(e.target.value)} style={I} />
             </label>
+            {/* WhatsApp with "same as phone" toggle */}
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
-                <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", userSelect: "none" }}>
-                  <input type="checkbox" checked={waIsSameAsPhone} onChange={e => handleWaToggle(e.target.checked)} style={{ accentColor: "var(--primary)", width: 13, height: 13, cursor: "pointer" }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)" }}>Same as phone</span>
-                </label>
-              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
               <input type="tel" value={editing.whatsapp ?? ""} disabled={waIsSameAsPhone}
                 onChange={e => setEditing(p => ({ ...p, whatsapp: e.target.value }))}
                 style={{ ...I, opacity: waIsSameAsPhone ? 0.5 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text" }} />
+              <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none", marginTop: 2 }}>
+                <input type="checkbox" checked={waIsSameAsPhone} onChange={e => handleWaToggle(e.target.checked)}
+                  style={{ accentColor: "var(--primary)", width: 15, height: 15, cursor: "pointer" }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)" }}>
+                  Same as phone
+                </span>
+              </label>
             </div>
             {field("GSTIN", "gstin")}
             <StateCity
@@ -163,9 +165,23 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, onMutate }
             <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, color: (editing.notes?.length ?? 0) > 170 ? "#e07" : "var(--muted)", pointerEvents: "none" }}>{editing.notes?.length ?? 0}/200</span>
           </div>
           {!isNew && (
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 14, cursor: "pointer" }}>
-              <input type="checkbox" checked={editing.active ?? true} onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))} />
-              <span>Active supplier</span>
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10, marginTop: 16,
+              padding: "10px 14px", borderRadius: 9, border: "1px solid var(--line)",
+              background: (editing.active ?? true) ? "#f0fdf4" : "#fff8f8",
+              cursor: "pointer", userSelect: "none",
+            }}>
+              <input type="checkbox" checked={editing.active ?? true}
+                onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))}
+                style={{ accentColor: "var(--primary)", width: 16, height: 16, cursor: "pointer" }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: (editing.active ?? true) ? "#166534" : "#991b1b" }}>
+                  {(editing.active ?? true) ? "Active supplier" : "Inactive supplier"}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>
+                  {(editing.active ?? true) ? "Supplier is available for purchase orders and bills" : "Supplier will be hidden from selection lists"}
+                </div>
+              </div>
             </label>
           )}
         </Modal>
