@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import { formatMoney, formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import SizeSelect from "@/app/components/atoms/SizeSelect";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -608,8 +609,7 @@ function ItemEditor({
             </select>
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Size</label>
-            <input value={item.size} onChange={e => onChange({ size: e.target.value })} placeholder="e.g. M, L, XL, 40" style={FIELD} />
+            <SizeSelect value={item.size} onChange={v => onChange({ size: v })} label="Size" />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Quantity *</label>

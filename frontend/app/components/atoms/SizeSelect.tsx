@@ -1,7 +1,10 @@
 "use client";
 import { useState } from "react";
 
-const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Free Size"];
+const ALPHA_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Free Size"];
+const NUMERIC_SIZES = ["28", "30", "32", "34", "36", "38", "40", "42", "44", "46", "48", "50"];
+
+const ALL_STANDARD = [...ALPHA_SIZES, ...NUMERIC_SIZES];
 
 const I: React.CSSProperties = {
   padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
@@ -11,20 +14,16 @@ const I: React.CSSProperties = {
 interface Props {
   value: string;
   onChange: (v: string) => void;
-  /** Extra known sizes (e.g. from DB records) that aren't in the standard list */
   extraOptions?: string[];
   label?: string;
   required?: boolean;
 }
 
 export default function SizeSelect({ value, onChange, extraOptions = [], label = "Size", required }: Props) {
-  const isCustom = value !== "" && !STANDARD_SIZES.includes(value) && !extraOptions.includes(value);
+  const isCustom = value !== "" && !ALL_STANDARD.includes(value) && !extraOptions.includes(value);
   const [custom, setCustom] = useState(isCustom ? value : "");
 
-  const allOptions = [
-    ...STANDARD_SIZES,
-    ...extraOptions.filter(e => !STANDARD_SIZES.includes(e)),
-  ];
+  const extraFiltered = extraOptions.filter(e => !ALL_STANDARD.includes(e));
 
   function handleSelect(v: string) {
     if (v === "__custom__") {
@@ -42,14 +41,24 @@ export default function SizeSelect({ value, onChange, extraOptions = [], label =
       {label}{required && " *"}
       <select value={selectValue} onChange={e => handleSelect(e.target.value)} style={I}>
         <option value="">— Select size —</option>
-        {allOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        <optgroup label="Clothing sizes">
+          {ALPHA_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+        </optgroup>
+        <optgroup label="Numeric sizes (waist / trouser)">
+          {NUMERIC_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+        </optgroup>
+        {extraFiltered.length > 0 && (
+          <optgroup label="Other">
+            {extraFiltered.map(s => <option key={s} value={s}>{s}</option>)}
+          </optgroup>
+        )}
         <option value="__custom__">Custom…</option>
       </select>
       {(selectValue === "__custom__" || isCustom) && (
         <input
           value={custom}
           onChange={e => { setCustom(e.target.value); onChange(e.target.value); }}
-          placeholder="Enter custom size (e.g. 42, 44, Petite)"
+          placeholder="Type custom size (e.g. 52, Petite, 4XL)"
           style={{ ...I, marginTop: 4 }}
         />
       )}
