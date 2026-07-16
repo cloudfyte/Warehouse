@@ -21,7 +21,9 @@ from .models import (
     SalesOrder,
     SalesOrderItem,
     StitchingJob,
+    StockAdjustment,
     Supplier,
+    SupplierPayment,
     SupplierReturn,
     SystemSettings,
     WarehouseLocation,
@@ -264,6 +266,34 @@ def get_notifications(user, unread_only=False):
     return qs.filter(read=False) if unread_only else qs[:100]
 
 
+# ─── supplier payments ────────────────────────────────────────────────────────
+
+def get_supplier_payments(*, bill_id):
+    return (
+        SupplierPayment.objects
+        .filter(bill_id=bill_id)
+        .select_related("created_by")
+        .order_by("-payment_date", "-created_at")
+    )
+
+
+# ─── stock adjustments ────────────────────────────────────────────────────────
+
+def get_stock_adjustments(user, warehouse_id=None, limit=200):
+    qs = (
+        StockAdjustment.objects
+        .select_related(
+            "raw_cloth_batch__cloth_category", "raw_cloth_batch__cloth_color",
+            "finished_product__item_type",
+            "warehouse", "created_by"
+        )
+        .filter(warehouse__in=accessible_warehouses(user))
+    )
+    if warehouse_id:
+        qs = qs.filter(warehouse_id=warehouse_id)
+    return qs[:limit]
+
+
 # ─── analytics dashboard ──────────────────────────────────────────────────────
 
 def get_dashboard_stats(user):
@@ -402,12 +432,15 @@ def get_analytics_stats(user):
     """Return analytics data for the last 12 months."""
     from django.db.models.functions import TruncMonth
     from decimal import Decimal
-    from warehouse.schema.types import AnalyticsStats, MonthlyRevenueStat, StockCategoryStat, TopBuyerStat
+    from warehouse.schema.types import (
+        AnalyticsStats, MonthlyRevenueStat, MonthlyProductionStat,
+        RevenueExpenseStat, StockCategoryStat, TopBuyerStat, TopSupplierStat,
+    )
 
     warehouses = accessible_warehouses(user)
+    cutoff = timezone.now() - timezone.timedelta(days=365)
 
     # Monthly revenue (last 12 months)
-    cutoff = timezone.now() - timezone.timedelta(days=365)
     monthly_qs = (
         SalesOrder.objects
         .filter(warehouse__in=warehouses, status="DELIVERED", order_date__gte=cutoff)
@@ -423,6 +456,68 @@ def get_analytics_stats(user):
             order_count=row["order_count"],
         )
         for row in monthly_qs
+    ]
+
+    # Monthly production (pieces cut/stitched per month)
+    cut_qs = (
+        CuttingAssignment.objects
+        .filter(raw_cloth_batch__warehouse__in=warehouses, assigned_date__gte=cutoff)
+        .annotate(month=TruncMonth("assigned_date"))
+        .values("month")
+        .annotate(pieces=Sum("pieces_completed"), wasted=Sum("cloth_wasted"))
+        .order_by("month")
+    )
+    stitch_qs = (
+        StitchingJob.objects
+        .filter(
+            cutting_assignment__raw_cloth_batch__warehouse__in=warehouses,
+            assigned_date__gte=cutoff
+        )
+        .annotate(month=TruncMonth("assigned_date"))
+        .values("month")
+        .annotate(pieces=Sum("pieces_completed"))
+        .order_by("month")
+    )
+    cut_map = {row["month"]: (int(row["pieces"] or 0), float(row["wasted"] or 0)) for row in cut_qs}
+    stitch_map = {row["month"]: int(row["pieces"] or 0) for row in stitch_qs}
+    all_prod_months = sorted(set(cut_map) | set(stitch_map))
+    monthly_production = [
+        MonthlyProductionStat(
+            month=m.strftime("%b %Y"),
+            pieces_cut=cut_map.get(m, (0, 0))[0],
+            pieces_stitched=stitch_map.get(m, 0),
+            cloth_wasted=cut_map.get(m, (0, 0.0))[1],
+        )
+        for m in all_prod_months
+    ]
+
+    # Cloth wastage percentage (all time)
+    cutting_totals = CuttingAssignment.objects.filter(
+        raw_cloth_batch__warehouse__in=warehouses
+    ).aggregate(used=Sum("cloth_used"), wasted=Sum("cloth_wasted"))
+    total_used = float(cutting_totals["used"] or 0)
+    total_wasted = float(cutting_totals["wasted"] or 0)
+    cloth_wastage_pct = round((total_wasted / total_used * 100) if total_used > 0 else 0.0, 2)
+
+    # Revenue vs Expenses monthly comparison
+    expense_qs = (
+        Expense.objects
+        .filter(warehouse__in=warehouses, expense_date__gte=cutoff)
+        .annotate(month=TruncMonth("expense_date"))
+        .values("month")
+        .annotate(total=Sum("amount"))
+        .order_by("month")
+    )
+    rev_map = {row["month"].strftime("%b %Y"): float(row["revenue"] or 0) for row in monthly_qs}
+    exp_map = {row["month"].strftime("%b %Y"): float(row["total"] or 0) for row in expense_qs}
+    all_months = sorted(set(rev_map) | set(exp_map))
+    revenue_vs_expenses = [
+        RevenueExpenseStat(
+            month=m,
+            revenue=rev_map.get(m, 0.0),
+            expenses=exp_map.get(m, 0.0),
+        )
+        for m in all_months
     ]
 
     # Stock by category
@@ -467,8 +562,37 @@ def get_analytics_stats(user):
         for row in top_qs
     ]
 
+    # Top suppliers by purchase bill value
+    from warehouse.models import PurchaseBill
+    supplier_qs = (
+        PurchaseBill.objects
+        .filter(warehouse__in=warehouses)
+        .values("supplier__name")
+        .annotate(
+            total_purchased=Sum("total_amount"),
+            total_paid=Sum("amount_paid"),
+        )
+        .order_by("-total_purchased")[:8]
+    )
+    top_suppliers = [
+        TopSupplierStat(
+            supplier_name=row["supplier__name"],
+            total_purchased=float(row["total_purchased"] or 0),
+            total_paid=float(row["total_paid"] or 0),
+            total_pending=float((row["total_purchased"] or 0) - (row["total_paid"] or 0)),
+        )
+        for row in supplier_qs
+    ]
+
+    supplier_total_pending = sum(s.total_pending for s in top_suppliers)
+
     return AnalyticsStats(
         monthly_revenue=monthly_revenue,
+        monthly_production=monthly_production,
+        revenue_vs_expenses=revenue_vs_expenses,
         stock_by_category=stock_by_category,
         top_buyers=top_buyers,
+        top_suppliers=top_suppliers,
+        cloth_wastage_pct=cloth_wastage_pct,
+        supplier_total_pending=supplier_total_pending,
     )

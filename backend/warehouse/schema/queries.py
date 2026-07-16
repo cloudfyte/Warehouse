@@ -24,6 +24,8 @@ from .types import (
     ReadymadeStockType,
     SalesOrderType,
     StitchingJobType,
+    StockAdjustmentType,
+    SupplierPaymentType,
     SupplierReturnType,
     SupplierType,
     SystemSettingsType,
@@ -70,6 +72,12 @@ class Query(graphene.ObjectType):
     # Returns
     buyer_returns = graphene.List(BuyerReturnType)
     supplier_returns = graphene.List(SupplierReturnType)
+
+    # Stock adjustments
+    stock_adjustments = graphene.List(StockAdjustmentType, warehouse_id=graphene.ID(), limit=graphene.Int())
+
+    # Supplier payments for a specific bill
+    supplier_payments = graphene.List(SupplierPaymentType, bill_id=graphene.ID(required=True))
 
     product_by_barcode = graphene.Field(FinishedProductType, barcode=graphene.String(required=True))
 
@@ -165,6 +173,14 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_supplier_returns(self, info):
         return selectors.get_supplier_returns(info.context.user)
+
+    @login_required
+    def resolve_stock_adjustments(self, info, warehouse_id=None, limit=200):
+        return selectors.get_stock_adjustments(info.context.user, warehouse_id=warehouse_id, limit=limit)
+
+    @login_required
+    def resolve_supplier_payments(self, info, bill_id):
+        return selectors.get_supplier_payments(bill_id=bill_id)
 
     @login_required
     def resolve_notifications(self, info, unread_only=False):

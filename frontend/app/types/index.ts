@@ -47,7 +47,8 @@ export interface PurchaseBill {
   id: string; billNumber: string; supplier: Supplier; warehouse: WarehouseLocation
   billDate: string; invoiceRef: string; billImage?: string
   totalAmount: number; amountPaid: number; amountPending: number
-  paymentStatus: string; notes: string; items: PurchaseBillItem[]; createdAt: string
+  paymentStatus: string; notes: string; items: PurchaseBillItem[]
+  supplierPayments: SupplierPayment[]; createdAt: string
 }
 
 // ─── purchase orders ─────────────────────────────────────────────────────────
@@ -85,8 +86,9 @@ export interface ReadymadeStock {
 export interface CuttingAssignment {
   id: string; assignmentNumber: string; rawClothBatch: RawClothBatch
   cuttingMaster: Employee; itemType: ItemType; metersAssigned: number
-  targetPieces: number; status: string; assignedDate: string; dueDate?: string
+  targetPieces: number; size: string; status: string; assignedDate: string; dueDate?: string
   piecesCompleted: number; clothUsed: number; clothWasted: number; completedDate?: string; notes: string
+  costPerPiece?: number
 }
 
 export interface StitchingJob {
@@ -128,6 +130,24 @@ export interface CreditTransaction {
   id: string; salesOrder: SalesOrder; buyer: Buyer; totalAmount: number
   amountPaid: number; amountDue: number; dueDate?: string; status: string
   payments: CreditPayment[]; createdAt: string
+}
+
+// ─── supplier payments ────────────────────────────────────────────────────────
+
+export interface SupplierPayment {
+  id: string; paymentNumber: string; bill: { id: string; billNumber: string }
+  amount: number; paymentDate: string; paymentMode: string
+  reference: string; notes: string; createdAt: string
+}
+
+// ─── stock adjustments ────────────────────────────────────────────────────────
+
+export interface StockAdjustment {
+  id: string; adjustmentNumber: string; itemKind: string
+  rawClothBatch?: { id: string; batchNumber: string; clothCategory: { name: string }; clothColor: { name: string } }
+  finishedProduct?: { id: string; sku: string; itemType: { name: string } }
+  quantityChange: number; adjustmentType: string; reason: string
+  warehouse: WarehouseLocation; createdAt: string
 }
 
 // ─── returns ─────────────────────────────────────────────────────────────────
@@ -195,6 +215,7 @@ export type Tab =
   | "purchase_orders" | "purchase_bills" | "raw_cloth" | "readymade_stock"
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
+  | "stock_adjustments"
   | "employees" | "warehouses" | "notifications" | "audit_log" | "settings" | "profile"
 
 export interface Modal {

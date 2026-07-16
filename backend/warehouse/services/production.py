@@ -10,7 +10,7 @@ from warehouse.services.barcode import generate_barcode_svg
 
 
 def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, item_type_id,
-                              meters_assigned, target_pieces, assigned_date=None, due_date=None, notes=""):
+                              meters_assigned, target_pieces, size="", assigned_date=None, due_date=None, notes=""):
     meters = Decimal(str(meters_assigned))
 
     try:
@@ -44,6 +44,7 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
             item_type=item_type,
             meters_assigned=meters,
             target_pieces=target_pieces,
+            size=size.strip(),
             assigned_date=assigned_date or timezone.now().date(),
             due_date=due_date,
             notes=notes.strip(),

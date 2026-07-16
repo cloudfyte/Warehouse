@@ -25,7 +25,9 @@ from warehouse.models import (
     SalesOrder,
     SalesOrderItem,
     StitchingJob,
+    StockAdjustment,
     Supplier,
+    SupplierPayment,
     SupplierReturn,
     SystemSettings,
     WarehouseLocation,
@@ -163,9 +165,17 @@ class ReadymadeStockType(DjangoObjectType):
 
 
 class CuttingAssignmentType(DjangoObjectType):
+    cost_per_piece = graphene.Float()
+
     class Meta:
         model = CuttingAssignment
         fields = "__all__"
+
+    def resolve_cost_per_piece(self, info):
+        if self.pieces_completed and self.cloth_used:
+            cpm = float(self.raw_cloth_batch.cost_per_meter)
+            return round(float(self.cloth_used) * cpm / self.pieces_completed, 2)
+        return None
 
 
 class StitchingJobType(DjangoObjectType):
@@ -241,6 +251,19 @@ class MonthlyRevenueStat(graphene.ObjectType):
     order_count = graphene.Int()
 
 
+class MonthlyProductionStat(graphene.ObjectType):
+    month = graphene.String()
+    pieces_cut = graphene.Int()
+    pieces_stitched = graphene.Int()
+    cloth_wasted = graphene.Float()
+
+
+class RevenueExpenseStat(graphene.ObjectType):
+    month = graphene.String()
+    revenue = graphene.Float()
+    expenses = graphene.Float()
+
+
 class StockCategoryStat(graphene.ObjectType):
     category = graphene.String()
     meters = graphene.Float()
@@ -253,10 +276,44 @@ class TopBuyerStat(graphene.ObjectType):
     order_count = graphene.Int()
 
 
+class TopSupplierStat(graphene.ObjectType):
+    supplier_name = graphene.String()
+    total_purchased = graphene.Float()
+    total_paid = graphene.Float()
+    total_pending = graphene.Float()
+
+
 class AnalyticsStats(graphene.ObjectType):
     monthly_revenue = graphene.List(MonthlyRevenueStat)
+    monthly_production = graphene.List(MonthlyProductionStat)
+    revenue_vs_expenses = graphene.List(RevenueExpenseStat)
     stock_by_category = graphene.List(StockCategoryStat)
     top_buyers = graphene.List(TopBuyerStat)
+    top_suppliers = graphene.List(TopSupplierStat)
+    cloth_wastage_pct = graphene.Float()
+    supplier_total_pending = graphene.Float()
+
+
+class SupplierPaymentType(DjangoObjectType):
+    amount = graphene.Float()
+
+    class Meta:
+        model = SupplierPayment
+        fields = "__all__"
+
+    def resolve_amount(self, info):
+        return float(self.amount)
+
+
+class StockAdjustmentType(DjangoObjectType):
+    quantity_change = graphene.Float()
+
+    class Meta:
+        model = StockAdjustment
+        fields = "__all__"
+
+    def resolve_quantity_change(self, info):
+        return float(self.quantity_change)
 
 
 class ExpenseType(DjangoObjectType):

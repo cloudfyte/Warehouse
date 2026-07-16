@@ -94,7 +94,7 @@ function ProgressBar({ value, max, color = "var(--primary)" }: { value: number; 
 export default function Cutting({ assignments, batches, cuttingMasters, itemTypes, isAdmin, isSuperAdmin, isManager, isCuttingMaster, onMutate }: Props) {
   const [selected, setSelected] = useState<CuttingAssignment | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", notes: "" });
+  const [form, setForm] = useState({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" });
   const [update, setUpdate] = useState({ piecesCompleted: 0, clothUsed: 0, clothWasted: 0, status: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -167,11 +167,11 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
     setLoading(true); setError("");
     try {
       await onMutate(
-        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int!,$notes:String){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,notes:$notes){assignment{id}}}`,
-        { b: form.batchId, m: form.masterId, t: form.itemTypeId, meters: +form.meters, target: +form.targetPieces, notes: form.notes }
+        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int!,$size:String,$notes:String){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,size:$size,notes:$notes){assignment{id}}}`,
+        { b: form.batchId, m: form.masterId, t: form.itemTypeId, meters: +form.meters, target: +form.targetPieces, size: form.size || undefined, notes: form.notes }
       );
       setShowForm(false);
-      setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", notes: "" });
+      setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" });
     } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
@@ -283,7 +283,18 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
               <label style={LBL}>Meters Assigned *<input type="number" step="0.01" value={form.meters} placeholder="0.00" onChange={e => setForm(p => ({ ...p, meters: e.target.value }))} style={I} /></label>
               <label style={LBL}>Target Pieces *<input type="number" value={form.targetPieces} placeholder="0" onChange={e => setForm(p => ({ ...p, targetPieces: e.target.value }))} style={I} /></label>
             </div>
-            <label style={LBL}>Notes<input value={form.notes} placeholder="Optional notes…" onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} style={I} /></label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <label style={LBL}>
+                Size (optional)
+                <select value={form.size} onChange={e => setForm(p => ({ ...p, size: e.target.value }))} style={I}>
+                  <option value="">Free Size / Not specified</option>
+                  {["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40", "42", "44"].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={LBL}>Notes<input value={form.notes} placeholder="Optional notes…" onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} style={I} /></label>
+            </div>
           </div>
         </Modal>
       )}
@@ -338,6 +349,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
                     <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1 }}>{a.itemType.name}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
                       ✂ {a.cuttingMaster.username} &nbsp;·&nbsp; {a.rawClothBatch.batchNumber} {a.rawClothBatch.clothColor.name}
+                      {a.size && <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 10, background: "var(--canvas)", fontWeight: 700 }}>Size: {a.size}</span>}
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
@@ -380,6 +392,14 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
                       </span>
                     </div>
                     <ProgressBar value={a.clothUsed} max={a.metersAssigned} color="#6366f1" />
+                  </div>
+                )}
+
+                {/* Cost per piece */}
+                {a.costPerPiece != null && a.piecesCompleted > 0 && (
+                  <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--canvas)", borderRadius: 8, display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>COST / PIECE</span>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>₹{a.costPerPiece}</span>
                   </div>
                 )}
               </div>

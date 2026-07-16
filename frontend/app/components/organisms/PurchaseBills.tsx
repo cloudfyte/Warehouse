@@ -30,6 +30,16 @@ interface BillItem {
   notes: string
 }
 
+interface SupplierPayment {
+  id: string
+  paymentNumber: string
+  amount: number
+  paymentDate: string
+  paymentMode: string
+  reference: string
+  notes: string
+}
+
 interface PurchaseBill {
   id: string
   billNumber: string
@@ -45,6 +55,7 @@ interface PurchaseBill {
   notes: string
   createdAt: string
   items: BillItem[]
+  supplierPayments: SupplierPayment[]
 }
 
 interface DraftItem {
@@ -129,6 +140,16 @@ export default function PurchaseBills({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+
+  // Supplier payment state
+  const [payBillId, setPayBillId] = useState<string | null>(null);
+  const [payAmount, setPayAmount] = useState("");
+  const [payMode, setPayMode] = useState("CASH");
+  const [payRef, setPayRef] = useState("");
+  const [payNotes, setPayNotes] = useState("");
+  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [payLoading, setPayLoading] = useState(false);
+  const [payErr, setPayErr] = useState("");
 
   // Form state
   const [supplierId, setSupplierId] = useState("");
@@ -235,6 +256,44 @@ export default function PurchaseBills({
       setErr(friendlyError(e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  const payingBill = payBillId ? bills.find(b => b.id === payBillId) : null;
+
+  async function handlePayment() {
+    if (!payBillId) return;
+    const amt = parseFloat(payAmount);
+    if (!payAmount || isNaN(amt) || amt <= 0) { setPayErr("Enter a valid amount."); return; }
+    if (payingBill && amt > payingBill.amountPending) {
+      setPayErr(`Amount ₹${amt} exceeds pending balance ₹${payingBill.amountPending.toFixed(2)}.`);
+      return;
+    }
+    setPayLoading(true); setPayErr("");
+    try {
+      await onMutate(
+        `mutation Pay($billId:ID!,$amount:Float!,$paymentDate:Date,$paymentMode:String,$reference:String,$notes:String){
+          createSupplierPayment(billId:$billId,amount:$amount,paymentDate:$paymentDate,paymentMode:$paymentMode,reference:$reference,notes:$notes){
+            payment{ id paymentNumber }
+          }
+        }`,
+        { billId: payBillId, amount: amt, paymentDate: payDate, paymentMode: payMode, reference: payRef, notes: payNotes }
+      );
+      setPayBillId(null); setPayAmount(""); setPayMode("CASH"); setPayRef(""); setPayNotes("");
+      setPayDate(new Date().toISOString().slice(0, 10));
+    } catch (e) {
+      setPayErr(friendlyError(e));
+    } finally {
+      setPayLoading(false);
+    }
+  }
+
+  async function handleDeletePayment(paymentId: string) {
+    if (!confirm("Delete this payment? The bill's paid amount will be reversed.")) return;
+    try {
+      await onMutate(`mutation D($id:ID!){deleteSupplierPayment(id:$id){ok}}`, { id: paymentId });
+    } catch (e) {
+      alert(friendlyError(e));
     }
   }
 
@@ -363,6 +422,59 @@ export default function PurchaseBills({
                       </div>
                     )}
 
+                    {/* Supplier payment history */}
+                    <div style={{ marginTop: 18 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>
+                          Payment History
+                          {bill.amountPending > 0 && (
+                            <span style={{ marginLeft: 8, fontSize: 12, color: "#e65100", fontWeight: 600 }}>
+                              ₹{formatMoney(bill.amountPending)} pending
+                            </span>
+                          )}
+                        </div>
+                        {canCreate && bill.amountPending > 0 && (
+                          <button onClick={() => { setPayBillId(bill.id); setPayErr(""); }}
+                            style={{ ...BTN("var(--primary)"), padding: "6px 14px", fontSize: 12 }}>
+                            + Record Payment
+                          </button>
+                        )}
+                      </div>
+
+                      {(bill.supplierPayments || []).length === 0 ? (
+                        <div style={{ fontSize: 13, color: "var(--muted)", fontStyle: "italic" }}>No payments recorded yet.</div>
+                      ) : (
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ background: "var(--canvas)" }}>
+                              {["Pay #", "Date", "Mode", "Reference", "Amount", ""].map(h => (
+                                <th key={h} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--line)", fontSize: 12 }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(bill.supplierPayments || []).map(p => (
+                              <tr key={p.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                                <td style={{ padding: "7px 10px", fontWeight: 600, fontSize: 12 }}>{p.paymentNumber}</td>
+                                <td style={{ padding: "7px 10px", fontSize: 12 }}>{formatDate(p.paymentDate)}</td>
+                                <td style={{ padding: "7px 10px", fontSize: 12 }}>{p.paymentMode.replace("_", " ")}</td>
+                                <td style={{ padding: "7px 10px", fontSize: 12, color: "var(--muted)" }}>{p.reference || "—"}</td>
+                                <td style={{ padding: "7px 10px", fontWeight: 700, color: "#2e7d32" }}>₹{formatMoney(p.amount)}</td>
+                                <td style={{ padding: "7px 10px" }}>
+                                  {canCreate && (
+                                    <button onClick={() => handleDeletePayment(p.id)}
+                                      style={{ padding: "3px 8px", borderRadius: 5, border: "1px solid #fcc", background: "#fff5f5", color: "#c62828", fontSize: 11, cursor: "pointer" }}>
+                                      ×
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+
                     {bill.notes && (
                       <div style={{ marginTop: 12, fontSize: 13, color: "var(--muted)" }}>Note: {bill.notes}</div>
                     )}
@@ -371,6 +483,66 @@ export default function PurchaseBills({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Record Payment Modal */}
+      {payBillId && payingBill && (
+        <div style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "var(--paper)", borderRadius: 16, width: "min(440px, 100%)", boxShadow: "0 24px 64px #0006" }}>
+            <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>Record Payment</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                  {payingBill.billNumber} · {payingBill.supplier.name} · ₹{formatMoney(payingBill.amountPending)} pending
+                </div>
+              </div>
+              <button onClick={() => setPayBillId(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--muted)" }}>×</button>
+            </div>
+            <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Amount (₹) *</label>
+                <input type="number" min="0.01" step="0.01" value={payAmount}
+                  onChange={e => setPayAmount(e.target.value)}
+                  placeholder={`Max ₹${formatMoney(payingBill.amountPending)}`}
+                  style={FIELD} autoFocus />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Payment Date</label>
+                  <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} style={FIELD} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Payment Mode</label>
+                  <select value={payMode} onChange={e => setPayMode(e.target.value)} style={FIELD}>
+                    <option value="CASH">Cash</option>
+                    <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
+                    <option value="UPI">UPI</option>
+                    <option value="CHEQUE">Cheque</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Reference / UTR (optional)</label>
+                <input value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Transaction ID, cheque number…" style={FIELD} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Notes (optional)</label>
+                <input value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="Any remarks…" style={FIELD} />
+              </div>
+              {payErr && (
+                <div style={{ background: "#fff1f0", border: "1px solid #ffc5c2", color: "#8d3e39", borderRadius: 9, padding: "10px 14px", fontSize: 13 }}>
+                  {payErr}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button onClick={() => setPayBillId(null)} style={BTN("var(--canvas)", "var(--ink)")}>Cancel</button>
+                <button onClick={handlePayment} disabled={payLoading} style={{ ...BTN(), opacity: payLoading ? 0.6 : 1 }}>
+                  {payLoading ? "Saving…" : "Record Payment"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

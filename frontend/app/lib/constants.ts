@@ -63,6 +63,7 @@ export const TAB_TITLES: Record<Tab, string> = {
   credit: "Credit",
   returns: "Returns",
   expenses: "Expenses",
+  stock_adjustments: "Stock Adjustments",
   employees: "Employees",
   warehouses: "Warehouses",
   notifications: "Notifications",

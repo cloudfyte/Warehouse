@@ -403,6 +403,7 @@ class CuttingAssignment(models.Model):
     item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="cutting_assignments")
     meters_assigned = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
     target_pieces = models.PositiveIntegerField()
+    size = models.CharField(max_length=30, blank=True, help_text="Garment size being cut e.g. S / M / L / XL / Free Size")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     assigned_date = models.DateField(default=timezone.now)
     due_date = models.DateField(null=True, blank=True)
@@ -741,6 +742,84 @@ class Expense(models.Model):
 
     def __str__(self):
         return f"{self.expense_number} — {self.get_category_display()} ₹{self.amount}"
+
+
+# ─── supplier payment tracking ────────────────────────────────────────────────
+
+class SupplierPayment(models.Model):
+    """Payment instalment recorded against a PurchaseBill (supplier payment tracking)."""
+    class PaymentMode(models.TextChoices):
+        CASH = "CASH", "Cash"
+        BANK_TRANSFER = "BANK_TRANSFER", "Bank Transfer / NEFT"
+        UPI = "UPI", "UPI"
+        CHEQUE = "CHEQUE", "Cheque"
+
+    payment_number = models.CharField(max_length=40, unique=True, editable=False)
+    bill = models.ForeignKey(PurchaseBill, on_delete=models.CASCADE, related_name="supplier_payments")
+    amount = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    payment_date = models.DateField(default=timezone.now)
+    payment_mode = models.CharField(max_length=20, choices=PaymentMode.choices, default=PaymentMode.CASH)
+    reference = models.CharField(max_length=100, blank=True, help_text="UTR / cheque number / transaction ID")
+    notes = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="supplier_payments")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-payment_date", "-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.payment_number:
+            self.payment_number = _serial("PAY", SupplierPayment)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.payment_number} — ₹{self.amount} for {self.bill.bill_number}"
+
+
+# ─── stock adjustments ────────────────────────────────────────────────────────
+
+class StockAdjustment(models.Model):
+    """Manual stock correction — damage, loss, QC rejection, or found items."""
+    class ItemKind(models.TextChoices):
+        RAW_CLOTH = "RAW_CLOTH", "Raw Cloth (meters)"
+        FINISHED_PRODUCT = "FINISHED_PRODUCT", "Finished Product (pieces)"
+
+    class AdjustmentType(models.TextChoices):
+        DAMAGE = "DAMAGE", "Damage / Write-off"
+        LOSS = "LOSS", "Loss / Theft"
+        QC_REJECT = "QC_REJECT", "QC Rejection"
+        CORRECTION = "CORRECTION", "Stock Correction"
+        FOUND = "FOUND", "Found / Surplus"
+
+    adjustment_number = models.CharField(max_length=40, unique=True, editable=False)
+    item_kind = models.CharField(max_length=20, choices=ItemKind.choices)
+    raw_cloth_batch = models.ForeignKey(
+        RawClothBatch, null=True, blank=True, on_delete=models.PROTECT, related_name="stock_adjustments"
+    )
+    finished_product = models.ForeignKey(
+        FinishedProduct, null=True, blank=True, on_delete=models.PROTECT, related_name="stock_adjustments"
+    )
+    # Positive = add stock; Negative = reduce stock
+    quantity_change = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        help_text="Positive to add stock, negative to remove (e.g. -5.5 meters or -3 pieces)"
+    )
+    adjustment_type = models.CharField(max_length=20, choices=AdjustmentType.choices, default=AdjustmentType.DAMAGE)
+    reason = models.TextField()
+    warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="stock_adjustments")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="stock_adjustments")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.adjustment_number:
+            self.adjustment_number = _serial("ADJ", StockAdjustment)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.adjustment_number} — {self.get_adjustment_type_display()} ({self.quantity_change:+})"
 
 
 class FCMToken(models.Model):

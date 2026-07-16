@@ -17,6 +17,7 @@ class CreateCuttingAssignment(graphene.Mutation):
         item_type_id = graphene.ID(required=True)
         meters_assigned = graphene.Float(required=True)
         target_pieces = graphene.Int(required=True)
+        size = graphene.String()
         assigned_date = graphene.Date()
         due_date = graphene.Date()
         notes = graphene.String()

@@ -8,6 +8,8 @@ from .master import (
     UpdateClothCategory, UpdateClothColor, UpdateItemType, UpdateWarehouseLocation,
 )
 from .notifications import MarkNotificationsRead
+from .stock_adjustment import CreateStockAdjustment, DeleteStockAdjustment
+from .supplier_payment import CreateSupplierPayment, DeleteSupplierPayment
 from .production import (
     CreateCuttingAssignment, CreateFinishedProducts,
     CreateStitchingJob, UpdateCuttingAssignment, UpdateStitchingJob,
@@ -85,6 +87,14 @@ class Mutation(graphene.ObjectType):
     create_expense = CreateExpense.Field()
     update_expense = UpdateExpense.Field()
     delete_expense = DeleteExpense.Field()
+
+    # Supplier payments
+    create_supplier_payment = CreateSupplierPayment.Field()
+    delete_supplier_payment = DeleteSupplierPayment.Field()
+
+    # Stock adjustments
+    create_stock_adjustment = CreateStockAdjustment.Field()
+    delete_stock_adjustment = DeleteStockAdjustment.Field()
 
     # Misc
     mark_notifications_read = MarkNotificationsRead.Field()

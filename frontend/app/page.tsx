@@ -32,6 +32,7 @@ import Settings from "@/app/components/organisms/Settings";
 import Profile from "@/app/components/organisms/Profile";
 import AuditLogs from "@/app/components/organisms/AuditLogs";
 import Expenses from "@/app/components/organisms/Expenses";
+import StockAdjustments from "@/app/components/organisms/StockAdjustments";
 import QuickSearch from "@/app/components/organisms/QuickSearch";
 
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
@@ -47,6 +48,7 @@ const ALL_TABS: Tab[] = [
   "dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills",
   "raw_cloth", "readymade_stock", "cutting", "stitching",
   "finished_products", "sales_orders", "credit", "returns", "expenses",
+  "stock_adjustments",
   "employees", "warehouses", "notifications", "audit_log", "settings", "profile",
 ];
 
@@ -57,7 +59,7 @@ function getVisibleTabs(role: string): Tab[] {
   if (["MANAGER"].includes(role)) return [...ALL_TABS.filter(t => t !== "profile" && t !== "settings" && t !== "audit_log"), ...profileTab];
   if (role === "CUTTING_MASTER") return ["dashboard", "cutting", "notifications", ...profileTab];
   if (role === "TAILOR") return ["dashboard", "stitching", "notifications", ...profileTab];
-  if (role === "STORE_KEEPER") return ["dashboard", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "notifications", ...profileTab];
+  if (role === "STORE_KEEPER") return ["dashboard", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "stock_adjustments", "notifications", ...profileTab];
   if (role === "AUDITOR") return ["dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "sales_orders", "credit", "returns", "notifications", "audit_log", ...profileTab];
   return ["dashboard", "notifications", ...profileTab];
 }
@@ -69,7 +71,7 @@ interface SidebarSection { label: string; tabs: Tab[] }
 const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
   { label: "Procurement", tabs: ["suppliers", "buyers", "purchase_orders", "purchase_bills"] },
-  { label: "Inventory", tabs: ["raw_cloth", "readymade_stock"] },
+  { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
   { label: "Sales", tabs: ["sales_orders", "credit", "returns"] },
   { label: "Finance", tabs: ["expenses"] },
@@ -93,6 +95,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   credit: <Landmark size={16} />,
   returns: <RefreshCcw size={16} />,
   expenses: <Receipt size={16} />,
+  stock_adjustments: <Package size={16} />,
   employees: <Users size={16} />,
   warehouses: <Warehouse size={16} />,
   notifications: <Bell size={16} />,
@@ -971,6 +974,16 @@ export default function Home() {
             expenses={data?.expenses || []}
             warehouses={data?.warehouseLocations || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager}
+            onMutate={mutate}
+          />
+        )}
+        {currentTab === "stock_adjustments" && (
+          <StockAdjustments
+            adjustments={data?.stockAdjustments || []}
+            rawClothBatches={data?.rawClothBatches || []}
+            finishedProducts={data?.finishedProducts || []}
+            warehouses={data?.warehouseLocations || []}
+            isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
             onMutate={mutate}
           />
         )}

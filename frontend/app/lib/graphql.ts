@@ -111,6 +111,7 @@ export const DASHBOARD_QUERY = `
         size quantity unitPrice totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name }
       }
+      supplierPayments { id paymentNumber amount paymentDate paymentMode reference notes createdAt }
     }
     rawClothBatches {
       id batchNumber totalMeters availableMeters costPerMeter binLocation receivedDate
@@ -127,9 +128,9 @@ export const DASHBOARD_QUERY = `
       supplier { id name }
     }
     cuttingAssignments(limit: 100) {
-      id assignmentNumber metersAssigned targetPieces status assignedDate dueDate
-      piecesCompleted clothUsed clothWasted completedDate notes
-      rawClothBatch { id batchNumber clothCategory { name } clothColor { name hexCode } }
+      id assignmentNumber metersAssigned targetPieces size status assignedDate dueDate
+      piecesCompleted clothUsed clothWasted completedDate notes costPerPiece
+      rawClothBatch { id batchNumber clothCategory { name } clothColor { name hexCode } costPerMeter }
       cuttingMaster { id username role }
       itemType { id name }
     }
@@ -177,6 +178,12 @@ export const DASHBOARD_QUERY = `
     }
     allAuditLogs(limit: 500) {
       id entityType entityId action actorName detail createdAt
+    }
+    stockAdjustments(limit: 300) {
+      id adjustmentNumber itemKind quantityChange adjustmentType reason createdAt
+      rawClothBatch { id batchNumber clothCategory { name } clothColor { name } }
+      finishedProduct { id sku itemType { name } }
+      warehouse { id name }
     }
   }
 `;
