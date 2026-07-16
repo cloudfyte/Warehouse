@@ -204,7 +204,7 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
               <YAxis tick={{ fontSize: 11, fill: "var(--muted)" }} width={40} />
               <Tooltip contentStyle={TOOLTIP_STYLE}
                 formatter={(v, name) => [Number(v).toLocaleString("en-IN"), name === "piecesCut" ? "Pieces Cut" : name === "piecesStitched" ? "Pieces Stitched" : "Cloth Wasted (m)"]} />
-              <Legend formatter={v => ({ piecesCut: "Pieces Cut", piecesStitched: "Pieces Stitched", clothWasted: "Cloth Wasted (m)" }[v] ?? v)} iconType="circle" iconSize={8} />
+              <Legend formatter={v => ({ piecesCut: "Pieces Cut", piecesStitched: "Pieces Stitched", clothWasted: "Cloth Wasted (m)" } as Record<string, string>)[v] ?? v} iconType="circle" iconSize={8} />
               <Bar dataKey="piecesCut" fill="#6366f1" name="piecesCut" radius={[3, 3, 0, 0]} />
               <Bar dataKey="piecesStitched" fill="#10b981" name="piecesStitched" radius={[3, 3, 0, 0]} />
               <Bar dataKey="clothWasted" fill="#f59e0b" name="clothWasted" radius={[3, 3, 0, 0]} />
