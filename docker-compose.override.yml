@@ -1,0 +1,9 @@
+# Local development port bindings — loaded automatically by Docker Compose.
+# Not used in production (prod uses docker-compose.prod.yml explicitly).
+services:
+  backend:
+    ports:
+      - "8000:8000"
+  frontend:
+    ports:
+      - "3000:3000"
