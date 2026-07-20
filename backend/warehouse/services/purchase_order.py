@@ -135,7 +135,8 @@ def receive_purchase_order(*, po_id, user, receipt_items):
         po.status = PurchaseOrder.Status.RECEIVED
         from django.utils import timezone
         po.actual_delivery = timezone.now().date()
-        po.save(update_fields=["status", "actual_delivery"])
+        po.received_by = user
+        po.save(update_fields=["status", "actual_delivery", "received_by"])
     return po
 
 

@@ -218,6 +218,7 @@ class PurchaseOrder(models.Model):
     total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="purchase_orders")
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="received_purchase_orders")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

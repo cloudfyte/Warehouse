@@ -92,9 +92,28 @@ class PurchaseOrderItemType(DjangoObjectType):
 
 
 class PurchaseOrderType(DjangoObjectType):
+    created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+    received_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
     class Meta:
         model = PurchaseOrder
         fields = "__all__"
+
+    def resolve_created_by(self, info):
+        if not self.created_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.created_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
+
+    def resolve_received_by(self, info):
+        if not self.received_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.received_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
 
 
 class PurchaseBillItemType(DjangoObjectType):

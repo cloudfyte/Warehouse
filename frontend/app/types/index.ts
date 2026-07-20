@@ -65,6 +65,8 @@ export interface PurchaseOrder {
   orderDate: string; expectedDelivery?: string; actualDelivery?: string
   warehouse: WarehouseLocation; totalAmount: number; notes: string
   items: POItem[]; createdAt: string
+  createdBy?: { id: string; username: string }
+  receivedBy?: { id: string; username: string }
 }
 
 // ─── inventory ────────────────────────────────────────────────────────────────

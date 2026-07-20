@@ -95,6 +95,8 @@ export const DASHBOARD_QUERY = `
       id poNumber orderType status orderDate expectedDelivery actualDelivery totalAmount notes createdAt
       supplier { id name phone }
       warehouse { id name code }
+      createdBy { id username }
+      receivedBy { id username }
       items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name } }
     }

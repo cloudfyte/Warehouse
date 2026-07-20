@@ -347,8 +347,17 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               <span style={{ fontSize: 13, color: "var(--muted)" }}>Ordered: {formatDateShort(detail.orderDate)}</span>
               {detail.expectedDelivery && <span style={{ fontSize: 13, color: "var(--muted)" }}>Expected: {formatDateShort(detail.expectedDelivery)}</span>}
             </div>
-            <div style={{ background: "var(--bg)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>
-              <strong>Warehouse:</strong> {detail.warehouse.name} &nbsp;·&nbsp; <strong>Total:</strong> {formatMoney(detail.totalAmount)}
+            <div style={{ background: "var(--bg)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 14, display: "flex", flexDirection: "column", gap: 4 }}>
+              <div><strong>Warehouse:</strong> {detail.warehouse.name} &nbsp;·&nbsp; <strong>Total:</strong> {formatMoney(detail.totalAmount)}</div>
+              <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                <strong style={{ color: "var(--ink)" }}>Ordered by:</strong> {detail.createdBy?.username ?? "—"}
+                {detail.receivedBy && (
+                  <span style={{ marginLeft: 16 }}>
+                    <strong style={{ color: "var(--ink)" }}>Received by:</strong>{" "}
+                    <span style={{ color: "#2e7d32", fontWeight: 600 }}>{detail.receivedBy.username}</span>
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Progress steps */}
