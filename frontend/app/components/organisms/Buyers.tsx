@@ -261,15 +261,18 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, salesOrders = []
               <input type="tel" value={editing?.phone ?? ""} onChange={e => handlePhoneChange(e.target.value)} style={I} />
             </label>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 18 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
+                <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", userSelect: "none" }}>
+                  <Toggle checked={waIsSameAsPhone} onChange={handleWaToggle} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: waIsSameAsPhone ? "#25d366" : "var(--muted)" }}>Same as phone</span>
+                </label>
+              </div>
               <input type="tel" value={editing?.whatsapp ?? ""} disabled={waIsSameAsPhone}
                 onChange={e => setEditing(p => ({ ...p, whatsapp: e.target.value }))}
-                placeholder={waIsSameAsPhone ? editing?.phone ?? "" : ""}
-                style={{ ...I, opacity: waIsSameAsPhone ? 0.55 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text" }} />
-              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none", marginTop: 2 }}>
-                <Toggle checked={waIsSameAsPhone} onChange={handleWaToggle} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: waIsSameAsPhone ? "var(--primary)" : "var(--muted)" }}>Same as phone</span>
-              </label>
+                placeholder={waIsSameAsPhone ? editing?.phone ?? "" : "+91 98765 43210"}
+                style={{ ...I, opacity: waIsSameAsPhone ? 0.6 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text",
+                  borderColor: !waIsSameAsPhone && editing?.whatsapp ? "#25d366" : undefined }} />
             </div>
             {inp("GSTIN", "gstin")}
             <StateCity
