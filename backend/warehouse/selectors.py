@@ -16,6 +16,7 @@ from .models import (
     ParcelInspection,
     PurchaseBill,
     PurchaseOrder,
+    Quotation,
     RawClothBatch,
     ReadymadeStock,
     ReorderPoint,
@@ -711,3 +712,59 @@ def get_stock_transfers(user, status=None, limit=100):
 
 def get_parcel_inspection(po_id):
     return ParcelInspection.objects.filter(purchase_order_id=po_id).first()
+
+
+# ─── quotations ───────────────────────────────────────────────────────────────
+
+def get_quotations(user, limit=100):
+    warehouses = accessible_warehouses(user)
+    return (
+        Quotation.objects.filter(warehouse__in=warehouses)
+        .select_related("buyer", "warehouse")
+        .prefetch_related("items__finished_product__item_type")
+    )[:limit]
+
+
+# ─── reports ─────────────────────────────────────────────────────────────────
+
+def get_profit_loss_report(user, year: int, month: int | None = None):
+    from warehouse.services.reports import get_profit_loss
+    data = get_profit_loss(user, year, month)
+    from warehouse.schema.types import PLReport, PLMonthStat
+    return PLReport(
+        period_label=data["period_label"],
+        revenue=data["revenue"],
+        cogs=data["cogs"],
+        gross_profit=data["gross_profit"],
+        expenses=data["expenses"],
+        net_profit=data["net_profit"],
+        gross_margin_pct=data["gross_margin_pct"],
+        net_margin_pct=data["net_margin_pct"],
+        monthly=[PLMonthStat(**m) for m in data["monthly"]],
+    )
+
+
+def get_aging_report(user):
+    from warehouse.services.reports import get_aging_report
+    data = get_aging_report(user)
+    from warehouse.schema.types import AgingReport, BuyerAgingRow, SupplierAgingRow
+    return AgingReport(
+        buyer_rows=[
+            BuyerAgingRow(
+                buyer_name=r["buyer_name"],
+                bucket_0_30=r["0_30"], bucket_31_60=r["31_60"],
+                bucket_61_90=r["61_90"], bucket_91_plus=r["91_plus"],
+                total=r["total"],
+            ) for r in data["buyer_rows"]
+        ],
+        supplier_rows=[
+            SupplierAgingRow(
+                supplier_name=r["supplier_name"],
+                bucket_0_30=r["0_30"], bucket_31_60=r["31_60"],
+                bucket_61_90=r["61_90"], bucket_91_plus=r["91_plus"],
+                total=r["total"],
+            ) for r in data["supplier_rows"]
+        ],
+        total_buyer_outstanding=data["total_buyer_outstanding"],
+        total_supplier_outstanding=data["total_supplier_outstanding"],
+    )

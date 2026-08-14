@@ -10,7 +10,7 @@ import {
   Scissors, Shirt, Tag, Receipt, Landmark, RefreshCcw,
   Users, Warehouse, Bell, Settings2, ChevronLeft, ChevronRight,
   Sun, Moon, LogOut, BarChart2, Menu, X, User, ClipboardList,
-  ArrowLeftRight, AlertCircle,
+  ArrowLeftRight, AlertCircle, FileText, TrendingUp,
 } from "lucide-react";
 
 import Login from "@/app/components/organisms/Login";
@@ -36,6 +36,8 @@ import Expenses from "@/app/components/organisms/Expenses";
 import StockAdjustments from "@/app/components/organisms/StockAdjustments";
 import StockTransfers from "@/app/components/organisms/StockTransfers";
 import ReorderPoints from "@/app/components/organisms/ReorderPoints";
+import Quotations from "@/app/components/organisms/Quotations";
+import Reports from "@/app/components/organisms/Reports";
 import QuickSearch from "@/app/components/organisms/QuickSearch";
 
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
@@ -52,6 +54,7 @@ const ALL_TABS: Tab[] = [
   "raw_cloth", "readymade_stock", "cutting", "stitching",
   "finished_products", "sales_orders", "credit", "returns", "expenses",
   "stock_adjustments", "stock_transfers", "reorder_points",
+  "quotations", "reports",
   "employees", "warehouses", "notifications", "audit_log", "settings", "profile",
 ];
 
@@ -76,8 +79,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Procurement", tabs: ["suppliers", "buyers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
-  { label: "Sales", tabs: ["sales_orders", "credit", "returns"] },
-  { label: "Finance", tabs: ["expenses"] },
+  { label: "Sales & Finance", tabs: ["sales_orders", "credit", "returns", "quotations", "expenses", "reports"] },
   { label: "Admin", tabs: ["employees", "warehouses"] },
   { label: "System", tabs: ["notifications", "audit_log", "settings"] },
 ];
@@ -101,6 +103,8 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   stock_adjustments: <Package size={16} />,
   stock_transfers: <ArrowLeftRight size={16} />,
   reorder_points: <AlertCircle size={16} />,
+  quotations: <FileText size={16} />,
+  reports: <TrendingUp size={16} />,
   employees: <Users size={16} />,
   warehouses: <Warehouse size={16} />,
   notifications: <Bell size={16} />,
@@ -1013,6 +1017,19 @@ export default function Home() {
             gql={(q, v) => graphql(q, v || {}, token!)}
             onRefresh={() => loadData(token!)}
           />
+        )}
+        {currentTab === "quotations" && (
+          <Quotations
+            quotations={data?.quotations || []}
+            buyers={data?.buyers || []}
+            warehouses={data?.warehouseLocations || []}
+            finishedProducts={data?.finishedProducts || []}
+            gql={(q, v) => graphql(q, v || {}, token!)}
+            onRefresh={() => loadData(token!)}
+          />
+        )}
+        {currentTab === "reports" && (
+          <Reports gql={(q, v) => graphql(q, v || {}, token!)} />
         )}
         {currentTab === "employees" && (
           <Employees

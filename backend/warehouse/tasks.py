@@ -124,3 +124,74 @@ def send_whatsapp_order_notification(self, phone: str, message: str):
     except Exception as exc:
         logger.warning("WhatsApp order notification failed (%s), retrying…", exc)
         raise self.retry(exc=exc)
+
+
+# ─── Payment reminder task ─────────────────────────────────────────────────────
+
+@shared_task
+def send_payment_reminders():
+    """
+    Runs daily. Sends WhatsApp reminders to buyers with outstanding credit:
+      • 3 days before due date
+      • On the due date
+      • 7 days after due date (overdue)
+    Uses due_date on CreditTransaction. Falls back to created_at + buyer.credit_days.
+    """
+    from datetime import date, timedelta
+    from warehouse.models import CreditTransaction, SystemSettings
+
+    sys = SystemSettings.load()
+    if not sys.wa_enabled:
+        logger.info("Payment reminders: WhatsApp disabled, skipping.")
+        return
+
+    today = date.today()
+    trigger_days = {-3, 0, 7}  # days relative to due_date (negative = before)
+    sent = 0
+
+    pending = CreditTransaction.objects.filter(
+        amount_due__gt=0,
+    ).exclude(status=CreditTransaction.Status.SETTLED).select_related("buyer", "sales_order")
+
+    for ct in pending:
+        due = ct.due_date
+        if not due:
+            # Fallback: created_at + buyer credit_days
+            days = ct.buyer.credit_days or 30
+            due = ct.created_at.date() + timedelta(days=days)
+
+        days_diff = (today - due).days  # positive = overdue, negative = upcoming
+        if days_diff not in {-3, 0, 7}:
+            continue
+
+        phone = ct.buyer.whatsapp or ct.buyer.phone
+        if not phone:
+            continue
+
+        currency = sys.currency_symbol
+        if days_diff == -3:
+            msg = (
+                f"Dear {ct.buyer.name},\n"
+                f"This is a reminder that your payment of *{currency}{ct.amount_due:.2f}* "
+                f"for order *{ct.sales_order.order_number}* is due in *3 days* ({due.strftime('%d %b %Y')}).\n"
+                f"Please arrange payment at your earliest convenience.\n— {sys.company_name}"
+            )
+        elif days_diff == 0:
+            msg = (
+                f"Dear {ct.buyer.name},\n"
+                f"Your payment of *{currency}{ct.amount_due:.2f}* "
+                f"for order *{ct.sales_order.order_number}* is *due today*.\n"
+                f"Please make the payment to avoid any inconvenience.\n— {sys.company_name}"
+            )
+        else:
+            msg = (
+                f"Dear {ct.buyer.name},\n"
+                f"⚠ Your payment of *{currency}{ct.amount_due:.2f}* "
+                f"for order *{ct.sales_order.order_number}* is *overdue by {days_diff} days*.\n"
+                f"Please clear the dues immediately. Contact us if you have any concerns.\n— {sys.company_name}"
+            )
+
+        send_whatsapp_order_notification.delay(phone, msg)
+        sent += 1
+
+    logger.info("Payment reminders: %d messages queued.", sent)

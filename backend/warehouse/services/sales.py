@@ -63,9 +63,25 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
         discount_amt = Decimal(str(discount))
         taxable = subtotal - discount_amt
         from warehouse.models import SystemSettings
-        settings = SystemSettings.load()
-        tax_pct = Decimal(str(settings.tax_percent))
+        sys_settings = SystemSettings.load()
+        tax_pct = Decimal(str(sys_settings.tax_percent))
         tax_amount = (taxable * tax_pct / 100).quantize(Decimal("0.01")) if tax_pct > 0 else Decimal("0.00")
+
+        # Split GST: CGST+SGST (intra-state) or IGST (inter-state)
+        buyer_state = (buyer.state or "").strip().lower()
+        company_state = (sys_settings.company_state or "").strip().lower()
+        is_intra = bool(buyer_state and company_state and buyer_state == company_state)
+        if tax_amount > 0 and is_intra:
+            cgst = (tax_amount / 2).quantize(Decimal("0.01"))
+            sgst = tax_amount - cgst
+            igst = Decimal("0.00")
+        elif tax_amount > 0:
+            cgst = Decimal("0.00")
+            sgst = Decimal("0.00")
+            igst = tax_amount
+        else:
+            cgst = sgst = igst = Decimal("0.00")
+
         total = taxable + tax_amount
         if payment_mode.upper() == SalesOrder.PaymentMode.PAID:
             amount_paid_dec = total
@@ -77,10 +93,13 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
         so.subtotal = subtotal
         so.discount = discount_amt
         so.tax_amount = tax_amount
+        so.cgst_amount = cgst
+        so.sgst_amount = sgst
+        so.igst_amount = igst
         so.total_amount = total
         so.amount_paid = amount_paid
         so.amount_due = total - amount_paid
-        so.save(update_fields=["subtotal", "discount", "tax_amount", "total_amount", "amount_paid", "amount_due"])
+        so.save(update_fields=["subtotal", "discount", "tax_amount", "cgst_amount", "sgst_amount", "igst_amount", "total_amount", "amount_paid", "amount_due"])
 
         if payment_mode.upper() in (SalesOrder.PaymentMode.CREDIT, SalesOrder.PaymentMode.PARTIAL):
             CreditTransaction.objects.create(

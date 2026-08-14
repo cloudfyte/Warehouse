@@ -312,7 +312,7 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
               <XAxis dataKey="size" tick={{ fontSize: 11 }} />
               <YAxis yAxisId="qty" tick={{ fontSize: 11 }} />
               <YAxis yAxisId="rev" orientation="right" tickFormatter={fmtK} tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [name === "revenue" ? fmtK(v) : v, name === "revenue" ? "Revenue" : "Qty Sold"]} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown, name: unknown) => [name === "revenue" ? fmtK(typeof v === "number" ? v : 0) : (v as string | number), name === "revenue" ? "Revenue" : "Qty Sold"] as [string | number, string]} />
               <Bar yAxisId="qty" dataKey="quantitySold" fill="#6366f1" name="quantitySold" radius={[4, 4, 0, 0]} />
               <Bar yAxisId="rev" dataKey="revenue" fill="#10b981" name="revenue" radius={[4, 4, 0, 0]} />
             </BarChart>

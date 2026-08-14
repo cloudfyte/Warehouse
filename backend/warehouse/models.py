@@ -117,6 +117,7 @@ class ItemType(models.Model):
         help_text="Standard meters of raw cloth needed to cut one piece",
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    hsn_code = models.CharField(max_length=10, blank=True, help_text="HSN/SAC code for GST compliance")
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -548,6 +549,9 @@ class SalesOrder(models.Model):
     subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     discount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     tax_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    cgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    sgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    igst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     amount_paid = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     amount_due = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
@@ -915,6 +919,53 @@ class AuditLog(models.Model):
 
 # ─── reorder points ───────────────────────────────────────────────────────────
 
+class Quotation(models.Model):
+    class Status(models.TextChoices):
+        DRAFT    = "DRAFT",    "Draft"
+        SENT     = "SENT",     "Sent to Buyer"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        REJECTED = "REJECTED", "Rejected"
+        EXPIRED  = "EXPIRED",  "Expired"
+
+    quotation_number = models.CharField(max_length=30, unique=True, editable=False)
+    buyer = models.ForeignKey(Buyer, on_delete=models.PROTECT, related_name="quotations")
+    warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="quotations")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    validity_date = models.DateField(null=True, blank=True)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    discount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    tax_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="quotations_created")
+    converted_to = models.OneToOneField(SalesOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="from_quotation")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.quotation_number:
+            self.quotation_number = _serial("QT", Quotation)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.quotation_number
+
+
+class QuotationItem(models.Model):
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name="items")
+    finished_product = models.ForeignKey(FinishedProduct, on_delete=models.PROTECT, related_name="quotation_items")
+    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    total_price = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def save(self, *args, **kwargs):
+        self.total_price = self.unit_price * self.quantity
+        super().save(*args, **kwargs)
+
+
 class ReorderPoint(models.Model):
     """Per-item/category stock threshold — triggers alert when current stock falls below."""
     class ItemKind(models.TextChoices):
@@ -1025,6 +1076,7 @@ class SystemSettings(models.Model):
     accent_color = models.CharField(max_length=7, default="#c9963c")
     default_dark_mode = models.BooleanField(default=False)
     company_name = models.CharField(max_length=100, default="My Garment Business")
+    company_state = models.CharField(max_length=50, blank=True, default="Tamil Nadu", help_text="State for CGST/SGST vs IGST determination")
     currency_symbol = models.CharField(max_length=5, default="₹")
     tax_percent = models.DecimalField(max_digits=5, decimal_places=2, default=18)
     smtp_host = models.CharField(max_length=200, blank=True)

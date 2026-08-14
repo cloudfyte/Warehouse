@@ -4,6 +4,7 @@ from graphql_jwt.decorators import login_required
 from warehouse import selectors
 
 from .types import (
+    AgingReport,
     AnalyticsStats,
     AuditLogType,
     BuyerReturnType,
@@ -19,8 +20,10 @@ from .types import (
     NotificationType,
     ExpenseType,
     ParcelInspectionType,
+    PLReport,
     PurchaseBillType,
     PurchaseOrderType,
+    QuotationType,
     RawClothBatchType,
     ReadymadeStockType,
     ReorderPointType,
@@ -100,6 +103,13 @@ class Query(graphene.ObjectType):
 
     # Parcel inspection
     parcel_inspection = graphene.Field(ParcelInspectionType, po_id=graphene.ID(required=True))
+
+    # Quotations
+    quotations = graphene.List(QuotationType, limit=graphene.Int())
+
+    # Reports (on-demand — not in DASHBOARD_QUERY)
+    profit_loss_report = graphene.Field(PLReport, year=graphene.Int(required=True), month=graphene.Int())
+    aging_report = graphene.Field(AgingReport)
 
     # ── resolvers ─────────────────────────────────────────────────────────────
 
@@ -240,3 +250,15 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_parcel_inspection(self, info, po_id):
         return selectors.get_parcel_inspection(po_id)
+
+    @login_required
+    def resolve_quotations(self, info, limit=100):
+        return selectors.get_quotations(info.context.user, limit=limit)
+
+    @login_required
+    def resolve_profit_loss_report(self, info, year, month=None):
+        return selectors.get_profit_loss_report(info.context.user, year=year, month=month)
+
+    @login_required
+    def resolve_aging_report(self, info):
+        return selectors.get_aging_report(info.context.user)

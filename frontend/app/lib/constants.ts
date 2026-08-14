@@ -66,12 +66,19 @@ export const TAB_TITLES: Record<Tab, string> = {
   stock_adjustments: "Stock Adjustments",
   stock_transfers: "Stock Transfers",
   reorder_points: "Reorder Points",
+  quotations: "Quotations",
+  reports: "Reports",
   employees: "Employees",
   warehouses: "Warehouses",
   notifications: "Notifications",
   audit_log: "Audit Log",
   settings: "Settings",
   profile: "My Profile",
+};
+
+export const QUOTATION_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draft", SENT: "Sent", ACCEPTED: "Accepted",
+  REJECTED: "Rejected", EXPIRED: "Expired",
 };
 
 export const STATUS_BADGE_COLORS: Record<string, string> = {
@@ -83,4 +90,6 @@ export const STATUS_BADGE_COLORS: Record<string, string> = {
   OUTSTANDING: "#f44336", OVERDUE: "#b71c1c", QC_CHECK: "#9c27b0",
   REJECTED: "#f44336", RESTOCKED: "#4caf50", DISCARDED: "#f44336",
   CONFIRMED: "#4caf50",
+  SENT: "#2196f3", ACCEPTED: "#4caf50", EXPIRED: "#9e9e9e",
+  IN_TRANSIT: "#ff9800",
 };

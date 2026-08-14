@@ -88,7 +88,7 @@ export const DASHBOARD_QUERY = `
     }
     clothCategories { id name description active }
     clothColors { id name hexCode active }
-    itemTypes { id name category clothLengthPerPiece active }
+    itemTypes { id name category clothLengthPerPiece hsnCode active }
     suppliers { id name contactPerson email phone whatsapp address city state gstin supplyType creditDays notes active }
     buyers { id name contactPerson email phone whatsapp address city state gstin buyerType creditLimit notes active }
     purchaseOrders(limit: 100) {
@@ -154,7 +154,7 @@ export const DASHBOARD_QUERY = `
     }
     salesOrders(limit: 100) {
       id orderNumber status paymentMode orderDate expectedDelivery actualDelivery
-      subtotal discount taxAmount totalAmount amountPaid amountDue notes createdAt
+      subtotal discount taxAmount cgstAmount sgstAmount igstAmount totalAmount amountPaid amountDue notes createdAt
       buyer { id name phone }
       warehouse { id name code }
       items { id quantity unitPrice totalPrice finishedProduct { sku itemType { name } } }
@@ -209,6 +209,36 @@ export const DASHBOARD_QUERY = `
       finishedProduct { id sku itemType { name } }
       createdBy { id username }
       receivedBy { id username }
+    }
+    quotations(limit: 200) {
+      id quotationNumber status validityDate subtotal discount taxAmount totalAmount notes createdAt
+      buyer { id name phone }
+      warehouse { id name code }
+      convertedTo { id orderNumber }
+      createdBy { id username }
+      items {
+        id quantity unitPrice totalPrice
+        finishedProduct { id sku itemType { id name } }
+      }
+    }
+  }
+`;
+
+export const PL_REPORT_QUERY = `
+  query PLReport($year: Int!, $month: Int) {
+    profitLossReport(year: $year, month: $month) {
+      periodLabel revenue cogs grossProfit expenses netProfit grossMarginPct netMarginPct
+      monthly { month revenue cogs grossProfit expenses netProfit }
+    }
+  }
+`;
+
+export const AGING_REPORT_QUERY = `
+  query AgingReport {
+    agingReport {
+      totalBuyerOutstanding totalSupplierOutstanding
+      buyerRows { buyerName bucket030 bucket3160 bucket6190 bucket91Plus total }
+      supplierRows { supplierName bucket030 bucket3160 bucket6190 bucket91Plus total }
     }
   }
 `;

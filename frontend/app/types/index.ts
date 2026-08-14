@@ -2,7 +2,7 @@
 
 export interface ClothCategory { id: string; name: string; description: string; active: boolean }
 export interface ClothColor { id: string; name: string; hexCode: string; active: boolean }
-export interface ItemType { id: string; name: string; category: string; clothLengthPerPiece: number; active: boolean }
+export interface ItemType { id: string; name: string; category: string; clothLengthPerPiece: number; hsnCode: string; active: boolean }
 export interface WarehouseLocation { id: string; name: string; code: string; locationType: string; city: string; state: string; address: string; phone: string; active: boolean }
 
 // ─── people ───────────────────────────────────────────────────────────────────
@@ -120,8 +120,8 @@ export interface SalesOrder {
   id: string; orderNumber: string; buyer: Buyer; status: string; paymentMode: string
   orderDate: string; expectedDelivery?: string; actualDelivery?: string
   warehouse: WarehouseLocation; subtotal: number; discount: number
-  taxAmount: number; totalAmount: number
-  amountPaid: number; amountDue: number; notes: string; items: SOItem[]; createdAt: string
+  taxAmount: number; cgstAmount: number; sgstAmount: number; igstAmount: number
+  totalAmount: number; amountPaid: number; amountDue: number; notes: string; items: SOItem[]; createdAt: string
 }
 
 // ─── credit ───────────────────────────────────────────────────────────────────
@@ -206,6 +206,46 @@ export interface SupplierReturn {
   reason: string; status: string; warehouse: WarehouseLocation; createdAt: string
 }
 
+// ─── quotations ───────────────────────────────────────────────────────────────
+
+export interface QuotationItem {
+  id: string; finishedProduct: FinishedProduct; quantity: number; unitPrice: number; totalPrice: number
+}
+
+export interface Quotation {
+  id: string; quotationNumber: string; buyer: Buyer; warehouse: WarehouseLocation
+  status: string; validityDate?: string
+  subtotal: number; discount: number; taxAmount: number; totalAmount: number
+  notes: string; convertedTo?: { id: string; orderNumber: string }
+  createdBy?: { id: string; username: string }
+  items: QuotationItem[]; createdAt: string
+}
+
+// ─── reports ─────────────────────────────────────────────────────────────────
+
+export interface PLMonthStat {
+  month: string; revenue: number; cogs: number; grossProfit: number; expenses: number; netProfit: number
+}
+
+export interface PLReport {
+  periodLabel: string; revenue: number; cogs: number; grossProfit: number
+  expenses: number; netProfit: number; grossMarginPct: number; netMarginPct: number
+  monthly: PLMonthStat[]
+}
+
+export interface BuyerAgingRow {
+  buyerName: string; bucket030: number; bucket3160: number; bucket6190: number; bucket91Plus: number; total: number
+}
+
+export interface SupplierAgingRow {
+  supplierName: string; bucket030: number; bucket3160: number; bucket6190: number; bucket91Plus: number; total: number
+}
+
+export interface AgingReport {
+  buyerRows: BuyerAgingRow[]; supplierRows: SupplierAgingRow[]
+  totalBuyerOutstanding: number; totalSupplierOutstanding: number
+}
+
 // ─── notifications ────────────────────────────────────────────────────────────
 
 export interface NotificationItem {
@@ -257,6 +297,7 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points"
+  | "quotations" | "reports"
   | "employees" | "warehouses" | "notifications" | "audit_log" | "settings" | "profile"
 
 export interface Modal {

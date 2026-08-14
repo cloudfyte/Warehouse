@@ -21,6 +21,8 @@ from warehouse.models import (
     PurchaseBillItem,
     PurchaseOrder,
     PurchaseOrderItem,
+    Quotation,
+    QuotationItem,
     RawClothBatch,
     ReadymadeStock,
     ReorderPoint,
@@ -232,6 +234,9 @@ class SalesOrderItemType(DjangoObjectType):
 
 class SalesOrderType(DjangoObjectType):
     tax_amount = graphene.Float()
+    cgst_amount = graphene.Float()
+    sgst_amount = graphene.Float()
+    igst_amount = graphene.Float()
     subtotal = graphene.Float()
     discount = graphene.Float()
     total_amount = graphene.Float()
@@ -243,6 +248,9 @@ class SalesOrderType(DjangoObjectType):
         fields = "__all__"
 
     def resolve_tax_amount(self, info): return float(self.tax_amount)
+    def resolve_cgst_amount(self, info): return float(self.cgst_amount)
+    def resolve_sgst_amount(self, info): return float(self.sgst_amount)
+    def resolve_igst_amount(self, info): return float(self.igst_amount)
     def resolve_subtotal(self, info): return float(self.subtotal)
     def resolve_discount(self, info): return float(self.discount)
     def resolve_total_amount(self, info): return float(self.total_amount)
@@ -482,3 +490,92 @@ class DashboardStats(graphene.ObjectType):
     # Expenses
     expenses_this_month = graphene.Float()
     expenses_this_year = graphene.Float()
+
+
+# ─── Quotation ────────────────────────────────────────────────────────────────
+
+class QuotationItemType(DjangoObjectType):
+    unit_price = graphene.Float()
+    total_price = graphene.Float()
+
+    class Meta:
+        model = QuotationItem
+        fields = "__all__"
+
+    def resolve_unit_price(self, info): return float(self.unit_price)
+    def resolve_total_price(self, info): return float(self.total_price)
+
+
+class QuotationType(DjangoObjectType):
+    subtotal = graphene.Float()
+    discount = graphene.Float()
+    tax_amount = graphene.Float()
+    total_amount = graphene.Float()
+    created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
+    class Meta:
+        model = Quotation
+        fields = "__all__"
+
+    def resolve_subtotal(self, info): return float(self.subtotal)
+    def resolve_discount(self, info): return float(self.discount)
+    def resolve_tax_amount(self, info): return float(self.tax_amount)
+    def resolve_total_amount(self, info): return float(self.total_amount)
+
+    def resolve_created_by(self, info):
+        if not self.created_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.created_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
+
+
+# ─── P&L Report ───────────────────────────────────────────────────────────────
+
+class PLMonthStat(graphene.ObjectType):
+    month = graphene.String()
+    revenue = graphene.Float()
+    cogs = graphene.Float()
+    gross_profit = graphene.Float()
+    expenses = graphene.Float()
+    net_profit = graphene.Float()
+
+
+class PLReport(graphene.ObjectType):
+    period_label = graphene.String()
+    revenue = graphene.Float()
+    cogs = graphene.Float()
+    gross_profit = graphene.Float()
+    expenses = graphene.Float()
+    net_profit = graphene.Float()
+    gross_margin_pct = graphene.Float()
+    net_margin_pct = graphene.Float()
+    monthly = graphene.List(PLMonthStat)
+
+
+# ─── Aging Report ─────────────────────────────────────────────────────────────
+
+class BuyerAgingRow(graphene.ObjectType):
+    buyer_name = graphene.String()
+    bucket_0_30 = graphene.Float()
+    bucket_31_60 = graphene.Float()
+    bucket_61_90 = graphene.Float()
+    bucket_91_plus = graphene.Float()
+    total = graphene.Float()
+
+
+class SupplierAgingRow(graphene.ObjectType):
+    supplier_name = graphene.String()
+    bucket_0_30 = graphene.Float()
+    bucket_31_60 = graphene.Float()
+    bucket_61_90 = graphene.Float()
+    bucket_91_plus = graphene.Float()
+    total = graphene.Float()
+
+
+class AgingReport(graphene.ObjectType):
+    buyer_rows = graphene.List(BuyerAgingRow)
+    supplier_rows = graphene.List(SupplierAgingRow)
+    total_buyer_outstanding = graphene.Float()
+    total_supplier_outstanding = graphene.Float()

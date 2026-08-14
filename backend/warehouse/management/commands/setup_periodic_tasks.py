@@ -13,24 +13,32 @@ class Command(BaseCommand):
             self.stderr.write("django_celery_beat not installed — skipping.")
             return
 
-        # Daily low-stock alert at 8:00 AM IST
-        schedule, _ = CrontabSchedule.objects.get_or_create(
-            minute="0",
-            hour="8",
-            day_of_week="*",
-            day_of_month="*",
-            month_of_year="*",
+        # Daily at 8:00 AM IST
+        morning, _ = CrontabSchedule.objects.get_or_create(
+            minute="0", hour="8",
+            day_of_week="*", day_of_month="*", month_of_year="*",
             timezone="Asia/Kolkata",
         )
-        _, created = PeriodicTask.objects.update_or_create(
-            name="Daily Low-Stock Alert",
-            defaults={
-                "task": "warehouse.tasks.send_daily_low_stock_alert",
-                "crontab": schedule,
-                "enabled": True,
-                "start_time": timezone.now(),
-            },
+        # Daily at 10:00 AM IST
+        mid_morning, _ = CrontabSchedule.objects.get_or_create(
+            minute="0", hour="10",
+            day_of_week="*", day_of_month="*", month_of_year="*",
+            timezone="Asia/Kolkata",
         )
-        self.stdout.write(self.style.SUCCESS(
-            f"{'Created' if created else 'Updated'} periodic task: Daily Low-Stock Alert (08:00 IST)"
-        ))
+
+        tasks = [
+            ("Daily Low-Stock Alert",    "warehouse.tasks.check_reorder_points",    morning),
+            ("Daily Payment Reminders",  "warehouse.tasks.send_payment_reminders",  mid_morning),
+        ]
+        for name, task_path, schedule in tasks:
+            _, created = PeriodicTask.objects.update_or_create(
+                name=name,
+                defaults={
+                    "task": task_path,
+                    "crontab": schedule,
+                    "enabled": True,
+                    "start_time": timezone.now(),
+                },
+            )
+            verb = "Created" if created else "Updated"
+            self.stdout.write(self.style.SUCCESS(f"{verb} periodic task: {name}"))

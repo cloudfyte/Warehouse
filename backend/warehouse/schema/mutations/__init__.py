@@ -26,6 +26,7 @@ from .stock_transfer import (
     CreateStockTransfer, DispatchStockTransfer, ReceiveStockTransfer, CancelStockTransfer,
 )
 from .parcel_inspection import CreateParcelInspection, UpdateParcelInspection
+from .quotation import CreateQuotation, UpdateQuotationStatus, ConvertQuotationToSO
 
 
 class Mutation(graphene.ObjectType):
@@ -115,6 +116,11 @@ class Mutation(graphene.ObjectType):
     # Parcel inspection
     create_parcel_inspection = CreateParcelInspection.Field()
     update_parcel_inspection = UpdateParcelInspection.Field()
+
+    # Quotations
+    create_quotation = CreateQuotation.Field()
+    update_quotation_status = UpdateQuotationStatus.Field()
+    convert_quotation_to_so = ConvertQuotationToSO.Field()
 
     # Misc
     mark_notifications_read = MarkNotificationsRead.Field()
