@@ -547,6 +547,7 @@ class SalesOrder(models.Model):
     warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="sales_orders")
     subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     discount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    tax_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     amount_paid = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     amount_due = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
@@ -910,6 +911,108 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.action} on {self.entity_type}#{self.entity_id} by {self.actor_name}"
+
+
+# ─── reorder points ───────────────────────────────────────────────────────────
+
+class ReorderPoint(models.Model):
+    """Per-item/category stock threshold — triggers alert when current stock falls below."""
+    class ItemKind(models.TextChoices):
+        RAW_CLOTH = "RAW_CLOTH", "Raw Cloth"
+        FINISHED = "FINISHED", "Finished Product"
+
+    item_kind = models.CharField(max_length=20, choices=ItemKind.choices)
+    # Raw cloth fields
+    cloth_category = models.ForeignKey(ClothCategory, null=True, blank=True, on_delete=models.CASCADE, related_name="reorder_points")
+    cloth_color = models.ForeignKey(ClothColor, null=True, blank=True, on_delete=models.SET_NULL, related_name="reorder_points")
+    threshold_meters = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Finished product fields
+    item_type = models.ForeignKey(ItemType, null=True, blank=True, on_delete=models.CASCADE, related_name="reorder_points")
+    size = models.CharField(max_length=30, blank=True)
+    threshold_pieces = models.PositiveIntegerField(null=True, blank=True)
+
+    warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.CASCADE, related_name="reorder_points")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["item_kind", "warehouse__name"]
+
+    def __str__(self):
+        if self.item_kind == "RAW_CLOTH":
+            return f"Reorder: {self.cloth_category} @ {self.warehouse.name} < {self.threshold_meters}m"
+        return f"Reorder: {self.item_type} {self.size} @ {self.warehouse.name} < {self.threshold_pieces}pcs"
+
+
+# ─── inter-warehouse stock transfers ──────────────────────────────────────────
+
+class StockTransfer(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending Dispatch"
+        IN_TRANSIT = "IN_TRANSIT", "In Transit"
+        RECEIVED = "RECEIVED", "Received"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class TransferKind(models.TextChoices):
+        RAW_CLOTH = "RAW_CLOTH", "Raw Cloth"
+        FINISHED = "FINISHED", "Finished Products"
+
+    transfer_number = models.CharField(max_length=30, unique=True, editable=False)
+    from_warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="transfers_out")
+    to_warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="transfers_in")
+    transfer_kind = models.CharField(max_length=20, choices=TransferKind.choices)
+    # Raw cloth transfer
+    raw_cloth_batch = models.ForeignKey(RawClothBatch, null=True, blank=True, on_delete=models.SET_NULL, related_name="transfers")
+    meters_to_transfer = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Finished product transfer
+    finished_product = models.ForeignKey(FinishedProduct, null=True, blank=True, on_delete=models.SET_NULL, related_name="transfers")
+    quantity_to_transfer = models.PositiveIntegerField(null=True, blank=True)
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="stock_transfers_created")
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="stock_transfers_received")
+    received_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.transfer_number:
+            self.transfer_number = _serial("TR", StockTransfer)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.transfer_number
+
+
+# ─── parcel inspection ────────────────────────────────────────────────────────
+
+class ParcelInspection(models.Model):
+    """Formal inspection record when a PO parcel is opened at the warehouse."""
+    class Condition(models.TextChoices):
+        GOOD = "GOOD", "Good Condition"
+        PARTIAL_DAMAGE = "PARTIAL_DAMAGE", "Partial Damage"
+        DAMAGED = "DAMAGED", "Damaged"
+
+    purchase_order = models.OneToOneField(PurchaseOrder, on_delete=models.CASCADE, related_name="parcel_inspection")
+    inspected_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="parcel_inspections")
+    inspection_date = models.DateField()
+    parcel_condition = models.CharField(max_length=20, choices=Condition.choices, default=Condition.GOOD)
+    quantity_check_passed = models.BooleanField(default=True)
+    discrepancy_notes = models.TextField(blank=True)
+    photos = models.TextField(blank=True, help_text="Comma-separated base64 photo strings")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Inspection {self.purchase_order.po_number} — {self.get_parcel_condition_display()}"
 
 
 # ─── system settings ──────────────────────────────────────────────────────────

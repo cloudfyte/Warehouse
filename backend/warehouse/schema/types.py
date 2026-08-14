@@ -16,16 +16,19 @@ from warehouse.models import (
     ItemType,
     Notification,
     OTPCode,
+    ParcelInspection,
     PurchaseBill,
     PurchaseBillItem,
     PurchaseOrder,
     PurchaseOrderItem,
     RawClothBatch,
     ReadymadeStock,
+    ReorderPoint,
     SalesOrder,
     SalesOrderItem,
     StitchingJob,
     StockAdjustment,
+    StockTransfer,
     Supplier,
     SupplierPayment,
     SupplierReturn,
@@ -94,6 +97,7 @@ class PurchaseOrderItemType(DjangoObjectType):
 class PurchaseOrderType(DjangoObjectType):
     created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
     received_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+    parcel_inspection = graphene.Field("warehouse.schema.types.ParcelInspectionType")
 
     class Meta:
         model = PurchaseOrder
@@ -113,6 +117,12 @@ class PurchaseOrderType(DjangoObjectType):
         try:
             return EmployeeProfile.objects.get(user_id=self.received_by_id)
         except EmployeeProfile.DoesNotExist:
+            return None
+
+    def resolve_parcel_inspection(self, info):
+        try:
+            return self.parcel_inspection
+        except ParcelInspection.DoesNotExist:
             return None
 
 
@@ -221,9 +231,23 @@ class SalesOrderItemType(DjangoObjectType):
 
 
 class SalesOrderType(DjangoObjectType):
+    tax_amount = graphene.Float()
+    subtotal = graphene.Float()
+    discount = graphene.Float()
+    total_amount = graphene.Float()
+    amount_paid = graphene.Float()
+    amount_due = graphene.Float()
+
     class Meta:
         model = SalesOrder
         fields = "__all__"
+
+    def resolve_tax_amount(self, info): return float(self.tax_amount)
+    def resolve_subtotal(self, info): return float(self.subtotal)
+    def resolve_discount(self, info): return float(self.discount)
+    def resolve_total_amount(self, info): return float(self.total_amount)
+    def resolve_amount_paid(self, info): return float(self.amount_paid)
+    def resolve_amount_due(self, info): return float(self.amount_due)
 
 
 class CreditPaymentType(DjangoObjectType):
@@ -248,6 +272,62 @@ class SupplierReturnType(DjangoObjectType):
     class Meta:
         model = SupplierReturn
         fields = "__all__"
+
+
+class ReorderPointType(DjangoObjectType):
+    threshold_meters = graphene.Float()
+
+    class Meta:
+        model = ReorderPoint
+        fields = "__all__"
+
+    def resolve_threshold_meters(self, info):
+        return float(self.threshold_meters) if self.threshold_meters is not None else None
+
+
+class StockTransferType(DjangoObjectType):
+    meters_to_transfer = graphene.Float()
+    created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+    received_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
+    class Meta:
+        model = StockTransfer
+        fields = "__all__"
+
+    def resolve_meters_to_transfer(self, info):
+        return float(self.meters_to_transfer) if self.meters_to_transfer is not None else None
+
+    def resolve_created_by(self, info):
+        if not self.created_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.created_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
+
+    def resolve_received_by(self, info):
+        if not self.received_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.received_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
+
+
+class ParcelInspectionType(DjangoObjectType):
+    inspected_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
+    class Meta:
+        model = ParcelInspection
+        fields = "__all__"
+
+    def resolve_inspected_by(self, info):
+        if not self.inspected_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.inspected_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
 
 
 class NotificationType(DjangoObjectType):
@@ -302,6 +382,28 @@ class TopSupplierStat(graphene.ObjectType):
     total_pending = graphene.Float()
 
 
+class SizeSalesStat(graphene.ObjectType):
+    size = graphene.String()
+    quantity_sold = graphene.Int()
+    revenue = graphene.Float()
+
+
+class TailorProductivityStat(graphene.ObjectType):
+    tailor_name = graphene.String()
+    pieces_completed = graphene.Int()
+    pieces_rejected = graphene.Int()
+    rejection_rate = graphene.Float()
+    jobs_count = graphene.Int()
+
+
+class CuttingMasterStat(graphene.ObjectType):
+    master_name = graphene.String()
+    pieces_cut = graphene.Int()
+    cloth_wasted = graphene.Float()
+    wastage_pct = graphene.Float()
+    assignments_count = graphene.Int()
+
+
 class AnalyticsStats(graphene.ObjectType):
     monthly_revenue = graphene.List(MonthlyRevenueStat)
     monthly_production = graphene.List(MonthlyProductionStat)
@@ -311,6 +413,9 @@ class AnalyticsStats(graphene.ObjectType):
     top_suppliers = graphene.List(TopSupplierStat)
     cloth_wastage_pct = graphene.Float()
     supplier_total_pending = graphene.Float()
+    size_sales_breakdown = graphene.List(SizeSalesStat)
+    tailor_productivity = graphene.List(TailorProductivityStat)
+    cutting_master_stats = graphene.List(CuttingMasterStat)
 
 
 class SupplierPaymentType(DjangoObjectType):

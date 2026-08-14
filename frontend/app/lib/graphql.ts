@@ -99,6 +99,10 @@ export const DASHBOARD_QUERY = `
       receivedBy { id username }
       items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name } }
+      parcelInspection {
+        id parcelCondition quantityCheckPassed discrepancyNotes notes inspectionDate createdAt
+        inspectedBy { id username }
+      }
     }
     expenses(limit: 500) {
       id expenseNumber category amount expenseDate description reference createdAt
@@ -150,7 +154,7 @@ export const DASHBOARD_QUERY = `
     }
     salesOrders(limit: 100) {
       id orderNumber status paymentMode orderDate expectedDelivery actualDelivery
-      subtotal discount totalAmount amountPaid amountDue notes createdAt
+      subtotal discount taxAmount totalAmount amountPaid amountDue notes createdAt
       buyer { id name phone }
       warehouse { id name code }
       items { id quantity unitPrice totalPrice finishedProduct { sku itemType { name } } }
@@ -186,6 +190,25 @@ export const DASHBOARD_QUERY = `
       rawClothBatch { id batchNumber clothCategory { name } clothColor { name } }
       finishedProduct { id sku itemType { name } }
       warehouse { id name }
+    }
+    reorderPoints {
+      id itemKind active createdAt
+      warehouse { id name }
+      clothCategory { id name }
+      clothColor { id name }
+      thresholdMeters
+      itemType { id name }
+      size
+      thresholdPieces
+    }
+    stockTransfers(limit: 100) {
+      id transferNumber status transferKind metersToTransfer quantityToTransfer notes createdAt dispatchedAt receivedAt
+      fromWarehouse { id name }
+      toWarehouse { id name }
+      rawClothBatch { id batchNumber clothCategory { name } clothColor { name } }
+      finishedProduct { id sku itemType { name } }
+      createdBy { id username }
+      receivedBy { id username }
     }
   }
 `;

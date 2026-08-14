@@ -18,13 +18,16 @@ from .types import (
     ItemTypeType,
     NotificationType,
     ExpenseType,
+    ParcelInspectionType,
     PurchaseBillType,
     PurchaseOrderType,
     RawClothBatchType,
     ReadymadeStockType,
+    ReorderPointType,
     SalesOrderType,
     StitchingJobType,
     StockAdjustmentType,
+    StockTransferType,
     SupplierPaymentType,
     SupplierReturnType,
     SupplierType,
@@ -88,6 +91,15 @@ class Query(graphene.ObjectType):
     all_audit_logs = graphene.List(AuditLogType, entity_type=graphene.String(), actor_name=graphene.String(), limit=graphene.Int())
     analytics_stats = graphene.Field(AnalyticsStats)
     dashboard_stats = graphene.Field(DashboardStats)
+
+    # Reorder points
+    reorder_points = graphene.List(ReorderPointType, active_only=graphene.Boolean())
+
+    # Stock transfers
+    stock_transfers = graphene.List(StockTransferType, status=graphene.String(), limit=graphene.Int())
+
+    # Parcel inspection
+    parcel_inspection = graphene.Field(ParcelInspectionType, po_id=graphene.ID(required=True))
 
     # ── resolvers ─────────────────────────────────────────────────────────────
 
@@ -216,3 +228,15 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_dashboard_stats(self, info):
         return selectors.get_dashboard_stats(info.context.user)
+
+    @login_required
+    def resolve_reorder_points(self, info, active_only=False):
+        return selectors.get_reorder_points(info.context.user, active_only=active_only)
+
+    @login_required
+    def resolve_stock_transfers(self, info, status=None, limit=100):
+        return selectors.get_stock_transfers(info.context.user, status=status, limit=limit)
+
+    @login_required
+    def resolve_parcel_inspection(self, info, po_id):
+        return selectors.get_parcel_inspection(po_id)

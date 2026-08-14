@@ -14,6 +14,9 @@ interface RevenueExpense { month: string; revenue: number; expenses: number }
 interface StockCategory { category: string; meters: number; pieces: number }
 interface TopBuyer { buyerName: string; totalSpend: number; orderCount: number }
 interface TopSupplier { supplierName: string; totalPurchased: number; totalPending: number }
+interface SizeSale { size: string; quantitySold: number; revenue: number }
+interface TailorStat { tailorName: string; piecesCompleted: number; piecesRejected: number; rejectionRate: number; jobsCount: number }
+interface MasterStat { masterName: string; piecesCut: number; clothWasted: number; wastagePct: number; assignmentsCount: number }
 
 interface AnalyticsStats {
   monthlyRevenue: MonthlyRevenue[]
@@ -24,6 +27,9 @@ interface AnalyticsStats {
   topSuppliers: TopSupplier[]
   clothWastagePct: number
   supplierTotalPending: number
+  sizeSalesBreakdown: SizeSale[]
+  tailorProductivity: TailorStat[]
+  cuttingMasterStats: MasterStat[]
 }
 
 interface AnalyticsData {
@@ -90,6 +96,9 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
         topSuppliers { supplierName totalPurchased totalPending }
         clothWastagePct
         supplierTotalPending
+        sizeSalesBreakdown { size quantitySold revenue }
+        tailorProductivity { tailorName piecesCompleted piecesRejected rejectionRate jobsCount }
+        cuttingMasterStats { masterName piecesCut clothWasted wastagePct assignmentsCount }
       }
     }`)
       .then(d => setData(d.analyticsStats))
@@ -100,7 +109,7 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
   if (loading) return <div style={{ padding: 40, color: "var(--muted)", textAlign: "center" }}>Loading analytics…</div>;
   if (!data) return <div style={{ padding: 40, color: "var(--muted)", textAlign: "center" }}>Failed to load analytics</div>;
 
-  const { monthlyRevenue, monthlyProduction, revenueVsExpenses, stockByCategory, topBuyers, topSuppliers, clothWastagePct, supplierTotalPending } = data;
+  const { monthlyRevenue, monthlyProduction, revenueVsExpenses, stockByCategory, topBuyers, topSuppliers, clothWastagePct, supplierTotalPending, sizeSalesBreakdown, tailorProductivity, cuttingMasterStats } = data;
 
   const revenueFiltered = [...monthlyRevenue].sort((a, b) => a.month.localeCompare(b.month)).slice(-period);
   const prodFiltered = [...monthlyProduction].sort((a, b) => a.month.localeCompare(b.month)).slice(-period);
@@ -264,10 +273,8 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
         {topSuppliers.length === 0 ? <Empty /> : (
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 120px", gap: 0, padding: "8px 12px", background: "var(--canvas)", borderRadius: "8px 8px 0 0", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)" }}>
-              <span>Supplier</span>
-              <span style={{ textAlign: "right" }}>Total Purchased</span>
-              <span style={{ textAlign: "right" }}>Outstanding</span>
-              <span style={{ textAlign: "right" }}>Paid %</span>
+              <span>Supplier</span><span style={{ textAlign: "right" }}>Total Purchased</span>
+              <span style={{ textAlign: "right" }}>Outstanding</span><span style={{ textAlign: "right" }}>Paid %</span>
             </div>
             {topSuppliers.map((s, i) => {
               const paidPct = s.totalPurchased > 0 ? ((s.totalPurchased - s.totalPending) / s.totalPurchased * 100) : 100;
@@ -295,6 +302,83 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
           </div>
         )}
       </Section>
+
+      {/* Size-wise Sales */}
+      {sizeSalesBreakdown.length > 0 && (
+        <Section title="Sales by Size">
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={[...sizeSalesBreakdown].sort((a, b) => b.quantitySold - a.quantitySold)} barSize={32}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
+              <XAxis dataKey="size" tick={{ fontSize: 11 }} />
+              <YAxis yAxisId="qty" tick={{ fontSize: 11 }} />
+              <YAxis yAxisId="rev" orientation="right" tickFormatter={fmtK} tick={{ fontSize: 11 }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [name === "revenue" ? fmtK(v) : v, name === "revenue" ? "Revenue" : "Qty Sold"]} />
+              <Bar yAxisId="qty" dataKey="quantitySold" fill="#6366f1" name="quantitySold" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="rev" dataKey="revenue" fill="#10b981" name="revenue" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Section>
+      )}
+
+      {/* Tailor Productivity */}
+      {tailorProductivity.length > 0 && (
+        <Section title="Tailor Productivity">
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "var(--canvas)" }}>
+                  {["Tailor", "Jobs", "Pieces Completed", "Rejected", "Rejection %"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", textAlign: h === "Tailor" ? "left" : "right", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tailorProductivity.map((t, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{t.tailorName}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--muted)" }}>{t.jobsCount}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>{t.piecesCompleted.toLocaleString()}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: t.piecesRejected > 0 ? "#e65100" : "var(--muted)" }}>{t.piecesRejected}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                      <span style={{ fontWeight: 700, color: t.rejectionRate > 10 ? "#c62828" : t.rejectionRate > 5 ? "#e65100" : "#2e7d32" }}>{t.rejectionRate.toFixed(1)}%</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* Cutting Master Stats */}
+      {cuttingMasterStats.length > 0 && (
+        <Section title="Cutting Master Performance">
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "var(--canvas)" }}>
+                  {["Master", "Assignments", "Pieces Cut", "Cloth Wasted (m)", "Wastage %"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", textAlign: h === "Master" ? "left" : "right", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {cuttingMasterStats.map((m, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{m.masterName}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--muted)" }}>{m.assignmentsCount}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>{m.piecesCut.toLocaleString()}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: "var(--muted)" }}>{m.clothWasted.toFixed(1)}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                      <span style={{ fontWeight: 700, color: m.wastagePct > 15 ? "#c62828" : m.wastagePct > 8 ? "#e65100" : "#2e7d32" }}>{m.wastagePct.toFixed(1)}%</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
     </div>
   );
 }

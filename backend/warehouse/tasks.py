@@ -55,44 +55,72 @@ def send_push_task(self, user_id: int, title: str, body: str, data: dict | None 
 # ─── Scheduled tasks ──────────────────────────────────────────────────────────
 
 @shared_task
-def send_daily_low_stock_alert():
+def check_reorder_points():
     """
-    Runs daily (schedule configured via django-celery-beat admin).
-    Sends an in-app notification + email to all managers if any stock is critically low.
+    Runs daily — checks all active ReorderPoints against current stock.
+    Creates in-app notifications for managers when stock falls below threshold.
     """
-    from warehouse.models import RawClothBatch, ReadymadeStock, EmployeeProfile
+    from django.db.models import Sum
+    from warehouse.models import ReorderPoint, RawClothBatch, FinishedProduct
     from warehouse.services.notify import notify_managers
 
-    RAW_CRITICAL = 20    # metres
-    RMD_CRITICAL = 5     # pieces
+    alerts = []
+    for rp in ReorderPoint.objects.filter(active=True).select_related(
+        "cloth_category", "cloth_color", "item_type", "warehouse"
+    ):
+        if rp.item_kind == ReorderPoint.ItemKind.RAW_CLOTH:
+            qs = RawClothBatch.objects.filter(
+                warehouse=rp.warehouse,
+                cloth_category=rp.cloth_category,
+                active=True,
+            )
+            if rp.cloth_color:
+                qs = qs.filter(cloth_color=rp.cloth_color)
+            total = float(qs.aggregate(t=Sum("available_meters"))["t"] or 0)
+            if total <= float(rp.threshold_meters):
+                color_label = f" ({rp.cloth_color.name})" if rp.cloth_color else ""
+                alerts.append(
+                    f"• {rp.cloth_category.name}{color_label}: {total:.1f}m left "
+                    f"(threshold {rp.threshold_meters}m) at {rp.warehouse.name}"
+                )
+        else:
+            qs = FinishedProduct.objects.filter(
+                warehouse=rp.warehouse,
+                item_type=rp.item_type,
+                active=True,
+            )
+            if rp.size:
+                qs = qs.filter(size=rp.size)
+            total = int(qs.aggregate(t=Sum("quantity"))["t"] or 0)
+            if total <= rp.threshold_pieces:
+                size_label = f" {rp.size}" if rp.size else ""
+                alerts.append(
+                    f"• {rp.item_type.name}{size_label}: {total} pcs left "
+                    f"(threshold {rp.threshold_pieces}) at {rp.warehouse.name}"
+                )
 
-    low_raw = list(
-        RawClothBatch.objects
-        .filter(active=True, available_meters__gt=0, available_meters__lte=RAW_CRITICAL)
-        .select_related("cloth_category", "cloth_color", "warehouse")
-    )
-    low_rmd = list(
-        ReadymadeStock.objects
-        .filter(quantity_available__gt=0, quantity_available__lte=RMD_CRITICAL)
-        .select_related("item_type", "warehouse")
-    )
-
-    total = len(low_raw) + len(low_rmd)
-    if total == 0:
-        logger.info("Daily stock check: all levels OK")
+    if not alerts:
+        logger.info("Reorder check: all stock levels OK")
         return
 
-    lines = []
-    for b in low_raw:
-        lines.append(f"• {b.cloth_category.name} {b.cloth_color.name}: {b.available_meters:.1f}m ({b.warehouse.name})")
-    for r in low_rmd:
-        lines.append(f"• {r.item_type.name} {r.size or ''}: {r.quantity_available} pcs ({r.warehouse.name})")
-
-    msg = f"{total} item(s) critically low:\n" + "\n".join(lines)
     notify_managers(
-        title=f"⚠ {total} Critical Stock Alert{'s' if total > 1 else ''}",
-        message=msg,
-        level="CRITICAL",
+        title=f"⚠ {len(alerts)} Reorder Alert{'s' if len(alerts) > 1 else ''}",
+        message="Stock below reorder point:\n" + "\n".join(alerts),
+        level="WARNING",
         link="raw_cloth",
     )
-    logger.info("Sent daily stock alert: %d items", total)
+    logger.info("Reorder check: %d alerts sent", len(alerts))
+
+
+# ─── WhatsApp order notifications ─────────────────────────────────────────────
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def send_whatsapp_order_notification(self, phone: str, message: str):
+    """Send a WhatsApp message for order events (dispatched, placed, etc.)."""
+    try:
+        from warehouse.services.notifications import send_whatsapp_text
+        send_whatsapp_text(to=phone, body=message)
+        logger.info("WhatsApp order notification sent to %s", phone)
+    except Exception as exc:
+        logger.warning("WhatsApp order notification failed (%s), retrying…", exc)
+        raise self.retry(exc=exc)

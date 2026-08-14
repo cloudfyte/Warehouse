@@ -67,6 +67,7 @@ export interface PurchaseOrder {
   items: POItem[]; createdAt: string
   createdBy?: { id: string; username: string }
   receivedBy?: { id: string; username: string }
+  parcelInspection?: ParcelInspection
 }
 
 // ─── inventory ────────────────────────────────────────────────────────────────
@@ -118,7 +119,8 @@ export interface SOItem {
 export interface SalesOrder {
   id: string; orderNumber: string; buyer: Buyer; status: string; paymentMode: string
   orderDate: string; expectedDelivery?: string; actualDelivery?: string
-  warehouse: WarehouseLocation; subtotal: number; discount: number; totalAmount: number
+  warehouse: WarehouseLocation; subtotal: number; discount: number
+  taxAmount: number; totalAmount: number
   amountPaid: number; amountDue: number; notes: string; items: SOItem[]; createdAt: string
 }
 
@@ -140,6 +142,43 @@ export interface SupplierPayment {
   id: string; paymentNumber: string; bill: { id: string; billNumber: string }
   amount: number; paymentDate: string; paymentMode: string
   reference: string; notes: string; createdAt: string
+}
+
+// ─── reorder points ───────────────────────────────────────────────────────────
+
+export interface ReorderPoint {
+  id: string; itemKind: string; active: boolean; createdAt: string
+  warehouse: WarehouseLocation
+  clothCategory?: { id: string; name: string }
+  clothColor?: { id: string; name: string }
+  thresholdMeters?: number
+  itemType?: { id: string; name: string }
+  size?: string
+  thresholdPieces?: number
+}
+
+// ─── stock transfers ──────────────────────────────────────────────────────────
+
+export interface StockTransfer {
+  id: string; transferNumber: string; status: string; transferKind: string
+  fromWarehouse: WarehouseLocation; toWarehouse: WarehouseLocation
+  rawClothBatch?: { id: string; batchNumber: string; clothCategory: { name: string }; clothColor: { name: string } }
+  metersToTransfer?: number
+  finishedProduct?: { id: string; sku: string; itemType: { name: string } }
+  quantityToTransfer?: number
+  notes: string
+  createdBy?: { id: string; username: string }
+  receivedBy?: { id: string; username: string }
+  dispatchedAt?: string; receivedAt?: string; createdAt: string
+}
+
+// ─── parcel inspection ────────────────────────────────────────────────────────
+
+export interface ParcelInspection {
+  id: string; parcelCondition: string; quantityCheckPassed: boolean
+  discrepancyNotes: string; photos: string; notes: string
+  inspectionDate: string; createdAt: string
+  inspectedBy?: { id: string; username: string }
 }
 
 // ─── stock adjustments ────────────────────────────────────────────────────────
@@ -217,7 +256,7 @@ export type Tab =
   | "purchase_orders" | "purchase_bills" | "raw_cloth" | "readymade_stock"
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
-  | "stock_adjustments"
+  | "stock_adjustments" | "stock_transfers" | "reorder_points"
   | "employees" | "warehouses" | "notifications" | "audit_log" | "settings" | "profile"
 
 export interface Modal {

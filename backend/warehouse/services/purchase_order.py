@@ -62,6 +62,21 @@ def create_purchase_order(*, user, supplier_id, order_type, warehouse_id,
             total += line_total
         po.total_amount = total
         po.save(update_fields=["total_amount"])
+
+    # WhatsApp notification to supplier when PO is created
+    supplier_phone = supplier.whatsapp or supplier.phone
+    if supplier_phone:
+        from warehouse.tasks import send_whatsapp_order_notification
+        from warehouse.models import SystemSettings
+        settings = SystemSettings.load()
+        msg = (
+            f"Hello {supplier.name},\n"
+            f"A new purchase order *{po.po_number}* has been placed with you by *{settings.company_name}*.\n"
+            f"Order value: {settings.currency_symbol}{po.total_amount:.2f}\n"
+            f"Please confirm and dispatch at the earliest. Thank you!"
+        )
+        send_whatsapp_order_notification.delay(supplier_phone, msg)
+
     return po
 
 

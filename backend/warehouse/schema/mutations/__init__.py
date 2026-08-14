@@ -21,6 +21,11 @@ from .stock import CreateRawClothBatch, CreateReadymadeStock
 from .sales import CreateSalesOrder, RecordCreditPayment, UpdateSalesOrderStatus
 from .settings import UpdateSystemSettings
 from .supplier import CreateBuyer, CreateSupplier, UpdateBuyer, UpdateSupplier
+from .reorder_point import CreateReorderPoint, UpdateReorderPoint, DeleteReorderPoint
+from .stock_transfer import (
+    CreateStockTransfer, DispatchStockTransfer, ReceiveStockTransfer, CancelStockTransfer,
+)
+from .parcel_inspection import CreateParcelInspection, UpdateParcelInspection
 
 
 class Mutation(graphene.ObjectType):
@@ -95,6 +100,21 @@ class Mutation(graphene.ObjectType):
     # Stock adjustments
     create_stock_adjustment = CreateStockAdjustment.Field()
     delete_stock_adjustment = DeleteStockAdjustment.Field()
+
+    # Reorder points
+    create_reorder_point = CreateReorderPoint.Field()
+    update_reorder_point = UpdateReorderPoint.Field()
+    delete_reorder_point = DeleteReorderPoint.Field()
+
+    # Stock transfers
+    create_stock_transfer = CreateStockTransfer.Field()
+    dispatch_stock_transfer = DispatchStockTransfer.Field()
+    receive_stock_transfer = ReceiveStockTransfer.Field()
+    cancel_stock_transfer = CancelStockTransfer.Field()
+
+    # Parcel inspection
+    create_parcel_inspection = CreateParcelInspection.Field()
+    update_parcel_inspection = UpdateParcelInspection.Field()
 
     # Misc
     mark_notifications_read = MarkNotificationsRead.Field()

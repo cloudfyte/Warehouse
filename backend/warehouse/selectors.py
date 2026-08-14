@@ -13,15 +13,18 @@ from .models import (
     FinishedProduct,
     ItemType,
     Notification,
+    ParcelInspection,
     PurchaseBill,
     PurchaseOrder,
     RawClothBatch,
     ReadymadeStock,
+    ReorderPoint,
     Expense,
     SalesOrder,
     SalesOrderItem,
     StitchingJob,
     StockAdjustment,
+    StockTransfer,
     Supplier,
     SupplierPayment,
     SupplierReturn,
@@ -435,6 +438,7 @@ def get_analytics_stats(user):
     from warehouse.schema.types import (
         AnalyticsStats, MonthlyRevenueStat, MonthlyProductionStat,
         RevenueExpenseStat, StockCategoryStat, TopBuyerStat, TopSupplierStat,
+        SizeSalesStat, TailorProductivityStat, CuttingMasterStat,
     )
 
     warehouses = accessible_warehouses(user)
@@ -586,6 +590,80 @@ def get_analytics_stats(user):
 
     supplier_total_pending = sum(s.total_pending for s in top_suppliers)
 
+    # Size-wise sales breakdown (last 12 months, delivered orders)
+    size_qs = (
+        SalesOrderItem.objects
+        .filter(
+            sales_order__warehouse__in=warehouses,
+            sales_order__status="DELIVERED",
+            sales_order__order_date__gte=cutoff,
+        )
+        .values("finished_product__size")
+        .annotate(qty=Sum("quantity"), rev=Sum("total_price"))
+        .order_by("-rev")
+    )
+    size_sales_breakdown = [
+        SizeSalesStat(
+            size=row["finished_product__size"] or "—",
+            quantity_sold=row["qty"] or 0,
+            revenue=float(row["rev"] or 0),
+        )
+        for row in size_qs
+    ]
+
+    # Tailor productivity (last 12 months)
+    tailor_qs = (
+        StitchingJob.objects
+        .filter(cutting_assignment__raw_cloth_batch__warehouse__in=warehouses)
+        .values("tailor__user__username")
+        .annotate(
+            completed=Sum("pieces_completed"),
+            rejected=Sum("pieces_rejected"),
+            jobs=Count("id"),
+        )
+        .order_by("-completed")
+    )
+    tailor_productivity = []
+    for row in tailor_qs:
+        completed = row["completed"] or 0
+        rejected = row["rejected"] or 0
+        total_processed = completed + rejected
+        rejection_rate = round((rejected / total_processed * 100) if total_processed > 0 else 0.0, 1)
+        tailor_productivity.append(TailorProductivityStat(
+            tailor_name=row["tailor__user__username"] or "Unknown",
+            pieces_completed=completed,
+            pieces_rejected=rejected,
+            rejection_rate=rejection_rate,
+            jobs_count=row["jobs"] or 0,
+        ))
+
+    # Cutting master stats (all time)
+    master_qs = (
+        CuttingAssignment.objects
+        .filter(raw_cloth_batch__warehouse__in=warehouses)
+        .values("cutting_master__user__username")
+        .annotate(
+            pieces=Sum("pieces_completed"),
+            wasted=Sum("cloth_wasted"),
+            used=Sum("cloth_used"),
+            assignments=Count("id"),
+        )
+        .order_by("-pieces")
+    )
+    cutting_master_stats = []
+    for row in master_qs:
+        pieces = row["pieces"] or 0
+        wasted = float(row["wasted"] or 0)
+        used = float(row["used"] or 0)
+        wastage_pct = round((wasted / used * 100) if used > 0 else 0.0, 1)
+        cutting_master_stats.append(CuttingMasterStat(
+            master_name=row["cutting_master__user__username"] or "Unknown",
+            pieces_cut=pieces,
+            cloth_wasted=wasted,
+            wastage_pct=wastage_pct,
+            assignments_count=row["assignments"] or 0,
+        ))
+
     return AnalyticsStats(
         monthly_revenue=monthly_revenue,
         monthly_production=monthly_production,
@@ -595,4 +673,41 @@ def get_analytics_stats(user):
         top_suppliers=top_suppliers,
         cloth_wastage_pct=cloth_wastage_pct,
         supplier_total_pending=supplier_total_pending,
+        size_sales_breakdown=size_sales_breakdown,
+        tailor_productivity=tailor_productivity,
+        cutting_master_stats=cutting_master_stats,
     )
+
+
+# ─── reorder points ───────────────────────────────────────────────────────────
+
+def get_reorder_points(user, active_only=False):
+    warehouses = accessible_warehouses(user)
+    qs = ReorderPoint.objects.filter(warehouse__in=warehouses).select_related(
+        "cloth_category", "cloth_color", "item_type", "warehouse"
+    )
+    if active_only:
+        qs = qs.filter(active=True)
+    return qs
+
+
+# ─── stock transfers ──────────────────────────────────────────────────────────
+
+def get_stock_transfers(user, status=None, limit=100):
+    warehouses = accessible_warehouses(user)
+    qs = StockTransfer.objects.filter(
+        from_warehouse__in=warehouses
+    ).select_related(
+        "from_warehouse", "to_warehouse",
+        "raw_cloth_batch__cloth_category", "raw_cloth_batch__cloth_color",
+        "finished_product__item_type",
+    )
+    if status:
+        qs = qs.filter(status=status.upper())
+    return qs[:limit]
+
+
+# ─── parcel inspections ───────────────────────────────────────────────────────
+
+def get_parcel_inspection(po_id):
+    return ParcelInspection.objects.filter(purchase_order_id=po_id).first()

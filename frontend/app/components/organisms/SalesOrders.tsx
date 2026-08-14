@@ -168,7 +168,8 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
       </table>
       <div class="totals">
         <div class="totals-row"><span>Subtotal</span><span>${fmtMoney(so.subtotal)}</span></div>
-        <div class="totals-row"><span>Discount</span><span>- ${fmtMoney(so.discount)}</span></div>
+        ${so.discount > 0 ? `<div class="totals-row"><span>Discount</span><span>- ${fmtMoney(so.discount)}</span></div>` : ""}
+        ${so.taxAmount > 0 ? `<div class="totals-row"><span>GST</span><span>+ ${fmtMoney(so.taxAmount)}</span></div>` : ""}
         <div class="totals-row grand"><span>Grand Total</span><span>${fmtMoney(so.totalAmount)}</span></div>
         ${so.amountDue > 0 ? `<div class="totals-row" style="color:#c00"><span>Balance Due</span><span>${fmtMoney(so.amountDue)}</span></div>` : ""}
       </div>
@@ -384,11 +385,28 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
               <Badge s={detail.paymentMode} label={PAYMENT_MODE_LABELS[detail.paymentMode]} />
               <span style={{ fontSize: 13, color: "var(--muted)" }}>Ordered: {formatDateShort(detail.orderDate)}</span>
             </div>
-            <div style={{ background: "var(--canvas)", borderRadius: 10, padding: 14, marginBottom: 16, fontSize: 14 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div><div style={{ fontSize: 11, color: "var(--muted)" }}>Subtotal</div><div style={{ fontWeight: 600 }}>{formatMoney(detail.subtotal)}</div></div>
-                <div><div style={{ fontSize: 11, color: "var(--muted)" }}>Discount</div><div style={{ fontWeight: 600 }}>{formatMoney(detail.discount)}</div></div>
-                <div><div style={{ fontSize: 11, color: "var(--muted)" }}>Total</div><div style={{ fontWeight: 700, fontSize: 16 }}>{formatMoney(detail.totalAmount)}</div></div>
+            <div style={{ background: "var(--canvas)", borderRadius: 10, padding: 14, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ color: "var(--muted)" }}>Subtotal</span>
+                <span style={{ fontWeight: 600 }}>{formatMoney(detail.subtotal)}</span>
+              </div>
+              {detail.discount > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "#16a34a" }}>
+                  <span>Discount</span>
+                  <span>− {formatMoney(detail.discount)}</span>
+                </div>
+              )}
+              {detail.taxAmount > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "#6366f1" }}>
+                  <span>GST</span>
+                  <span>+ {formatMoney(detail.taxAmount)}</span>
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 16, borderTop: "1px solid var(--line)", paddingTop: 8, marginTop: 4, marginBottom: 10 }}>
+                <span>Total</span>
+                <span>{formatMoney(detail.totalAmount)}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <div><div style={{ fontSize: 11, color: "var(--muted)" }}>Paid</div><div style={{ fontWeight: 600, color: "#16a34a" }}>{formatMoney(detail.amountPaid)}</div></div>
                 {detail.amountDue > 0 && <div><div style={{ fontSize: 11, color: "var(--muted)" }}>Due</div><div style={{ fontWeight: 700, color: "#f44336" }}>{formatMoney(detail.amountDue)}</div></div>}
               </div>
