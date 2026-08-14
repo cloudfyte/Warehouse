@@ -13,13 +13,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "GarmentFlow ERP",
+  title: "Warehouse ERP",
   description: "Garment warehouse, production & sales management",
   manifest: "/api/manifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "GarmentFlow",
+    title: "Warehouse ERP",
   },
   icons: {
     icon: [

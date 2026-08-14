@@ -46,16 +46,18 @@ def update_cloth_color(*, id, name=None, hex_code=None, active=None):
 
 # ── item type ─────────────────────────────────────────────────────────────────
 
-def create_item_type(*, name, category="", cloth_length_per_piece=0):
+def create_item_type(*, name, category="", cloth_length_per_piece=0, hsn_code="", gst_rate=0):
     if ItemType.objects.filter(name__iexact=name.strip()).exists():
         raise GraphQLError("An item type with this name already exists.")
     return ItemType.objects.create(
         name=name.strip(), category=category.strip(),
         cloth_length_per_piece=cloth_length_per_piece,
+        hsn_code=hsn_code.strip(),
+        gst_rate=gst_rate,
     )
 
 
-def update_item_type(*, id, name=None, category=None, cloth_length_per_piece=None, active=None):
+def update_item_type(*, id, name=None, category=None, cloth_length_per_piece=None, hsn_code=None, gst_rate=None, active=None):
     obj = _get_or_404(ItemType, id)
     if name is not None:
         obj.name = name.strip()
@@ -63,6 +65,10 @@ def update_item_type(*, id, name=None, category=None, cloth_length_per_piece=Non
         obj.category = category.strip()
     if cloth_length_per_piece is not None:
         obj.cloth_length_per_piece = cloth_length_per_piece
+    if hsn_code is not None:
+        obj.hsn_code = hsn_code.strip()
+    if gst_rate is not None:
+        obj.gst_rate = gst_rate
     if active is not None:
         obj.active = active
     obj.save()

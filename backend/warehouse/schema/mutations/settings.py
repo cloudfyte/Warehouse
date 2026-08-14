@@ -11,6 +11,7 @@ class UpdateSystemSettings(graphene.Mutation):
         app_name = graphene.String()
         app_subtitle = graphene.String()
         company_name = graphene.String()
+        company_state = graphene.String()
         currency_symbol = graphene.String()
         tax_percent = graphene.Float()
         logo_url = graphene.String()

@@ -5,7 +5,7 @@ import { friendlyError } from "@/app/lib/errors";
 
 interface SettingsData {
   id?: string
-  appName?: string; appSubtitle?: string; companyName?: string; currencySymbol?: string; taxPercent?: number
+  appName?: string; appSubtitle?: string; companyName?: string; companyState?: string; currencySymbol?: string; taxPercent?: number
   primaryColor?: string; accentColor?: string
   smtpHost?: string; smtpPort?: number; smtpUser?: string; smtpPassword?: string
   smtpFromEmail?: string; emailEnabled?: boolean
@@ -87,7 +87,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
     try {
       await onMutate(
         `mutation U(
-          $appName:String,$appSubtitle:String,$companyName:String,$currencySymbol:String,$taxPercent:Float,
+          $appName:String,$appSubtitle:String,$companyName:String,$companyState:String,$currencySymbol:String,$taxPercent:Float,
           $primaryColor:String,$accentColor:String,
           $smtpHost:String,$smtpPort:Int,$smtpUser:String,$smtpPassword:String,$smtpFromEmail:String,$emailEnabled:Boolean,
           $twilioSid:String,$twilioToken:String,$twilioFrom:String,$smsEnabled:Boolean,
@@ -95,7 +95,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $firebaseJson:String,$fcmEnabled:Boolean,
           $otpExpiry:Int,$allowOtp:Boolean
         ){updateSystemSettings(
-          appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
+          appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
           smtpHost:$smtpHost,smtpPort:$smtpPort,smtpUser:$smtpUser,smtpPassword:$smtpPassword,smtpFromEmail:$smtpFromEmail,emailEnabled:$emailEnabled,
           twilioAccountSid:$twilioSid,twilioAuthToken:$twilioToken,twilioFromNumber:$twilioFrom,smsEnabled:$smsEnabled,
@@ -105,7 +105,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
-          companyName: form.companyName, currencySymbol: form.currencySymbol,
+          companyName: form.companyName, companyState: form.companyState || undefined,
+          currencySymbol: form.currencySymbol,
           taxPercent: form.taxPercent ? +form.taxPercent : undefined,
           primaryColor: form.primaryColor || undefined,
           accentColor: form.accentColor || undefined,
@@ -155,8 +156,9 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
         <Field label="App Name" value={form.appName || ""} onChange={set("appName")} />
         <Field label="App Subtitle" value={form.appSubtitle || ""} onChange={set("appSubtitle")} />
         <Field label="Company Name" value={form.companyName || ""} onChange={set("companyName")} />
+        <Field label="Company State" value={form.companyState || ""} onChange={set("companyState")} placeholder="e.g. Tamil Nadu (for CGST/SGST vs IGST)" />
         <Field label="Currency Symbol" value={form.currencySymbol || ""} onChange={set("currencySymbol")} />
-        <Field label="GST / Tax %" value={String(form.taxPercent ?? "")} onChange={set("taxPercent")} type="number" />
+        <Field label="Default GST / Tax %" value={String(form.taxPercent ?? "")} onChange={set("taxPercent")} type="number" />
         <Field label="OTP Expiry (minutes)" value={String(form.otpExpiryMinutes ?? "")} onChange={set("otpExpiryMinutes")} type="number" />
         <Toggle label="Allow OTP Login" description="Users can log in via Email, SMS, or WhatsApp one-time password" checked={!!form.allowOtpLogin} onChange={tog("allowOtpLogin")} />
       </SettingsSection>

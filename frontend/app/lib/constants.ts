@@ -68,6 +68,8 @@ export const TAB_TITLES: Record<Tab, string> = {
   reorder_points: "Reorder Points",
   quotations: "Quotations",
   reports: "Reports",
+  ledger: "Party Ledger",
+  item_types: "Item Types",
   employees: "Employees",
   warehouses: "Warehouses",
   notifications: "Notifications",

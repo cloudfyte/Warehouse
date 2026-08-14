@@ -73,9 +73,14 @@ class ClothColorType(DjangoObjectType):
 
 
 class ItemTypeType(DjangoObjectType):
+    gst_rate = graphene.Float()
+
     class Meta:
         model = ItemType
         fields = "__all__"
+
+    def resolve_gst_rate(self, info):
+        return float(self.gst_rate)
 
 
 class SupplierType(DjangoObjectType):

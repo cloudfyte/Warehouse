@@ -10,7 +10,7 @@ import {
   Scissors, Shirt, Tag, Receipt, Landmark, RefreshCcw,
   Users, Warehouse, Bell, Settings2, ChevronLeft, ChevronRight,
   Sun, Moon, LogOut, BarChart2, Menu, X, User, ClipboardList,
-  ArrowLeftRight, AlertCircle, FileText, TrendingUp,
+  ArrowLeftRight, AlertCircle, FileText, TrendingUp, BookOpen, List,
 } from "lucide-react";
 
 import Login from "@/app/components/organisms/Login";
@@ -38,6 +38,8 @@ import StockTransfers from "@/app/components/organisms/StockTransfers";
 import ReorderPoints from "@/app/components/organisms/ReorderPoints";
 import Quotations from "@/app/components/organisms/Quotations";
 import Reports from "@/app/components/organisms/Reports";
+import Ledger from "@/app/components/organisms/Ledger";
+import ItemTypes from "@/app/components/organisms/ItemTypes";
 import QuickSearch from "@/app/components/organisms/QuickSearch";
 
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
@@ -54,8 +56,8 @@ const ALL_TABS: Tab[] = [
   "raw_cloth", "readymade_stock", "cutting", "stitching",
   "finished_products", "sales_orders", "credit", "returns", "expenses",
   "stock_adjustments", "stock_transfers", "reorder_points",
-  "quotations", "reports",
-  "employees", "warehouses", "notifications", "audit_log", "settings", "profile",
+  "quotations", "reports", "ledger",
+  "item_types", "employees", "warehouses", "notifications", "audit_log", "settings", "profile",
 ];
 
 function getVisibleTabs(role: string): Tab[] {
@@ -79,8 +81,8 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Procurement", tabs: ["suppliers", "buyers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
-  { label: "Sales & Finance", tabs: ["sales_orders", "credit", "returns", "quotations", "expenses", "reports"] },
-  { label: "Admin", tabs: ["employees", "warehouses"] },
+  { label: "Sales & Finance", tabs: ["sales_orders", "credit", "returns", "quotations", "expenses", "reports", "ledger"] },
+  { label: "Admin", tabs: ["item_types", "employees", "warehouses"] },
   { label: "System", tabs: ["notifications", "audit_log", "settings"] },
 ];
 
@@ -105,6 +107,8 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   reorder_points: <AlertCircle size={16} />,
   quotations: <FileText size={16} />,
   reports: <TrendingUp size={16} />,
+  ledger: <BookOpen size={16} />,
+  item_types: <List size={16} />,
   employees: <Users size={16} />,
   warehouses: <Warehouse size={16} />,
   notifications: <Bell size={16} />,
@@ -351,7 +355,12 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKey);
   }, [showSearch]);
   useEffect(() => {
-    if (data?.systemSettings) applyBrandColors(data.systemSettings);
+    if (data?.systemSettings) {
+      applyBrandColors(data.systemSettings);
+      if (data.systemSettings.appName) {
+        document.title = data.systemSettings.appName;
+      }
+    }
   }, [data?.systemSettings]);
 
   useEffect(() => {
@@ -1030,6 +1039,23 @@ export default function Home() {
         )}
         {currentTab === "reports" && (
           <Reports gql={(q, v) => graphql(q, v || {}, token!)} />
+        )}
+        {currentTab === "ledger" && (
+          <Ledger
+            buyers={data?.buyers || []}
+            suppliers={data?.suppliers || []}
+            salesOrders={data?.salesOrders || []}
+            creditTransactions={data?.creditTransactions || []}
+            purchaseBills={data?.purchaseBills || []}
+          />
+        )}
+        {currentTab === "item_types" && (
+          <ItemTypes
+            itemTypes={data?.itemTypes || []}
+            isAdmin={isAdmin} isManager={isManager}
+            gql={(q, v) => graphql(q, v || {}, token!)}
+            onRefresh={() => loadData(token!)}
+          />
         )}
         {currentTab === "employees" && (
           <Employees

@@ -118,6 +118,11 @@ class ItemType(models.Model):
         validators=[MinValueValidator(Decimal("0.00"))],
     )
     hsn_code = models.CharField(max_length=10, blank=True, help_text="HSN/SAC code for GST compliance")
+    gst_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("0.00"),
+        help_text="GST rate % applicable to this item type (0 / 5 / 12 / 18 / 28)",
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -5,13 +5,19 @@ from django.db import transaction
 from graphql import GraphQLError
 
 from warehouse.models import (
-    Buyer, FinishedProduct, Quotation, QuotationItem, SalesOrder, SystemSettings,
+    Buyer, FinishedProduct, Quotation, QuotationItem, SalesOrder,
 )
 from warehouse.permissions import get_warehouse
 
 
 def create_quotation(*, user, buyer_id, warehouse_id, items, discount=0, notes="", validity_date=None):
     """items = [{finished_product_id, quantity, unit_price}]"""
+    if not items:
+        raise GraphQLError("At least one item is required.")
+    discount_amt = Decimal(str(discount))
+    if discount_amt < 0:
+        raise GraphQLError("Discount cannot be negative.")
+
     try:
         buyer = Buyer.objects.get(pk=buyer_id, active=True)
     except Buyer.DoesNotExist as exc:
@@ -23,17 +29,25 @@ def create_quotation(*, user, buyer_id, warehouse_id, items, discount=0, notes="
             buyer=buyer,
             warehouse=warehouse,
             validity_date=validity_date,
-            discount=Decimal(str(discount)),
+            discount=discount_amt,
             notes=notes.strip(),
             created_by=user,
         )
         subtotal = Decimal("0.00")
+        item_gst_records = []
+
         for item in items:
             fp_id = item["finished_product_id"]
             qty = int(item["quantity"])
             unit_price = Decimal(str(item["unit_price"]))
+
+            if qty <= 0:
+                raise GraphQLError("Item quantity must be greater than zero.")
+            if unit_price < 0:
+                raise GraphQLError("Item unit price cannot be negative.")
+
             try:
-                fp = FinishedProduct.objects.get(pk=fp_id, active=True)
+                fp = FinishedProduct.objects.select_related("item_type").get(pk=fp_id, active=True)
             except FinishedProduct.DoesNotExist as exc:
                 raise GraphQLError(f"Finished product {fp_id} not found.") from exc
             line_total = unit_price * qty
@@ -42,15 +56,17 @@ def create_quotation(*, user, buyer_id, warehouse_id, items, discount=0, notes="
                 unit_price=unit_price, total_price=line_total,
             )
             subtotal += line_total
+            item_gst_records.append((line_total, Decimal(str(fp.item_type.gst_rate or 0))))
 
-        discount_amt = Decimal(str(discount))
-        taxable = subtotal - discount_amt
-        sys = SystemSettings.load()
-        tax_pct = Decimal(str(sys.tax_percent))
-        tax_amount = (taxable * tax_pct / 100).quantize(Decimal("0.01")) if tax_pct > 0 else Decimal("0.00")
+        # Per-item GST computation (same logic as sales orders)
+        discount_ratio = discount_amt / subtotal if subtotal > 0 else Decimal("0")
+        tax_amount = sum(
+            ((lt * (1 - discount_ratio)).quantize(Decimal("0.01")) * rate / 100).quantize(Decimal("0.01"))
+            for lt, rate in item_gst_records if rate > 0
+        )
         qt.subtotal = subtotal
         qt.tax_amount = tax_amount
-        qt.total_amount = taxable + tax_amount
+        qt.total_amount = (subtotal - discount_amt) + tax_amount
         qt.save(update_fields=["subtotal", "discount", "tax_amount", "total_amount"])
     return qt
 

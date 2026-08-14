@@ -2,7 +2,7 @@
 
 export interface ClothCategory { id: string; name: string; description: string; active: boolean }
 export interface ClothColor { id: string; name: string; hexCode: string; active: boolean }
-export interface ItemType { id: string; name: string; category: string; clothLengthPerPiece: number; hsnCode: string; active: boolean }
+export interface ItemType { id: string; name: string; category: string; clothLengthPerPiece: number; hsnCode: string; gstRate: number; active: boolean }
 export interface WarehouseLocation { id: string; name: string; code: string; locationType: string; city: string; state: string; address: string; phone: string; active: boolean }
 
 // ─── people ───────────────────────────────────────────────────────────────────
@@ -288,7 +288,19 @@ export interface SystemSettings extends AppSettings {
   waToken: string; waPhoneNumberId: string; waEnabled: boolean
   firebaseServiceAccountJson: string; fcmEnabled: boolean
   otpExpiryMinutes: number; allowOtpLogin: boolean
-  companyName: string; currencySymbol: string; taxPercent: number
+  companyName: string; companyState: string; currencySymbol: string; taxPercent: number
+}
+
+// ─── ledger ──────────────────────────────────────────────────────────────────
+
+export interface LedgerEntry {
+  date: string
+  type: "sale" | "payment" | "bill" | "supplier_payment"
+  reference: string
+  description: string
+  debit: number
+  credit: number
+  balance: number
 }
 
 export type Tab =
@@ -297,7 +309,8 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points"
-  | "quotations" | "reports"
+  | "quotations" | "reports" | "ledger"
+  | "item_types"
   | "employees" | "warehouses" | "notifications" | "audit_log" | "settings" | "profile"
 
 export interface Modal {

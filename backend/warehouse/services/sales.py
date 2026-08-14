@@ -23,6 +23,12 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
         raise GraphQLError("Buyer not found.") from exc
     warehouse = get_warehouse(user, warehouse_id)
 
+    if not items:
+        raise GraphQLError("At least one item is required.")
+    discount_amt = Decimal(str(discount))
+    if discount_amt < 0:
+        raise GraphQLError("Discount cannot be negative.")
+
     with transaction.atomic():
         so = SalesOrder.objects.create(
             buyer=buyer,
@@ -30,18 +36,25 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
             warehouse=warehouse,
             order_date=order_date or __import__("django.utils.timezone", fromlist=["now"]).now().date(),
             expected_delivery=expected_delivery,
-            discount=Decimal(str(discount)),
+            discount=discount_amt,
             notes=notes.strip(),
             created_by=user,
         )
         subtotal = Decimal("0.00")
+        item_gst_records = []  # [(line_total, gst_rate)]
+
         for item in items:
             fp_id = item["finished_product_id"]
             qty = int(item["quantity"])
             unit_price = Decimal(str(item["unit_price"]))
 
+            if qty <= 0:
+                raise GraphQLError("Item quantity must be greater than zero.")
+            if unit_price < 0:
+                raise GraphQLError("Item unit price cannot be negative.")
+
             try:
-                fp = FinishedProduct.objects.select_for_update().get(pk=fp_id, active=True)
+                fp = FinishedProduct.objects.select_for_update().select_related("item_type").get(pk=fp_id, active=True)
             except FinishedProduct.DoesNotExist as exc:
                 raise GraphQLError(f"Finished product {fp_id} not found.") from exc
             if fp.quantity < qty:
@@ -59,14 +72,17 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
                 total_price=line_total,
             )
             subtotal += line_total
+            item_gst_records.append((line_total, Decimal(str(fp.item_type.gst_rate or 0))))
 
-        discount_amt = Decimal(str(discount))
-        taxable = subtotal - discount_amt
+        # Per-item GST computation
+        discount_ratio = discount_amt / subtotal if subtotal > 0 else Decimal("0")
+        tax_amount = sum(
+            ((lt * (1 - discount_ratio)).quantize(Decimal("0.01")) * rate / 100).quantize(Decimal("0.01"))
+            for lt, rate in item_gst_records if rate > 0
+        )
+
         from warehouse.models import SystemSettings
         sys_settings = SystemSettings.load()
-        tax_pct = Decimal(str(sys_settings.tax_percent))
-        tax_amount = (taxable * tax_pct / 100).quantize(Decimal("0.01")) if tax_pct > 0 else Decimal("0.00")
-
         # Split GST: CGST+SGST (intra-state) or IGST (inter-state)
         buyer_state = (buyer.state or "").strip().lower()
         company_state = (sys_settings.company_state or "").strip().lower()

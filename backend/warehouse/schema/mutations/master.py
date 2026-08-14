@@ -71,13 +71,18 @@ class CreateItemType(graphene.Mutation):
         name = graphene.String(required=True)
         category = graphene.String()
         cloth_length_per_piece = graphene.Float()
+        hsn_code = graphene.String()
+        gst_rate = graphene.Float()
 
     item_type = graphene.Field(ItemTypeType)
 
     @login_required
-    def mutate(self, info, name, category="", cloth_length_per_piece=0):
+    def mutate(self, info, name, category="", cloth_length_per_piece=0, hsn_code="", gst_rate=0):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
-        return CreateItemType(item_type=create_item_type(name=name, category=category, cloth_length_per_piece=cloth_length_per_piece))
+        return CreateItemType(item_type=create_item_type(
+            name=name, category=category, cloth_length_per_piece=cloth_length_per_piece,
+            hsn_code=hsn_code, gst_rate=gst_rate,
+        ))
 
 
 class UpdateItemType(graphene.Mutation):
@@ -86,6 +91,8 @@ class UpdateItemType(graphene.Mutation):
         name = graphene.String()
         category = graphene.String()
         cloth_length_per_piece = graphene.Float()
+        hsn_code = graphene.String()
+        gst_rate = graphene.Float()
         active = graphene.Boolean()
 
     item_type = graphene.Field(ItemTypeType)

@@ -67,7 +67,7 @@ export const DASHBOARD_QUERY = `
   query GarmentDashboard {
     systemSettings {
       id appName appSubtitle logoUrl primaryColor accentColor defaultDarkMode
-      companyName currencySymbol taxPercent
+      companyName companyState currencySymbol taxPercent
       smtpHost smtpPort smtpUser smtpFromEmail emailEnabled
       twilioAccountSid twilioFromNumber smsEnabled
       waPhoneNumberId waEnabled
@@ -88,7 +88,7 @@ export const DASHBOARD_QUERY = `
     }
     clothCategories { id name description active }
     clothColors { id name hexCode active }
-    itemTypes { id name category clothLengthPerPiece hsnCode active }
+    itemTypes { id name category clothLengthPerPiece hsnCode gstRate active }
     suppliers { id name contactPerson email phone whatsapp address city state gstin supplyType creditDays notes active }
     buyers { id name contactPerson email phone whatsapp address city state gstin buyerType creditLimit notes active }
     purchaseOrders(limit: 100) {
