@@ -347,9 +347,9 @@ export default function Home() {
   useEffect(() => { applyDarkMode(darkMode); }, [darkMode]);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "/" && !showSearch && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
-        e.preventDefault(); setShowSearch(true);
-      }
+      const notInput = document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA";
+      if (e.key === "/" && !showSearch && notInput) { e.preventDefault(); setShowSearch(true); }
+      if (e.key === "k" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setShowSearch(s => !s); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -530,7 +530,7 @@ export default function Home() {
           {sidebarOpen && (
             <div style={{ overflow: "hidden" }}>
               <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: -0.3, whiteSpace: "nowrap" }}>
-                {data?.systemSettings?.appName || "GarmentERP"}
+                {data?.systemSettings?.appName || "Warehouse ERP"}
               </div>
               {data?.systemSettings?.companyName && (
                 <div style={{ fontSize: 11, color: "#ffffff88", whiteSpace: "nowrap" }}>{data.systemSettings.companyName}</div>
@@ -574,6 +574,8 @@ export default function Home() {
                         {t === "notifications" && unreadCount > 0 && (
                           <span style={{ background: "#f44336", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>{unreadCount}</span>
                         )}
+                        {t === "credit" && (() => { const n = (data?.creditTransactions ?? []).filter((c: {status:string}) => c.status === "OVERDUE").length; return n > 0 ? <span style={{ background: "#ef4444", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>{n}</span> : null; })()}
+                        {t === "purchase_orders" && (() => { const n = (data?.purchaseOrders ?? []).filter((p: {status:string}) => p.status === "PLACED" || p.status === "DISPATCHED").length; return n > 0 ? <span style={{ background: "#f59e0b", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>{n}</span> : null; })()}
                       </span>
                     )}
                   </button>
@@ -668,7 +670,7 @@ export default function Home() {
             </div>
             <h3 style={{ margin: "0 0 8px", fontSize: 19, fontWeight: 800, color: "var(--ink)" }}>Log out?</h3>
             <p style={{ margin: "0 0 28px", color: "var(--muted)", fontSize: 14, lineHeight: 1.55 }}>
-              Are you sure you want to log out of GarmentFlow ERP?
+              Are you sure you want to log out of {data?.systemSettings?.appName || "Warehouse ERP"}?
             </p>
             <div style={{ display: "flex", gap: 12 }}>
               <button onClick={() => setConfirmLogout(false)} style={{

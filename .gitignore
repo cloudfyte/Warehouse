@@ -22,9 +22,13 @@ backend/.env.*
 backend/.env*
 
 # TLS certs
+ssl/
 ssl/*.pem
 ssl/*.key
 ssl/*.crt
+
+# Claude Code session data
+.claude/
 
 # Django collected static files
 backend/staticfiles/
