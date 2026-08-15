@@ -211,12 +211,18 @@ ADJ-202506-0002  (Stock Adjustments)
 
 ## What's NOT Yet Built (Known Gaps)
 
-- **Inter-warehouse transfers** — no model for moving stock between locations
-- **Low stock / reorder alerts** — no minimum stock levels or auto-notifications
-- **GST computation** — `tax_percent` in SystemSettings exists but not applied to bills/invoices
-- **PDF/print export** — no purchase order PDF, no delivery challan, no invoice PDF
-- **Size-wise analytics** — sizes tracked on products but not in charts
-- **Tailor/master productivity metrics** — no per-person output analytics
-- **Parcel receiving flow** — client requirement: formal "parcel opened by" step with quantity check against PO
-- **Supplier on-time delivery tracking** — no expected vs actual delivery analytics
-- **WhatsApp order status notifications** — infrastructure wired, events not yet triggered
+- **GST on purchase bills** — `tax_percent` in SystemSettings exists; CGST/SGST applied on sales side but not computed on purchase bills/POs
+- **Supplier on-time delivery tracking** — `expected_delivery` exists on PO model but no analytics comparing expected vs actual delivery dates
+- **PDF exports from within the app** — print is browser-based (`window.print()`); no server-side PDF generation for email attachments
+
+## What's Built (previously listed as gaps)
+
+- ✅ Inter-warehouse transfers — `StockTransfer` model + `StockTransfers.tsx` tab
+- ✅ Low stock / reorder alerts — `ReorderPoint` model + `check_reorder_points` Celery task + `ReorderPoints.tsx`
+- ✅ Size-wise analytics — `sizeSalesBreakdown` in `get_analytics_stats`
+- ✅ Tailor/master productivity — `tailorProductivity` and `cuttingMasterStats` in analytics
+- ✅ Parcel receiving flow — `ParcelInspection` model + inline UI in PurchaseOrders
+- ✅ WhatsApp order notifications — fires on SO creation, dispatch, credit payment; payment reminders daily
+- ✅ Print/export — PO, SO, Quotation, Purchase Bill all have `🖨 Print` buttons
+- ✅ Dynamic custom roles — `CustomRole` model + `Roles.tsx` organism; tab visibility from `tabPermissions` JSONField
+- ✅ Role-specific dashboards — Dashboard shows composite view based on custom role `tabPermissions`

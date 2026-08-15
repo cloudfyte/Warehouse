@@ -125,6 +125,22 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
                 amount_paid=amount_paid,
                 amount_due=total - amount_paid,
             )
+
+    # WhatsApp order confirmation to buyer (fires after the transaction commits)
+    if sys_settings.wa_enabled:
+        buyer_phone = buyer.whatsapp or buyer.phone
+        if buyer_phone:
+            from warehouse.tasks import send_whatsapp_order_notification
+            currency = sys_settings.currency_symbol
+            msg = (
+                f"Hello {buyer.name},\n"
+                f"Your order *{so.order_number}* has been received at *{sys_settings.company_name}*.\n"
+                f"Total: *{currency}{float(so.total_amount):.2f}*"
+                + (f" (paid: {currency}{float(so.amount_paid):.2f})" if so.amount_paid > 0 else "")
+                + f"\nThank you for your order!"
+            )
+            send_whatsapp_order_notification.delay(buyer_phone, msg)
+
     return so
 
 
@@ -191,4 +207,23 @@ def record_credit_payment(*, credit_id, amount, payment_method="CASH", reference
         so.amount_paid = credit.amount_paid
         so.amount_due = credit.amount_due
         so.save(update_fields=["amount_paid", "amount_due"])
+
+    # WhatsApp payment receipt to buyer
+    from warehouse.models import SystemSettings
+    sys_settings = SystemSettings.load()
+    if sys_settings.wa_enabled:
+        buyer_phone = credit.buyer.whatsapp or credit.buyer.phone
+        if buyer_phone:
+            from warehouse.tasks import send_whatsapp_order_notification
+            currency = sys_settings.currency_symbol
+            msg = (
+                f"Dear {credit.buyer.name},\n"
+                f"Payment of *{currency}{float(payment_amount):.2f}* received for order *{credit.sales_order.order_number}*.\n"
+            )
+            if credit.status == CreditTransaction.Status.SETTLED:
+                msg += f"Your account is now fully settled. Thank you!\n— {sys_settings.company_name}"
+            else:
+                msg += f"Outstanding balance: *{currency}{float(credit.amount_due):.2f}*\n— {sys_settings.company_name}"
+            send_whatsapp_order_notification.delay(buyer_phone, msg)
+
     return credit

@@ -5,6 +5,7 @@ import { friendlyError } from "@/app/lib/errors";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
 import { downloadCsv } from "@/app/lib/csv";
 import { showToast } from "@/app/lib/toast";
+import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -298,6 +299,64 @@ export default function PurchaseBills({
     }
   }
 
+  function printBill(bill: PurchaseBill) {
+    const rows = bill.items.map(item => {
+      const desc = item.itemKind === "RAW_CLOTH"
+        ? [item.clothCategory?.name, item.clothColor?.name, item.binLocation].filter(Boolean).join(" · ")
+        : [item.itemType?.name, item.size].filter(Boolean).join(" · ");
+      const qty = item.itemKind === "RAW_CLOTH" ? `${item.totalMeters}m` : `${item.quantity} pcs`;
+      const unit = item.itemKind === "RAW_CLOTH"
+        ? (item.costPerMeter ? `${fmtMoney(item.costPerMeter)}/m` : "—")
+        : (item.unitPrice ? fmtMoney(item.unitPrice) : "—");
+      const code = item.clothCode ? `<span style="font-family:monospace;font-size:11px;color:#888">${item.clothCode}</span>` : "";
+      return `<tr><td>${item.itemKind === "RAW_CLOTH" ? "Raw Cloth" : "Readymade"}</td><td>${desc}${code ? " " + code : ""}</td><td>${qty}</td><td class="amount">${unit}</td><td class="amount">${fmtMoney(item.totalPrice)}</td></tr>`;
+    }).join("");
+
+    const paymentRows = (bill.supplierPayments || []).map(p =>
+      `<tr><td>${p.paymentNumber}</td><td>${fmtDate(p.paymentDate)}</td><td>${p.paymentMode.replace("_", " ")}</td><td>${p.reference || "—"}</td><td class="amount" style="color:#2e7d32;font-weight:700">${fmtMoney(p.amount)}</td></tr>`
+    ).join("");
+
+    const st = STATUS_COLORS[bill.paymentStatus] ?? STATUS_COLORS.PENDING;
+
+    printDoc(`
+      <div class="header">
+        <div class="header-left">
+          <h1>${bill.billNumber}</h1>
+          <div style="font-size:13px;color:#555;margin-top:4px">Purchase Bill</div>
+          ${bill.invoiceRef ? `<div style="font-size:12px;color:#888;margin-top:2px">Supplier Ref: ${bill.invoiceRef}</div>` : ""}
+          <div style="margin-top:6px"><span class="badge" style="background:${st.color}">${st.label}</span></div>
+        </div>
+        <div class="header-right">
+          <div style="font-weight:700;font-size:15px">${fmtMoney(bill.totalAmount)}</div>
+          <div>Bill Date: ${fmtDate(bill.billDate)}</div>
+        </div>
+      </div>
+      <div class="meta">
+        <div class="meta-item"><label>Supplier</label><span>${bill.supplier.name}</span></div>
+        <div class="meta-item"><label>Warehouse</label><span>${bill.warehouse.name}</span></div>
+        <div class="meta-item"><label>Payment Status</label><span style="color:${st.color};font-weight:700">${st.label}</span></div>
+      </div>
+      <h2>Items</h2>
+      <table>
+        <thead><tr><th>Type</th><th>Description</th><th>Qty / Meters</th><th class="amount">Unit Price</th><th class="amount">Total</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="totals">
+        <div class="totals-row"><span>Total</span><span>${fmtMoney(bill.totalAmount)}</span></div>
+        <div class="totals-row" style="color:#2e7d32"><span>Paid</span><span>${fmtMoney(bill.amountPaid)}</span></div>
+        <div class="totals-row grand" style="${bill.amountPending > 0 ? "color:#e65100" : "color:#2e7d32"}"><span>Balance Due</span><span>${fmtMoney(bill.amountPending)}</span></div>
+      </div>
+      ${(bill.supplierPayments || []).length > 0 ? `
+        <h2>Payment History</h2>
+        <table>
+          <thead><tr><th>Pay #</th><th>Date</th><th>Mode</th><th>Reference</th><th class="amount">Amount</th></tr></thead>
+          <tbody>${paymentRows}</tbody>
+        </table>
+      ` : ""}
+      ${bill.notes ? `<div style="margin-top:16px;font-size:12px;color:#666"><strong>Notes:</strong> ${bill.notes}</div>` : ""}
+    `, bill.billNumber);
+  }
+
   return (
     <div>
       {/* Header */}
@@ -434,12 +493,18 @@ export default function PurchaseBills({
                             </span>
                           )}
                         </div>
-                        {canCreate && bill.amountPending > 0 && (
-                          <button onClick={() => { setPayBillId(bill.id); setPayErr(""); }}
-                            style={{ ...BTN("var(--primary)"), padding: "6px 14px", fontSize: 12 }}>
-                            + Record Payment
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => printBill(bill)}
+                            style={{ ...BTN("var(--paper)"), padding: "6px 14px", fontSize: 12, border: "1px solid var(--line)", color: "var(--ink)" }}>
+                            🖨 Print Bill
                           </button>
-                        )}
+                          {canCreate && bill.amountPending > 0 && (
+                            <button onClick={() => { setPayBillId(bill.id); setPayErr(""); }}
+                              style={{ ...BTN("var(--primary)"), padding: "6px 14px", fontSize: 12 }}>
+                              + Record Payment
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {(bill.supplierPayments || []).length === 0 ? (
