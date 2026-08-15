@@ -23,6 +23,7 @@ def create_purchase_bill(
       { item_kind, cloth_category_id?, cloth_color_id?, total_meters?,
         cost_per_meter?, bin_location?, cloth_code?,
         item_type_id?, size?, quantity?, unit_price?,
+        gst_rate?,   # 0-28 — used only when gst_on_purchases is enabled
         notes? }
     """
     try:
@@ -34,6 +35,10 @@ def create_purchase_bill(
 
     if not items:
         raise GraphQLError("At least one item is required.")
+
+    from warehouse.models import SystemSettings
+    sys_settings = SystemSettings.load()
+    gst_enabled = sys_settings.gst_on_purchases
 
     with transaction.atomic():
         bill = PurchaseBill.objects.create(
@@ -47,6 +52,7 @@ def create_purchase_bill(
         )
 
         computed_total = Decimal("0.00")
+        item_gst_records = []  # [(line_total, gst_rate)]
 
         for item in items:
             kind = item.get("item_kind", "").upper()
@@ -68,7 +74,9 @@ def create_purchase_bill(
                 unit = Decimal(str(item.get("unit_price") or 0))
                 line_total = qty * unit
 
-            bill_item = PurchaseBillItem.objects.create(
+            item_gst_rate = Decimal(str(item.get("gst_rate") or 0))
+
+            PurchaseBillItem.objects.create(
                 bill=bill,
                 item_kind=kind,
                 cloth_category_id=item.get("cloth_category_id"),
@@ -81,6 +89,7 @@ def create_purchase_bill(
                 size=item.get("size", ""),
                 quantity=item.get("quantity", 0),
                 unit_price=item.get("unit_price"),
+                gst_rate=item_gst_rate,
                 total_price=line_total,
                 notes=item.get("notes", ""),
             )
@@ -117,9 +126,33 @@ def create_purchase_bill(
                 )
 
             computed_total += line_total
+            item_gst_records.append((line_total, item_gst_rate))
 
-        # Use provided total_amount if given (manual override), else computed
-        final_total = Decimal(str(total_amount)) if total_amount is not None else computed_total
+        # GST computation
+        if gst_enabled:
+            tax_amount = sum(
+                (lt * rate / 100).quantize(Decimal("0.01"))
+                for lt, rate in item_gst_records if rate > 0
+            )
+            supplier_state = (supplier.state or "").strip().lower()
+            company_state = (sys_settings.company_state or "").strip().lower()
+            is_intra = bool(supplier_state and company_state and supplier_state == company_state)
+            if is_intra and tax_amount > 0:
+                cgst = (tax_amount / 2).quantize(Decimal("0.01"))
+                sgst = tax_amount - cgst
+                igst = Decimal("0.00")
+            elif tax_amount > 0:
+                cgst = Decimal("0.00")
+                sgst = Decimal("0.00")
+                igst = tax_amount
+            else:
+                cgst = sgst = igst = Decimal("0.00")
+            final_total = computed_total + tax_amount
+        else:
+            tax_amount = cgst = sgst = igst = Decimal("0.00")
+            # Use provided total_amount if given (manual override), else computed
+            final_total = Decimal(str(total_amount)) if total_amount is not None else computed_total
+
         paid = Decimal(str(amount_paid))
 
         if paid < 0:
@@ -134,9 +167,17 @@ def create_purchase_bill(
         else:
             status = PurchaseBill.PaymentStatus.PARTIAL
 
+        bill.taxable_amount = computed_total
+        bill.tax_amount = tax_amount
+        bill.cgst_amount = cgst
+        bill.sgst_amount = sgst
+        bill.igst_amount = igst
         bill.total_amount = final_total
         bill.amount_paid = paid
         bill.payment_status = status
-        bill.save(update_fields=["total_amount", "amount_paid", "payment_status"])
+        bill.save(update_fields=[
+            "taxable_amount", "tax_amount", "cgst_amount", "sgst_amount", "igst_amount",
+            "total_amount", "amount_paid", "payment_status",
+        ])
 
     return bill

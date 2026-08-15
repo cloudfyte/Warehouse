@@ -23,6 +23,7 @@ class PurchaseBillItemInput(graphene.InputObjectType):
     size = graphene.String()
     quantity = graphene.Int()
     unit_price = graphene.Float()
+    gst_rate = graphene.Float()
     notes = graphene.String()
 
 

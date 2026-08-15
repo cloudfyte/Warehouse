@@ -840,6 +840,7 @@ export default function Home() {
               clothColors={data?.clothColors || []}
               itemTypes={data?.itemTypes || []}
               isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
+              systemSettings={data?.systemSettings}
               onMutate={mutate}
             />
           </div>

@@ -74,6 +74,7 @@ export const DASHBOARD_QUERY = `
       fcmEnabled
       otpExpiryMinutes allowOtpLogin
       printCompanyAddress printBankDetails printTerms printSignatureLabel printShowLogo
+      gstOnPurchases gstin
     }
     employeeProfile { id role phone active username email locations { id name code locationType }
       customRole { id name displayName color backendLevel tabPermissions isSystem } }
@@ -112,12 +113,14 @@ export const DASHBOARD_QUERY = `
       warehouse { id name }
     }
     purchaseBills(limit: 100) {
-      id billNumber billDate invoiceRef billImage totalAmount amountPaid amountPending paymentStatus notes createdAt
+      id billNumber billDate invoiceRef billImage
+      taxableAmount taxAmount cgstAmount sgstAmount igstAmount
+      totalAmount amountPaid amountPending paymentStatus notes createdAt
       supplier { id name }
       warehouse { id name }
       items {
         id itemKind totalMeters costPerMeter binLocation clothCode
-        size quantity unitPrice totalPrice notes
+        size quantity unitPrice gstRate totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name }
       }
       supplierPayments { id paymentNumber amount paymentDate paymentMode reference notes createdAt }

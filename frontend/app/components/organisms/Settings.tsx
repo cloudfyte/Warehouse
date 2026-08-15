@@ -15,6 +15,7 @@ interface SettingsData {
   otpExpiryMinutes?: number; allowOtpLogin?: boolean
   printCompanyAddress?: string; printBankDetails?: string; printTerms?: string
   printSignatureLabel?: string; printShowLogo?: boolean
+  gstOnPurchases?: boolean; gstin?: string
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -96,7 +97,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $waToken:String,$waPhoneNumberId:String,$waEnabled:Boolean,
           $firebaseJson:String,$fcmEnabled:Boolean,
           $otpExpiry:Int,$allowOtp:Boolean,
-          $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean
+          $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean,
+          $gstOnPurchases:Boolean,$gstin:String
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -105,7 +107,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           waToken:$waToken,waPhoneNumberId:$waPhoneNumberId,waEnabled:$waEnabled,
           firebaseServiceAccountJson:$firebaseJson,fcmEnabled:$fcmEnabled,
           otpExpiryMinutes:$otpExpiry,allowOtpLogin:$allowOtp,
-          printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo
+          printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo,
+          gstOnPurchases:$gstOnPurchases,gstin:$gstin
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -129,6 +132,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           printTerms: form.printTerms || undefined,
           printSig: form.printSignatureLabel || undefined,
           printLogo: form.printShowLogo,
+          gstOnPurchases: form.gstOnPurchases,
+          gstin: form.gstin || undefined,
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -168,6 +173,13 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
         <Field label="Company State" value={form.companyState || ""} onChange={set("companyState")} placeholder="e.g. Tamil Nadu (for CGST/SGST vs IGST)" />
         <Field label="Currency Symbol" value={form.currencySymbol || ""} onChange={set("currencySymbol")} />
         <Field label="Default GST / Tax %" value={String(form.taxPercent ?? "")} onChange={set("taxPercent")} type="number" />
+        <Field label="Company GSTIN" value={form.gstin || ""} onChange={set("gstin")} placeholder="e.g. 33AABCU9603R1ZX" />
+        <Toggle
+          label="Apply GST on Purchase Bills (Input Tax Credit)"
+          description="When ON, each bill item shows a GST % field. Tax is split as CGST+SGST (intra-state) or IGST (inter-state) based on supplier state vs company state."
+          checked={!!form.gstOnPurchases}
+          onChange={tog("gstOnPurchases")}
+        />
         <Field label="OTP Expiry (minutes)" value={String(form.otpExpiryMinutes ?? "")} onChange={set("otpExpiryMinutes")} type="number" />
         <Toggle label="Allow OTP Login" description="Users can log in via Email, SMS, or WhatsApp one-time password" checked={!!form.allowOtpLogin} onChange={tog("allowOtpLogin")} />
       </SettingsSection>

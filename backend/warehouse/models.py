@@ -313,6 +313,11 @@ class PurchaseBill(models.Model):
     bill_date = models.DateField(default=timezone.now)
     invoice_ref = models.CharField(max_length=100, blank=True, help_text="Supplier's invoice / bill number")
     bill_image = models.TextField(blank=True, help_text="Base64-encoded photo of the bill")
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    tax_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    cgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    sgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    igst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     amount_paid = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     payment_status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
@@ -358,6 +363,7 @@ class PurchaseBillItem(models.Model):
     quantity = models.PositiveIntegerField(default=0)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
     total_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     notes = models.CharField(max_length=255, blank=True)
 
@@ -1139,6 +1145,9 @@ class SystemSettings(models.Model):
     print_terms = models.TextField(blank=True, default="All disputes subject to local jurisdiction.", help_text="Terms & conditions printed on documents")
     print_signature_label = models.CharField(max_length=80, blank=True, default="Authorised Signatory", help_text="Label under signature line")
     print_show_logo = models.BooleanField(default=True, help_text="Show company logo on printed documents")
+    # GST / ITC
+    gst_on_purchases = models.BooleanField(default=False, help_text="Apply GST on purchase bills (Input Tax Credit)")
+    gstin = models.CharField(max_length=15, blank=True, help_text="Company GSTIN — printed on purchase bills")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="settings_updates"

@@ -305,6 +305,7 @@ export interface SystemSettings extends AppSettings {
   companyName: string; companyState: string; currencySymbol: string; taxPercent: number
   printCompanyAddress: string; printBankDetails: string; printTerms: string
   printSignatureLabel: string; printShowLogo: boolean
+  gstOnPurchases: boolean; gstin: string
 }
 
 // ─── ledger ──────────────────────────────────────────────────────────────────

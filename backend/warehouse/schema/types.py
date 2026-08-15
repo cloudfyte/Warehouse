@@ -149,6 +149,7 @@ class PurchaseBillItemType(DjangoObjectType):
     total_meters = graphene.Float()
     cost_per_meter = graphene.Float()
     unit_price = graphene.Float()
+    gst_rate = graphene.Float()
 
     class Meta:
         model = PurchaseBillItem
@@ -166,8 +167,16 @@ class PurchaseBillItemType(DjangoObjectType):
     def resolve_unit_price(self, info):
         return float(self.unit_price) if self.unit_price else None
 
+    def resolve_gst_rate(self, info):
+        return float(self.gst_rate)
+
 
 class PurchaseBillType(DjangoObjectType):
+    taxable_amount = graphene.Float()
+    tax_amount = graphene.Float()
+    cgst_amount = graphene.Float()
+    sgst_amount = graphene.Float()
+    igst_amount = graphene.Float()
     total_amount = graphene.Float()
     amount_paid = graphene.Float()
     amount_pending = graphene.Float()
@@ -175,6 +184,21 @@ class PurchaseBillType(DjangoObjectType):
     class Meta:
         model = PurchaseBill
         fields = "__all__"
+
+    def resolve_taxable_amount(self, info):
+        return float(self.taxable_amount)
+
+    def resolve_tax_amount(self, info):
+        return float(self.tax_amount)
+
+    def resolve_cgst_amount(self, info):
+        return float(self.cgst_amount)
+
+    def resolve_sgst_amount(self, info):
+        return float(self.sgst_amount)
+
+    def resolve_igst_amount(self, info):
+        return float(self.igst_amount)
 
     def resolve_total_amount(self, info):
         return float(self.total_amount)

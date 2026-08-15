@@ -28,6 +28,7 @@ interface BillItem {
   size: string
   quantity: number
   unitPrice?: number
+  gstRate: number
   totalPrice: number
   notes: string
 }
@@ -50,6 +51,11 @@ interface PurchaseBill {
   billDate: string
   invoiceRef: string
   billImage?: string
+  taxableAmount: number
+  taxAmount: number
+  cgstAmount: number
+  sgstAmount: number
+  igstAmount: number
   totalAmount: number
   amountPaid: number
   amountPending: number
@@ -72,6 +78,7 @@ interface DraftItem {
   size: string
   quantity: string
   unitPrice: string
+  gstRate: string
   notes: string
 }
 
@@ -83,6 +90,7 @@ interface Props {
   clothColors: ClothColor[]
   itemTypes: ItemType[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isStoreKeeper: boolean
+  systemSettings?: { gstOnPurchases?: boolean; currencySymbol?: string; gstin?: string }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
 }
@@ -102,7 +110,7 @@ function blankItem(): DraftItem {
   return {
     itemKind: "RAW_CLOTH", clothCategoryId: "", clothColorId: "",
     totalMeters: "", costPerMeter: "", binLocation: "", clothCode: "",
-    itemTypeId: "", size: "", quantity: "", unitPrice: "", notes: "",
+    itemTypeId: "", size: "", quantity: "", unitPrice: "", gstRate: "", notes: "",
   };
 }
 
@@ -134,9 +142,11 @@ const BTN = (bg = "var(--primary)", color = "#fff"): React.CSSProperties => ({
 
 export default function PurchaseBills({
   bills, suppliers, warehouses, clothCategories, clothColors, itemTypes,
-  isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate,
+  isAdmin, isSuperAdmin, isManager, isStoreKeeper, systemSettings, onMutate,
 }: Props) {
   const canCreate = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
+  const gstEnabled = !!systemSettings?.gstOnPurchases;
+  const currency = systemSettings?.currencySymbol || "₹";
 
   const [showForm, setShowForm] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -194,6 +204,13 @@ export default function PurchaseBills({
   }
 
   const computedTotal = items.reduce((s, it) => s + itemLineTotal(it), 0);
+  const computedGst = gstEnabled
+    ? items.reduce((s, it) => {
+        const rate = parseFloat(it.gstRate) || 0;
+        return s + (rate > 0 ? Math.round(itemLineTotal(it) * rate) / 100 : 0);
+      }, 0)
+    : 0;
+  const grandTotal = computedTotal + computedGst;
 
   async function handleSubmit() {
     setErr("");
@@ -215,7 +232,8 @@ export default function PurchaseBills({
 
     const paid = parseFloat(amountPaid) || 0;
     if (paid < 0) return setErr("Amount paid cannot be negative.");
-    if (paid > computedTotal) return setErr(`Amount paid (₹${paid}) cannot exceed total (₹${computedTotal.toFixed(2)}).`);
+    const billTotal = grandTotal;
+    if (paid > billTotal) return setErr(`Amount paid (${currency}${paid.toFixed(2)}) cannot exceed total (${currency}${billTotal.toFixed(2)}).`);
 
     setSaving(true);
     try {
@@ -248,6 +266,7 @@ export default function PurchaseBills({
             size: it.size,
             quantity: it.quantity ? parseInt(it.quantity) : null,
             unitPrice: it.unitPrice ? parseFloat(it.unitPrice) : null,
+            gstRate: it.gstRate ? parseFloat(it.gstRate) : null,
             notes: it.notes,
           })),
         }
@@ -268,7 +287,7 @@ export default function PurchaseBills({
     const amt = parseFloat(payAmount);
     if (!payAmount || isNaN(amt) || amt <= 0) { setPayErr("Enter a valid amount."); return; }
     if (payingBill && amt > payingBill.amountPending) {
-      setPayErr(`Amount ₹${amt} exceeds pending balance ₹${payingBill.amountPending.toFixed(2)}.`);
+      setPayErr(`Amount ${currency}${amt} exceeds pending balance ${currency}${payingBill.amountPending.toFixed(2)}.`);
       return;
     }
     setPayLoading(true); setPayErr("");
@@ -300,6 +319,7 @@ export default function PurchaseBills({
   }
 
   function printBill(bill: PurchaseBill) {
+    const hasGst = bill.taxAmount > 0;
     const rows = bill.items.map(item => {
       const desc = item.itemKind === "RAW_CLOTH"
         ? [item.clothCategory?.name, item.clothColor?.name, item.binLocation].filter(Boolean).join(" · ")
@@ -309,7 +329,8 @@ export default function PurchaseBills({
         ? (item.costPerMeter ? `${fmtMoney(item.costPerMeter)}/m` : "—")
         : (item.unitPrice ? fmtMoney(item.unitPrice) : "—");
       const code = item.clothCode ? `<span style="font-family:monospace;font-size:11px;color:#888">${item.clothCode}</span>` : "";
-      return `<tr><td>${item.itemKind === "RAW_CLOTH" ? "Raw Cloth" : "Readymade"}</td><td>${desc}${code ? " " + code : ""}</td><td>${qty}</td><td class="amount">${unit}</td><td class="amount">${fmtMoney(item.totalPrice)}</td></tr>`;
+      const gstCol = hasGst ? `<td class="amount">${item.gstRate > 0 ? `${item.gstRate}%` : "—"}</td>` : "";
+      return `<tr><td>${item.itemKind === "RAW_CLOTH" ? "Raw Cloth" : "Readymade"}</td><td>${desc}${code ? " " + code : ""}</td><td>${qty}</td><td class="amount">${unit}</td>${gstCol}<td class="amount">${fmtMoney(item.totalPrice)}</td></tr>`;
     }).join("");
 
     const paymentRows = (bill.supplierPayments || []).map(p =>
@@ -317,6 +338,16 @@ export default function PurchaseBills({
     ).join("");
 
     const st = STATUS_COLORS[bill.paymentStatus] ?? STATUS_COLORS.PENDING;
+    const gstHeader = hasGst ? "<th class=\"amount\">GST %</th>" : "";
+    const gstInCompany = systemSettings?.gstin ? `<div class="meta-item"><label>Company GSTIN</label><span>${systemSettings.gstin}</span></div>` : "";
+
+    const gstTotals = hasGst ? `
+      <div class="totals-row"><span>Taxable Amount</span><span>${fmtMoney(bill.taxableAmount)}</span></div>
+      ${bill.cgstAmount > 0 ? `
+        <div class="totals-row"><span>CGST</span><span>${fmtMoney(bill.cgstAmount)}</span></div>
+        <div class="totals-row"><span>SGST</span><span>${fmtMoney(bill.sgstAmount)}</span></div>
+      ` : `<div class="totals-row"><span>IGST</span><span>${fmtMoney(bill.igstAmount)}</span></div>`}
+    ` : "";
 
     printDoc(`
       <div class="header">
@@ -335,14 +366,16 @@ export default function PurchaseBills({
         <div class="meta-item"><label>Supplier</label><span>${bill.supplier.name}</span></div>
         <div class="meta-item"><label>Warehouse</label><span>${bill.warehouse.name}</span></div>
         <div class="meta-item"><label>Payment Status</label><span style="color:${st.color};font-weight:700">${st.label}</span></div>
+        ${gstInCompany}
       </div>
       <h2>Items</h2>
       <table>
-        <thead><tr><th>Type</th><th>Description</th><th>Qty / Meters</th><th class="amount">Unit Price</th><th class="amount">Total</th></tr></thead>
+        <thead><tr><th>Type</th><th>Description</th><th>Qty / Meters</th><th class="amount">Unit Price</th>${gstHeader}<th class="amount">Total</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="totals">
-        <div class="totals-row"><span>Total</span><span>${fmtMoney(bill.totalAmount)}</span></div>
+        ${gstTotals}
+        <div class="totals-row"><span>Total Amount</span><span>${fmtMoney(bill.totalAmount)}</span></div>
         <div class="totals-row" style="color:#2e7d32"><span>Paid</span><span>${fmtMoney(bill.amountPaid)}</span></div>
         <div class="totals-row grand" style="${bill.amountPending > 0 ? "color:#e65100" : "color:#2e7d32"}"><span>Balance Due</span><span>${fmtMoney(bill.amountPending)}</span></div>
       </div>
@@ -401,9 +434,9 @@ export default function PurchaseBills({
                     {bill.invoiceRef && <span style={{ fontSize: 12, color: "var(--muted)" }}>Ref: {bill.invoiceRef}</span>}
                   </div>
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <span style={{ fontWeight: 700 }}>₹{formatMoney(bill.totalAmount)}</span>
+                    <span style={{ fontWeight: 700 }}>{currency}{formatMoney(bill.totalAmount)}</span>
                     {bill.amountPending > 0 && (
-                      <span style={{ fontSize: 12, color: "#e65100" }}>₹{formatMoney(bill.amountPending)} pending</span>
+                      <span style={{ fontSize: 12, color: "#e65100" }}>{currency}{formatMoney(bill.amountPending)} pending</span>
                     )}
                     <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>
                       {st.label}
@@ -416,9 +449,13 @@ export default function PurchaseBills({
                   <div style={{ padding: "0 18px 18px", borderTop: "1px solid var(--line)" }}>
                     {/* Payment summary */}
                     <div style={{ display: "flex", gap: 24, padding: "14px 0 18px", flexWrap: "wrap" }}>
-                      <Stat label="Total" value={`₹${formatMoney(bill.totalAmount)}`} />
-                      <Stat label="Paid" value={`₹${formatMoney(bill.amountPaid)}`} color="#2e7d32" />
-                      <Stat label="Pending" value={`₹${formatMoney(bill.amountPending)}`} color={bill.amountPending > 0 ? "#e65100" : undefined} />
+                      {bill.taxAmount > 0 && <Stat label="Taxable" value={`${currency}${formatMoney(bill.taxableAmount)}`} />}
+                      {bill.cgstAmount > 0 && <Stat label="CGST" value={`${currency}${formatMoney(bill.cgstAmount)}`} />}
+                      {bill.cgstAmount > 0 && <Stat label="SGST" value={`${currency}${formatMoney(bill.sgstAmount)}`} />}
+                      {bill.igstAmount > 0 && <Stat label="IGST" value={`${currency}${formatMoney(bill.igstAmount)}`} />}
+                      <Stat label="Total" value={`${currency}${formatMoney(bill.totalAmount)}`} />
+                      <Stat label="Paid" value={`${currency}${formatMoney(bill.amountPaid)}`} color="#2e7d32" />
+                      <Stat label="Pending" value={`${currency}${formatMoney(bill.amountPending)}`} color={bill.amountPending > 0 ? "#e65100" : undefined} />
                       <Stat label="Warehouse" value={bill.warehouse.name} />
                     </div>
 
@@ -430,7 +467,7 @@ export default function PurchaseBills({
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                         <thead>
                           <tr style={{ background: "var(--canvas)" }}>
-                            {["Type", "Description", "Code", "Qty / Meters", "Unit Price", "Total"].map(h => (
+                            {["Type", "Description", "Code", "Qty / Meters", "Unit Price", ...(bill.taxAmount > 0 ? ["GST %"] : []), "Total"].map(h => (
                               <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--line)", whiteSpace: "nowrap" }}>{h}</th>
                             ))}
                           </tr>
@@ -461,11 +498,16 @@ export default function PurchaseBills({
                               </td>
                               <td style={{ padding: "8px 10px" }}>
                                 {item.itemKind === "RAW_CLOTH"
-                                  ? (item.costPerMeter ? `₹${item.costPerMeter}/m` : "—")
-                                  : (item.unitPrice ? `₹${item.unitPrice}` : "—")}
+                                  ? (item.costPerMeter ? `${currency}${item.costPerMeter}/m` : "—")
+                                  : (item.unitPrice ? `${currency}${item.unitPrice}` : "—")}
                               </td>
+                              {bill.taxAmount > 0 && (
+                                <td style={{ padding: "8px 10px", color: "var(--muted)", fontSize: 12 }}>
+                                  {item.gstRate > 0 ? `${item.gstRate}%` : "—"}
+                                </td>
+                              )}
                               <td style={{ padding: "8px 10px", fontWeight: 600 }}>
-                                ₹{formatMoney(item.totalPrice)}
+                                {currency}{formatMoney(item.totalPrice)}
                               </td>
                             </tr>
                           ))}
@@ -489,7 +531,7 @@ export default function PurchaseBills({
                           Payment History
                           {bill.amountPending > 0 && (
                             <span style={{ marginLeft: 8, fontSize: 12, color: "#e65100", fontWeight: 600 }}>
-                              ₹{formatMoney(bill.amountPending)} pending
+                              {currency}{formatMoney(bill.amountPending)} pending
                             </span>
                           )}
                         </div>
@@ -525,7 +567,7 @@ export default function PurchaseBills({
                                 <td style={{ padding: "7px 10px", fontSize: 12 }}>{formatDate(p.paymentDate)}</td>
                                 <td style={{ padding: "7px 10px", fontSize: 12 }}>{p.paymentMode.replace("_", " ")}</td>
                                 <td style={{ padding: "7px 10px", fontSize: 12, color: "var(--muted)" }}>{p.reference || "—"}</td>
-                                <td style={{ padding: "7px 10px", fontWeight: 700, color: "#2e7d32" }}>₹{formatMoney(p.amount)}</td>
+                                <td style={{ padding: "7px 10px", fontWeight: 700, color: "#2e7d32" }}>{currency}{formatMoney(p.amount)}</td>
                                 <td style={{ padding: "7px 10px" }}>
                                   {canCreate && (
                                     <button onClick={() => handleDeletePayment(p.id)}
@@ -560,17 +602,17 @@ export default function PurchaseBills({
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>Record Payment</div>
                 <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                  {payingBill.billNumber} · {payingBill.supplier.name} · ₹{formatMoney(payingBill.amountPending)} pending
+                  {payingBill.billNumber} · {payingBill.supplier.name} · {currency}{formatMoney(payingBill.amountPending)} pending
                 </div>
               </div>
               <button onClick={() => setPayBillId(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--muted)" }}>×</button>
             </div>
             <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Amount (₹) *</label>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Amount ({currency}) *</label>
                 <input type="number" min="0.01" step="0.01" value={payAmount}
                   onChange={e => setPayAmount(e.target.value)}
-                  placeholder={`Max ₹${formatMoney(payingBill.amountPending)}`}
+                  placeholder={`Max ${currency}${formatMoney(payingBill.amountPending)}`}
                   style={FIELD} autoFocus />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -663,6 +705,7 @@ export default function PurchaseBills({
                     <ItemEditor
                       key={idx} item={item} idx={idx}
                       clothCategories={clothCategories} clothColors={clothColors} itemTypes={itemTypes}
+                      gstEnabled={gstEnabled}
                       onChange={patch => updateItem(idx, patch)}
                       onRemove={items.length > 1 ? () => removeItem(idx) : undefined}
                     />
@@ -672,26 +715,43 @@ export default function PurchaseBills({
 
               {/* Total summary */}
               <div style={{ background: "var(--canvas)", borderRadius: 10, padding: "14px 16px", display: "flex", gap: 28, flexWrap: "wrap", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>TOTAL AMOUNT</div>
-                  <div style={{ fontSize: 20, fontWeight: 700 }}>₹{formatMoney(computedTotal)}</div>
-                </div>
+                {gstEnabled && computedGst > 0 ? (
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>TAXABLE</div>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>{currency}{formatMoney(computedTotal)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>GST</div>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>{currency}{formatMoney(computedGst)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>GRAND TOTAL</div>
+                      <div style={{ fontSize: 20, fontWeight: 700 }}>{currency}{formatMoney(grandTotal)}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>TOTAL AMOUNT</div>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{currency}{formatMoney(computedTotal)}</div>
+                  </div>
+                )}
                 <div style={{ flex: 1, minWidth: 160 }}>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Amount Paid (₹)</label>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Amount Paid ({currency})</label>
                   <input
                     type="number" min="0" step="0.01"
                     value={amountPaid} onChange={e => setAmountPaid(e.target.value)}
-                    placeholder={`0 – ${computedTotal.toFixed(2)}`}
+                    placeholder={`0 – ${grandTotal.toFixed(2)}`}
                     style={{ ...FIELD, width: "auto", minWidth: 150 }}
                   />
                 </div>
                 {(() => {
                   const paid = parseFloat(amountPaid) || 0;
-                  const pending = computedTotal - paid;
+                  const pending = grandTotal - paid;
                   return pending > 0 ? (
                     <div>
                       <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>PENDING</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: "#e65100" }}>₹{formatMoney(pending)}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#e65100" }}>{currency}{formatMoney(pending)}</div>
                     </div>
                   ) : paid > 0 ? (
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#2e7d32" }}>✓ Fully Paid</div>
@@ -752,10 +812,11 @@ export default function PurchaseBills({
 // ─── item editor row ──────────────────────────────────────────────────────────
 
 function ItemEditor({
-  item, idx, clothCategories, clothColors, itemTypes, onChange, onRemove,
+  item, idx, clothCategories, clothColors, itemTypes, gstEnabled, onChange, onRemove,
 }: {
   item: DraftItem; idx: number
   clothCategories: ClothCategory[]; clothColors: ClothColor[]; itemTypes: ItemType[]
+  gstEnabled?: boolean
   onChange: (patch: Partial<DraftItem>) => void
   onRemove?: () => void
 }) {
@@ -867,15 +928,32 @@ function ItemEditor({
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-        <div>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Item Notes</label>
-          <input value={item.notes} onChange={e => onChange({ notes: e.target.value })} placeholder="Any remarks for this item…" style={{ ...FIELD, width: 260 }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {gstEnabled && (
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>GST %</label>
+              <select value={item.gstRate} onChange={e => onChange({ gstRate: e.target.value })} style={{ ...FIELD, width: 100 }}>
+                <option value="">0%</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
+              </select>
+            </div>
+          )}
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Item Notes</label>
+            <input value={item.notes} onChange={e => onChange({ notes: e.target.value })} placeholder="Any remarks for this item…" style={{ ...FIELD, width: 240 }} />
+          </div>
         </div>
         {lineTotal > 0 && (
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>LINE TOTAL</div>
             <div style={{ fontSize: 17, fontWeight: 700 }}>₹{formatMoney(lineTotal)}</div>
+            {gstEnabled && (parseFloat(item.gstRate) || 0) > 0 && (
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>+ {item.gstRate}% GST = ₹{formatMoney(lineTotal * (parseFloat(item.gstRate) || 0) / 100)}</div>
+            )}
           </div>
         )}
       </div>

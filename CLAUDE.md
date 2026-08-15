@@ -177,7 +177,7 @@ git pull organization main
 | Suppliers | Suppliers.tsx | CRUD, supply type filter |
 | Buyers | Buyers.tsx | CRUD, buyer type, credit limit |
 | Purchase Orders | PurchaseOrders.tsx | Full PO lifecycle, receive flow, ordered-by/received-by display |
-| Purchase Bills | PurchaseBills.tsx | Walk-in purchases, payment history, Record Payment modal |
+| Purchase Bills | PurchaseBills.tsx | Walk-in purchases, GST per item (CGST/SGST/IGST), payment history, print |
 | Raw Cloth | (raw cloth batches) | Batch list, meters, bin location |
 | Readymade Stock | — | Direct readymade inventory |
 | Cutting | Cutting.tsx | Assignment list, update pieces/cloth used/wasted, cost-per-piece |
@@ -211,12 +211,12 @@ ADJ-202506-0002  (Stock Adjustments)
 
 ## What's NOT Yet Built (Known Gaps)
 
-- **GST on purchase bills** — `tax_percent` in SystemSettings exists; CGST/SGST applied on sales side but not computed on purchase bills/POs
-- **Supplier on-time delivery tracking** — `expected_delivery` exists on PO model but no analytics comparing expected vs actual delivery dates
+- **Supplier on-time delivery tracking** — `expected_delivery` exists on PO model but no analytics comparing expected vs actual delivery dates (deferred by user)
 - **PDF exports from within the app** — print is browser-based (`window.print()`); no server-side PDF generation for email attachments
 
 ## What's Built (previously listed as gaps)
 
+- ✅ GST on purchase bills — `gst_on_purchases` toggle in Settings; per-item GST %; CGST+SGST vs IGST split; taxable/tax/total breakdown in bill detail and print
 - ✅ Inter-warehouse transfers — `StockTransfer` model + `StockTransfers.tsx` tab
 - ✅ Low stock / reorder alerts — `ReorderPoint` model + `check_reorder_points` Celery task + `ReorderPoints.tsx`
 - ✅ Size-wise analytics — `sizeSalesBreakdown` in `get_analytics_stats`
