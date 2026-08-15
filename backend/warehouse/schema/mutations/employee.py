@@ -16,15 +16,16 @@ class CreateEmployee(graphene.Mutation):
         warehouse_ids = graphene.List(graphene.NonNull(graphene.ID), required=True)
         email = graphene.String()
         phone = graphene.String()
+        custom_role_id = graphene.ID()
 
     employee = graphene.Field(EmployeeProfileType)
 
     @login_required
-    def mutate(self, info, username, password, role, warehouse_ids, email="", phone=""):
+    def mutate(self, info, username, password, role, warehouse_ids, email="", phone="", custom_role_id=None):
         caller = require_role(info.context.user, EmployeeProfile.Role.ADMIN)
         return CreateEmployee(employee=create_employee(
             caller=caller, username=username, password=password, role=role,
-            warehouse_ids=warehouse_ids, email=email, phone=phone,
+            warehouse_ids=warehouse_ids, email=email, phone=phone, custom_role_id=custom_role_id,
         ))
 
 
@@ -36,14 +37,16 @@ class UpdateEmployee(graphene.Mutation):
         email = graphene.String()
         active = graphene.Boolean()
         warehouse_ids = graphene.List(graphene.NonNull(graphene.ID))
+        custom_role_id = graphene.ID()
 
     employee = graphene.Field(EmployeeProfileType)
 
     @login_required
-    def mutate(self, info, id, **kwargs):
+    def mutate(self, info, id, custom_role_id=None, **kwargs):
         caller = require_role(info.context.user, EmployeeProfile.Role.ADMIN)
         return UpdateEmployee(employee=update_employee(
-            caller=caller, profile_id=id, requesting_user=info.context.user, **kwargs,
+            caller=caller, profile_id=id, requesting_user=info.context.user,
+            custom_role_id=custom_role_id, **kwargs,
         ))
 
 

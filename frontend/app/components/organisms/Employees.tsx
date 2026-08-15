@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import type { Employee, WarehouseLocation } from "@/app/types";
+import type { CustomRole, Employee, WarehouseLocation } from "@/app/types";
 import { ROLE_LABELS } from "@/app/lib/constants";
 import Modal from "@/app/components/atoms/Modal";
 import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
   employees: Employee[]; warehouses: WarehouseLocation[]
+  customRoles?: CustomRole[]
   isSuperAdmin: boolean; isAdmin: boolean; currentUserId: string
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
 }
@@ -34,7 +35,17 @@ const LBL: React.CSSProperties = {
   fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
 };
 
-function RoleBadge({ role }: { role: string }) {
+function RoleBadge({ role, customRole }: { role: string; customRole?: CustomRole | null }) {
+  if (customRole) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: customRole.color + "22", color: customRole.color, border: `1px solid ${customRole.color}44` }}>
+          {customRole.displayName}
+        </span>
+        <span style={{ fontSize: 10, color: "var(--muted)", paddingLeft: 4 }}>via custom role</span>
+      </div>
+    );
+  }
   const color = ROLE_COLORS[role] || "#555";
   return (
     <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: color + "18", color, border: `1px solid ${color}33` }}>
@@ -43,8 +54,9 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin, currentUserId, onMutate }: Props) {
+export default function Employees({ employees, warehouses, customRoles = [], isSuperAdmin, isAdmin, currentUserId, onMutate }: Props) {
   const [editing, setEditing] = useState<Partial<Employee> | null>(null);
+  const [editingCustomRoleId, setEditingCustomRoleId] = useState<string>("");
   const [isNew, setIsNew] = useState(false);
   const [newPass, setNewPass] = useState("");
   const [showResetFor, setShowResetFor] = useState<string | null>(null);
@@ -69,18 +81,19 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
     if (!editing) return;
     setLoading(true); setError("");
     try {
+      const customRoleId = editingCustomRoleId || undefined;
       if (isNew) {
         await onMutate(
-          `mutation C($u:String!,$p:String!,$r:String!,$wids:[ID!]!,$email:String,$phone:String){createEmployee(username:$u,password:$p,role:$r,warehouseIds:$wids,email:$email,phone:$phone){employee{id}}}`,
-          { u: editing.username, p: newPass, r: editing.role, wids: editing.locations?.map(l => l.id) || [], email: editing.email, phone: editing.phone }
+          `mutation C($u:String!,$p:String!,$r:String!,$wids:[ID!]!,$email:String,$phone:String,$crid:ID){createEmployee(username:$u,password:$p,role:$r,warehouseIds:$wids,email:$email,phone:$phone,customRoleId:$crid){employee{id}}}`,
+          { u: editing.username, p: newPass, r: editing.role, wids: editing.locations?.map(l => l.id) || [], email: editing.email, phone: editing.phone, crid: customRoleId }
         );
       } else {
         await onMutate(
-          `mutation U($id:ID!,$r:String,$phone:String,$email:String,$active:Boolean,$wids:[ID!]){updateEmployee(id:$id,role:$r,phone:$phone,email:$email,active:$active,warehouseIds:$wids){employee{id}}}`,
-          { id: editing.id, r: editing.role, phone: editing.phone, email: editing.email, active: editing.active, wids: editing.locations?.map(l => l.id) }
+          `mutation U($id:ID!,$r:String,$phone:String,$email:String,$active:Boolean,$wids:[ID!],$crid:ID){updateEmployee(id:$id,role:$r,phone:$phone,email:$email,active:$active,warehouseIds:$wids,customRoleId:$crid){employee{id}}}`,
+          { id: editing.id, r: editing.role, phone: editing.phone, email: editing.email, active: editing.active, wids: editing.locations?.map(l => l.id), crid: customRoleId }
         );
       }
-      setEditing(null); setNewPass("");
+      setEditing(null); setNewPass(""); setEditingCustomRoleId("");
     } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
@@ -104,7 +117,7 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
           <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{employees.length} team members</p>
         </div>
         {canEdit && (
-          <button onClick={() => { setIsNew(true); setEditing({ username: "", email: "", phone: "", role: "STORE_KEEPER", active: true, locations: [] }); setNewPass(""); setError(""); }} className="primary-button">
+          <button onClick={() => { setIsNew(true); setEditing({ username: "", email: "", phone: "", role: "STORE_KEEPER", active: true, locations: [] }); setNewPass(""); setEditingCustomRoleId(""); setError(""); }} className="primary-button">
             + Add Employee
           </button>
         )}
@@ -147,14 +160,14 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
         <Modal
           title={isNew ? "Add Employee" : "Edit Employee"}
           subtitle={isNew ? "Create a new team member account" : `Editing: ${editing.username}`}
-          onClose={() => { setEditing(null); setError(""); }}
+          onClose={() => { setEditing(null); setEditingCustomRoleId(""); setError(""); }}
           width={520}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={save} disabled={loading} style={BTN_PRI}>
                 {loading ? "Saving…" : "Save"}
               </button>
-              <button onClick={() => { setEditing(null); setError(""); }} style={BTN_SEC}>Cancel</button>
+              <button onClick={() => { setEditing(null); setEditingCustomRoleId(""); setError(""); }} style={BTN_SEC}>Cancel</button>
             </div>
           }
         >
@@ -178,13 +191,26 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
                 <input type="tel" value={editing.phone || ""} onChange={e => setEditing(p => ({ ...p, phone: e.target.value }))} style={I} />
               </label>
             </div>
-            <label style={LBL}>Role *
-              <select value={editing.role || "STORE_KEEPER"} onChange={e => setEditing(p => ({ ...p, role: e.target.value }))} style={I}>
-                {ROLES.filter(r => r !== "SUPER_ADMIN" || isSuperAdmin).filter(r => r !== "ADMIN" || isSuperAdmin).map(r => (
-                  <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                ))}
-              </select>
-            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <label style={LBL}>System Role *
+                <select value={editing.role || "STORE_KEEPER"} onChange={e => setEditing(p => ({ ...p, role: e.target.value }))} style={I}>
+                  {ROLES.filter(r => r !== "SUPER_ADMIN" || isSuperAdmin).filter(r => r !== "ADMIN" || isSuperAdmin).map(r => (
+                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                  ))}
+                </select>
+              </label>
+              {customRoles.length > 0 && (
+                <label style={LBL}>
+                  Custom Role (overrides tab visibility)
+                  <select value={editingCustomRoleId} onChange={e => setEditingCustomRoleId(e.target.value)} style={I}>
+                    <option value="">— None (use system role) —</option>
+                    {customRoles.map(cr => (
+                      <option key={cr.id} value={cr.id}>{cr.displayName}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
             <label style={LBL}>Assigned Warehouses
               <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "10px 14px", display: "flex", flexWrap: "wrap", gap: 10, background: "var(--input-bg)" }}>
                 {warehouses.map(w => {
@@ -245,7 +271,7 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{e.username}</div>
                   <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{e.email}</div>
                 </td>
-                <td style={{ padding: "13px 16px" }}><RoleBadge role={e.role} /></td>
+                <td style={{ padding: "13px 16px" }}><RoleBadge role={e.role} customRole={e.customRole} /></td>
                 <td style={{ padding: "13px 16px", fontSize: 13 }}>{e.phone || "—"}</td>
                 <td style={{ padding: "13px 16px", fontSize: 12, color: "var(--muted)" }}>{e.locations.map(l => l.name).join(", ") || "All"}</td>
                 <td style={{ padding: "13px 16px" }}>
@@ -256,7 +282,7 @@ export default function Employees({ employees, warehouses, isSuperAdmin, isAdmin
                 <td style={{ padding: "13px 16px" }}>
                   {canEditEmployee(e) && (
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => { setIsNew(false); setEditing(e); setError(""); }}
+                      <button onClick={() => { setIsNew(false); setEditing(e); setEditingCustomRoleId(e.customRole?.id || ""); setError(""); }}
                         style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Edit</button>
                       <button onClick={() => { setShowResetFor(e.id); setError(""); }}
                         style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Reset PW</button>

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import type { DashboardStats, Employee, Tab } from "@/app/types";
+import type { CustomRole, DashboardStats, Employee, Tab } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 
 interface RawBatch { id: string; batchNumber: string; availableMeters: number; clothCategory: { name: string }; clothColor: { name: string; hexCode?: string }; warehouse: { name: string } }
@@ -113,6 +113,7 @@ export default function Dashboard({
   cuttingAssignments?: CuttingJob[]; stitchingJobs?: StitchingJob[];
   onNavigate?: (tab: Tab) => void;
 }) {
+  const customRole: CustomRole | null = profile?.customRole ?? null;
   const [alertsDismissed, setAlertsDismissed] = useState(false);
 
   if (!stats || !profile) {
@@ -125,13 +126,15 @@ export default function Dashboard({
   const outRmd = readymadeStock.filter(r => r.quantityAvailable <= 0);
   const totalAlerts = lowRaw.length + outRaw.length + lowRmd.length + outRmd.length;
 
-  const isSuperAdmin = role === "SUPER_ADMIN";
-  const isAdmin = role === "ADMIN";
-  const isManager = role === "MANAGER";
-  const isCuttingMaster = role === "CUTTING_MASTER";
-  const isTailor = role === "TAILOR";
-  const isStoreKeeper = role === "STORE_KEEPER";
-  const isAuditor = role === "AUDITOR";
+  const isCustomRole = !!customRole;
+  const tp = customRole?.tabPermissions || {};
+  const isSuperAdmin = !isCustomRole && role === "SUPER_ADMIN";
+  const isAdmin = !isCustomRole && role === "ADMIN";
+  const isManager = !isCustomRole && role === "MANAGER";
+  const isCuttingMaster = !isCustomRole && role === "CUTTING_MASTER";
+  const isTailor = !isCustomRole && role === "TAILOR";
+  const isStoreKeeper = !isCustomRole && role === "STORE_KEEPER";
+  const isAuditor = !isCustomRole && role === "AUDITOR";
 
   const showFullStats = isSuperAdmin || isAdmin || isManager || isAuditor;
 
@@ -151,7 +154,14 @@ export default function Dashboard({
             {greeting}, {profile.username} 👋
           </h1>
           <div style={{ color: "var(--muted)", marginTop: 5, fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
-            <span>{role.replace(/_/g, " ")}</span>
+            {customRole ? (
+              <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700,
+                background: customRole.color + "22", color: customRole.color, border: `1px solid ${customRole.color}44` }}>
+                {customRole.displayName}
+              </span>
+            ) : (
+              <span>{role.replace(/_/g, " ")}</span>
+            )}
             <span style={{ opacity: 0.4 }}>·</span>
             <span>{(profile.locations ?? []).map(l => l.name).join(", ") || "All locations"}</span>
           </div>
@@ -161,6 +171,64 @@ export default function Dashboard({
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{dateStr}</div>
         </div>
       </div>
+
+      {/* ─── CUSTOM ROLE view (composite by tab permissions) ─────────── */}
+      {isCustomRole && (
+        <>
+          {(tp.cutting || tp.stitching) && (
+            <>
+              <SectionLabel>Production Overview</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
+                {tp.cutting && <StatCard label="Cutting In Progress" value={stats.cuttingInProgress ?? 0} color="#f59e0b" />}
+                {tp.cutting && <StatCard label="Pieces Cut" value={cuttingAssignments.reduce((s, j) => s + (j.piecesCompleted || 0), 0)} sub={`of ${cuttingAssignments.reduce((s, j) => s + (j.targetPieces || 0), 0)} target`} color="#f59e0b" />}
+                {tp.stitching && <StatCard label="Stitching In Progress" value={stats.stitchingInProgress ?? 0} color="#6366f1" />}
+                {tp.stitching && <StatCard label="Pieces Stitched" value={stitchingJobs.reduce((s, j) => s + (j.piecesCompleted || 0), 0)} color="#6366f1" />}
+              </div>
+            </>
+          )}
+          {(tp.raw_cloth || tp.readymade_stock || tp.finished_products) && (
+            <>
+              <SectionLabel>Inventory</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
+                {tp.raw_cloth && <StatCard label="Raw Cloth Available" value={`${(stats.totalRawMeters ?? 0).toFixed(1)} m`} color="var(--primary)" />}
+                {tp.finished_products && <StatCard label="Finished Pieces" value={stats.totalFinishedPieces ?? 0} sub={`${stats.inhousePieces ?? 0} stitched · ${stats.readymadePieces ?? 0} imported`} />}
+                {tp.readymade_stock && <StatCard label="Readymade Stock" value={stats.readymadePieces ?? 0} sub="pieces in stock" />}
+              </div>
+            </>
+          )}
+          {(tp.purchase_orders || tp.purchase_bills || tp.suppliers) && (
+            <>
+              <SectionLabel>Procurement</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
+                {tp.purchase_orders && <StatCard label="Active Purchase Orders" value={stats.activePurchaseOrders ?? 0} color="#2196f3" />}
+                {tp.suppliers && <StatCard label="Suppliers" value={stats.totalSuppliers ?? 0} />}
+                {tp.purchase_bills && <StatCard label="Pending to Suppliers" value={formatMoney(stats.supplierTotalPending ?? 0)} color={(stats.supplierTotalPending ?? 0) > 0 ? "#e65100" : "#2e7d32"} />}
+              </div>
+            </>
+          )}
+          {(tp.sales_orders || tp.credit || tp.expenses || tp.reports) && (
+            <>
+              <SectionLabel>Sales & Finance</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
+                {tp.sales_orders && <StatCard label="Active Sales Orders" value={stats.activeSalesOrders ?? 0} color="#9c27b0" />}
+                {tp.sales_orders && <StatCard label="Buyers" value={stats.totalBuyers ?? 0} />}
+                {(tp.reports || tp.sales_orders) && <StatCard label="Revenue This Month" value={formatMoney(stats.revenueThisMonth ?? 0)} color="var(--accent)" />}
+                {(tp.reports || tp.sales_orders) && <StatCard label="Revenue This Year" value={formatMoney(stats.revenueThisYear ?? 0)} color="var(--accent)" />}
+                {(tp.credit) && <StatCard label="Credit Outstanding" value={formatMoney(stats.creditOutstanding ?? 0)} color={(stats.creditOutstanding ?? 0) > 0 ? "#f44336" : "#4caf50"} sub="Pending from buyers" />}
+                {(tp.credit) && <StatCard label="Overdue" value={formatMoney(stats.creditOverdue ?? 0)} color={(stats.creditOverdue ?? 0) > 0 ? "#b71c1c" : "#4caf50"} />}
+                {tp.expenses && <StatCard label="Expenses This Month" value={formatMoney(stats.expensesThisMonth ?? 0)} color="#dc2626" />}
+              </div>
+            </>
+          )}
+          {!tp.cutting && !tp.raw_cloth && !tp.sales_orders && !tp.purchase_orders && (
+            <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)" }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>👋</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>Welcome, {profile.username}</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>Your dashboard will show stats for the tabs assigned to your role.</div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ─── CUTTING MASTER view ─────────────────────────────────────── */}
       {isCuttingMaster && (

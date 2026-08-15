@@ -5,11 +5,25 @@ export interface ClothColor { id: string; name: string; hexCode: string; active:
 export interface ItemType { id: string; name: string; category: string; clothLengthPerPiece: number; hsnCode: string; gstRate: number; active: boolean }
 export interface WarehouseLocation { id: string; name: string; code: string; locationType: string; city: string; state: string; address: string; phone: string; active: boolean }
 
+// ─── custom roles ─────────────────────────────────────────────────────────────
+
+export interface CustomRole {
+  id: string
+  name: string
+  displayName: string
+  color: string
+  backendLevel: string
+  tabPermissions: Record<string, boolean>
+  isSystem: boolean
+  createdAt: string
+}
+
 // ─── people ───────────────────────────────────────────────────────────────────
 
 export interface Employee {
   id: string; username: string; email: string; role: string; phone: string; active: boolean
   locations: WarehouseLocation[]; createdAt: string
+  customRole?: CustomRole | null
 }
 
 // ─── suppliers & buyers ───────────────────────────────────────────────────────
@@ -313,7 +327,7 @@ export type Tab =
   | "stock_adjustments" | "stock_transfers" | "reorder_points"
   | "quotations" | "reports" | "ledger"
   | "item_types"
-  | "employees" | "warehouses" | "notifications" | "audit_log" | "settings" | "profile"
+  | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"
 
 export interface Modal {
   type: string

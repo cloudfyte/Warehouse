@@ -56,6 +56,30 @@ class WarehouseLocation(models.Model):
         return f"{self.code} — {self.name}"
 
 
+class CustomRole(models.Model):
+    """Admin-defined roles with custom tab visibility and a backend permission level."""
+    name = models.CharField(max_length=50, unique=True, help_text="Slug key — auto-uppercased")
+    display_name = models.CharField(max_length=100)
+    color = models.CharField(max_length=7, default="#6366f1", help_text="#RRGGBB")
+    # Which system role's backend mutation permissions this role inherits
+    backend_level = models.CharField(max_length=50, default="STORE_KEEPER",
+        help_text="Inherits backend permissions from this system role")
+    # Which tabs are visible: {"dashboard": true, "cutting": true, ...}
+    tab_permissions = models.JSONField(default=dict)
+    is_system = models.BooleanField(default=False, help_text="System roles cannot be deleted")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["display_name"]
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper().replace(" ", "_").replace("-", "_")
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.display_name
+
+
 class EmployeeProfile(models.Model):
     class Role(models.TextChoices):
         SUPER_ADMIN = "SUPER_ADMIN", "Super Administrator"
@@ -72,6 +96,11 @@ class EmployeeProfile(models.Model):
         on_delete=models.CASCADE,
     )
     role = models.CharField(max_length=50, choices=Role.choices, default=Role.STORE_KEEPER)
+    custom_role = models.ForeignKey(
+        CustomRole, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="employees",
+        help_text="If set, overrides tab visibility and role badge display",
+    )
     phone = models.CharField(max_length=20, blank=True)
     locations = models.ManyToManyField(WarehouseLocation, related_name="employees", blank=True)
     active = models.BooleanField(default=True)

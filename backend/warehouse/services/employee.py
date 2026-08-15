@@ -1,12 +1,12 @@
 from django.contrib.auth import get_user_model
 from graphql import GraphQLError
 
-from warehouse.models import EmployeeProfile, WarehouseLocation
+from warehouse.models import CustomRole, EmployeeProfile, WarehouseLocation
 
 User = get_user_model()
 
 
-def create_employee(*, caller, username, password, role, warehouse_ids, email="", phone=""):
+def create_employee(*, caller, username, password, role, warehouse_ids, email="", phone="", custom_role_id=None):
     role = role.upper()
     if role not in EmployeeProfile.Role.values:
         raise GraphQLError("Invalid role.")
@@ -17,9 +17,17 @@ def create_employee(*, caller, username, password, role, warehouse_ids, email=""
     if User.objects.filter(username__iexact=username.strip()).exists():
         raise GraphQLError("A user with this username already exists.")
 
+    custom_role = None
+    if custom_role_id:
+        try:
+            custom_role = CustomRole.objects.get(pk=custom_role_id)
+            role = custom_role.backend_level
+        except CustomRole.DoesNotExist as exc:
+            raise GraphQLError("Custom role not found.") from exc
+
     warehouses = list(WarehouseLocation.objects.filter(pk__in=warehouse_ids, active=True))
     user = User.objects.create_user(username=username.strip(), email=email.strip(), password=password)
-    profile = EmployeeProfile.objects.create(user=user, role=role, phone=phone.strip())
+    profile = EmployeeProfile.objects.create(user=user, role=role, phone=phone.strip(), custom_role=custom_role)
     profile.locations.set(warehouses)
     return profile
 
@@ -33,6 +41,18 @@ def update_employee(*, caller, profile_id, requesting_user, **kwargs):
     if profile.role in (EmployeeProfile.Role.SUPER_ADMIN, EmployeeProfile.Role.ADMIN):
         if caller.role != EmployeeProfile.Role.SUPER_ADMIN:
             raise GraphQLError("Only a Super Administrator can manage Admin/Super-Admin accounts.")
+
+    if "custom_role_id" in kwargs:
+        crid = kwargs.pop("custom_role_id")
+        if crid:
+            try:
+                cr = CustomRole.objects.get(pk=crid)
+                profile.custom_role = cr
+                profile.role = cr.backend_level
+            except CustomRole.DoesNotExist as exc:
+                raise GraphQLError("Custom role not found.") from exc
+        else:
+            profile.custom_role = None
 
     if "role" in kwargs and kwargs["role"]:
         new_role = kwargs["role"].upper()

@@ -11,7 +11,7 @@ import {
   Scissors, Shirt, Tag, Receipt, Landmark, RefreshCcw,
   Users, Warehouse, Bell, Settings2, ChevronLeft, ChevronRight,
   Sun, Moon, LogOut, BarChart2, Menu, X, User, ClipboardList,
-  ArrowLeftRight, AlertCircle, FileText, TrendingUp, BookOpen, List,
+  ArrowLeftRight, AlertCircle, FileText, TrendingUp, BookOpen, List, ShieldCheck,
 } from "lucide-react";
 
 import Login from "@/app/components/organisms/Login";
@@ -42,13 +42,14 @@ import Reports from "@/app/components/organisms/Reports";
 import Ledger from "@/app/components/organisms/Ledger";
 import ItemTypes from "@/app/components/organisms/ItemTypes";
 import QuickSearch from "@/app/components/organisms/QuickSearch";
+import Roles from "@/app/components/organisms/Roles";
 
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
 import Modal from "@/app/components/atoms/Modal";
 import { PageSkeleton } from "@/app/components/atoms/Skeleton";
 import FcmManager from "@/app/components/atoms/FcmManager";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
-import type { AppSettings, Tab } from "@/app/types";
+import type { AppSettings, CustomRole, Tab } from "@/app/types";
 
 // ─── Role-based tab visibility ────────────────────────────────────────────────
 
@@ -58,14 +59,20 @@ const ALL_TABS: Tab[] = [
   "finished_products", "sales_orders", "credit", "returns", "expenses",
   "stock_adjustments", "stock_transfers", "reorder_points",
   "quotations", "reports", "ledger",
-  "item_types", "employees", "warehouses", "notifications", "audit_log", "settings", "profile",
+  "item_types", "employees", "warehouses", "roles", "notifications", "audit_log", "settings", "profile",
 ];
 
-function getVisibleTabs(role: string): Tab[] {
+function getVisibleTabs(role: string, customRole?: CustomRole | null): Tab[] {
   const profileTab: Tab[] = ["profile"];
+  // Custom role: use tabPermissions from the database
+  if (customRole?.tabPermissions) {
+    const perms = customRole.tabPermissions;
+    const allowed = ALL_TABS.filter(t => t !== "profile" && t !== "roles" && perms[t] === true) as Tab[];
+    return [...allowed, ...profileTab];
+  }
   if (role === "SUPER_ADMIN") return [...ALL_TABS.filter(t => t !== "profile"), ...profileTab];
-  if (["ADMIN"].includes(role)) return [...ALL_TABS.filter(t => t !== "profile" && t !== "settings"), ...profileTab];
-  if (["MANAGER"].includes(role)) return [...ALL_TABS.filter(t => t !== "profile" && t !== "settings" && t !== "audit_log"), ...profileTab];
+  if (["ADMIN"].includes(role)) return [...ALL_TABS.filter(t => t !== "profile" && t !== "settings" && t !== "roles"), ...profileTab];
+  if (["MANAGER"].includes(role)) return [...ALL_TABS.filter(t => t !== "profile" && t !== "settings" && t !== "audit_log" && t !== "roles"), ...profileTab];
   if (role === "CUTTING_MASTER") return ["dashboard", "cutting", "notifications", ...profileTab];
   if (role === "TAILOR") return ["dashboard", "stitching", "notifications", ...profileTab];
   if (role === "STORE_KEEPER") return ["dashboard", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "stock_adjustments", "stock_transfers", "notifications", ...profileTab];
@@ -83,7 +90,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
   { label: "Sales & Finance", tabs: ["sales_orders", "credit", "returns", "quotations", "expenses", "reports", "ledger"] },
-  { label: "Admin", tabs: ["item_types", "employees", "warehouses"] },
+  { label: "Admin", tabs: ["item_types", "employees", "warehouses", "roles"] },
   { label: "System", tabs: ["notifications", "audit_log", "settings"] },
 ];
 
@@ -112,6 +119,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   item_types: <List size={16} />,
   employees: <Users size={16} />,
   warehouses: <Warehouse size={16} />,
+  roles: <ShieldCheck size={16} />,
   notifications: <Bell size={16} />,
   audit_log: <ClipboardList size={16} />,
   settings: <Settings2 size={16} />,
@@ -528,7 +536,7 @@ export default function Home() {
   const isCuttingMaster = role === "CUTTING_MASTER";
   const isTailor = role === "TAILOR";
 
-  const visibleTabs = getVisibleTabs(role);
+  const visibleTabs = getVisibleTabs(role, profile?.customRole);
   const currentTab: Tab = visibleTabs.includes(tab) ? tab : visibleTabs[0];
   const canAddStock = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
 
@@ -1099,6 +1107,7 @@ export default function Home() {
           <Employees
             employees={data?.employees || []}
             warehouses={data?.warehouseLocations || []}
+            customRoles={data?.customRoles || []}
             isSuperAdmin={isSuperAdmin} isAdmin={isAdmin}
             currentUserId={profile?.id || ""}
             onMutate={mutate}
@@ -1106,6 +1115,14 @@ export default function Home() {
         )}
         {currentTab === "warehouses" && (
           <Warehouses warehouses={data?.warehouseLocations || []} isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} onMutate={mutate} />
+        )}
+        {currentTab === "roles" && (
+          <Roles
+            roles={data?.customRoles || []}
+            isSuperAdmin={isSuperAdmin}
+            gql={(q, v) => graphql(q, v || {}, token!)}
+            onRefresh={() => loadData(token!)}
+          />
         )}
         {currentTab === "notifications" && (
           <Notifications notifications={data?.notifications || []} onMutate={mutate} onNavigate={(t) => setTab(t as Tab)} />

@@ -7,6 +7,7 @@ from .types import (
     AgingReport,
     AnalyticsStats,
     AuditLogType,
+    CustomRoleType,
     BuyerReturnType,
     BuyerType,
     ClothCategoryType,
@@ -52,6 +53,7 @@ class Query(graphene.ObjectType):
     # People
     employee_profile = graphene.Field(EmployeeProfileType)
     employees = graphene.List(EmployeeProfileType)
+    custom_roles = graphene.List(CustomRoleType)
 
     # Suppliers & buyers
     suppliers = graphene.List(SupplierType, search=graphene.String(), supply_type=graphene.String())
@@ -140,6 +142,11 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_employees(self, info):
         return selectors.get_employees(info.context.user)
+
+    @login_required
+    def resolve_custom_roles(self, info):
+        from warehouse.models import CustomRole
+        return CustomRole.objects.all()
 
     @login_required
     def resolve_suppliers(self, info, search=None, supply_type=None):

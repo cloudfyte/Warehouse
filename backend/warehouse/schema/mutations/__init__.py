@@ -27,6 +27,7 @@ from .stock_transfer import (
 )
 from .parcel_inspection import CreateParcelInspection, UpdateParcelInspection
 from .quotation import CreateQuotation, UpdateQuotationStatus, ConvertQuotationToSO
+from .custom_role import CreateCustomRole, UpdateCustomRole, DeleteCustomRole
 
 
 class Mutation(graphene.ObjectType):
@@ -121,6 +122,11 @@ class Mutation(graphene.ObjectType):
     create_quotation = CreateQuotation.Field()
     update_quotation_status = UpdateQuotationStatus.Field()
     convert_quotation_to_so = ConvertQuotationToSO.Field()
+
+    # Custom roles
+    create_custom_role = CreateCustomRole.Field()
+    update_custom_role = UpdateCustomRole.Field()
+    delete_custom_role = DeleteCustomRole.Field()
 
     # Misc
     mark_notifications_read = MarkNotificationsRead.Field()

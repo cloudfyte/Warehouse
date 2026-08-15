@@ -75,7 +75,9 @@ export const DASHBOARD_QUERY = `
       otpExpiryMinutes allowOtpLogin
       printCompanyAddress printBankDetails printTerms printSignatureLabel printShowLogo
     }
-    employeeProfile { id role phone active username email locations { id name code locationType } }
+    employeeProfile { id role phone active username email locations { id name code locationType }
+      customRole { id name displayName color backendLevel tabPermissions isSystem } }
+    customRoles { id name displayName color backendLevel tabPermissions isSystem createdAt }
     warehouseLocations { id name code locationType city state address phone active }
     dashboardStats {
       totalRawMeters totalFinishedPieces readymadePieces inhousePieces
@@ -169,6 +171,7 @@ export const DASHBOARD_QUERY = `
     employees {
       id username email role phone active createdAt
       locations { id name code }
+      customRole { id name displayName color backendLevel tabPermissions isSystem }
     }
     notifications { id title message level read link createdAt }
     buyerReturns {

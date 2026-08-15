@@ -4,6 +4,7 @@ from graphene_django import DjangoObjectType
 from warehouse.models import (
     AuditLog,
     Buyer,
+    CustomRole,
     Expense,
     BuyerReturn,
     ClothCategory,
@@ -45,19 +46,29 @@ class WarehouseLocationType(DjangoObjectType):
         fields = "__all__"
 
 
+class CustomRoleType(DjangoObjectType):
+    class Meta:
+        model = CustomRole
+        fields = "__all__"
+
+
 class EmployeeProfileType(DjangoObjectType):
     username = graphene.String()
     email = graphene.String()
+    custom_role = graphene.Field(CustomRoleType)
 
     class Meta:
         model = EmployeeProfile
-        fields = ("id", "role", "phone", "locations", "active", "created_at")
+        fields = ("id", "role", "phone", "locations", "active", "created_at", "custom_role")
 
     def resolve_username(self, info):
         return self.user.username
 
     def resolve_email(self, info):
         return self.user.email
+
+    def resolve_custom_role(self, info):
+        return self.custom_role
 
 
 class ClothCategoryType(DjangoObjectType):

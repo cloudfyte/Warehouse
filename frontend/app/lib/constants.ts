@@ -72,6 +72,7 @@ export const TAB_TITLES: Record<Tab, string> = {
   item_types: "Item Types",
   employees: "Employees",
   warehouses: "Warehouses",
+  roles: "Roles & Permissions",
   notifications: "Notifications",
   audit_log: "Audit Log",
   settings: "Settings",
