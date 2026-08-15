@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import type { DashboardStats, Employee, Tab } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
@@ -135,15 +135,30 @@ export default function Dashboard({
 
   const showFullStats = isSuperAdmin || isAdmin || isManager || isAuditor;
 
+  const [now, setNow] = useState(new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+
   return (
     <div style={{ padding: 28 }}>
       {/* Welcome */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-          Welcome back, {profile.username}
-        </h1>
-        <div style={{ color: "var(--muted)", marginTop: 4, fontSize: 14 }}>
-          {role.replace(/_/g, " ")} · {(profile.locations ?? []).map(l => l.name).join(", ") || "All locations"}
+      <div style={{ marginBottom: 28, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>
+            {greeting}, {profile.username} 👋
+          </h1>
+          <div style={{ color: "var(--muted)", marginTop: 5, fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
+            <span>{role.replace(/_/g, " ")}</span>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <span>{(profile.locations ?? []).map(l => l.name).join(", ") || "All locations"}</span>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: "var(--primary)" }}>{timeStr}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{dateStr}</div>
         </div>
       </div>
 

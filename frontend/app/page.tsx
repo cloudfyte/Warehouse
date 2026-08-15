@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useToasts, type ToastItem } from "@/app/lib/toast";
 import { graphql, refreshAccessToken, DASHBOARD_QUERY, SETTINGS_QUERY } from "@/app/lib/graphql";
 import { friendlyError } from "@/app/lib/errors";
 import { applyBrandColors, applyDarkMode } from "@/app/lib/theme";
@@ -322,6 +323,39 @@ function DirectStockModal({ suppliers, warehouses, categories, colors, itemTypes
   );
 }
 
+function ToastContainer() {
+  const toasts = useToasts();
+  const timerRefs = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const COLORS: Record<ToastItem["level"], { bg: string; icon: string }> = {
+    success: { bg: "#16a34a", icon: "✓" },
+    error:   { bg: "#dc2626", icon: "✕" },
+    warn:    { bg: "#d97706", icon: "⚠" },
+    info:    { bg: "#2563eb", icon: "ℹ" },
+  };
+  if (!toasts.length) return null;
+  return (
+    <div style={{ position: "fixed", top: 20, right: 20, zIndex: 99999,
+      display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
+      {toasts.map(t => {
+        const c = COLORS[t.level];
+        return (
+          <div key={t.id} style={{
+            background: c.bg, color: "#fff", padding: "12px 18px 12px 14px",
+            borderRadius: 10, fontSize: 13.5, fontWeight: 600,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.22)", maxWidth: 340,
+            display: "flex", alignItems: "center", gap: 9,
+            animation: "toastIn 0.22s cubic-bezier(.22,1,.36,1)",
+          }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>{c.icon}</span>
+            <span style={{ lineHeight: 1.4 }}>{t.msg}</span>
+          </div>
+        );
+      })}
+      <style>{`@keyframes toastIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}`}</style>
+    </div>
+  );
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AppData = Record<string, any>;
 
@@ -506,6 +540,7 @@ export default function Home() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+      <ToastContainer />
       <FcmManager isAuthenticated={!!token} />
 
       {/* Mobile sidebar backdrop */}

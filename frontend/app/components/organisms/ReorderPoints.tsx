@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { ReorderPoint, WarehouseLocation, ClothCategory, ClothColor, ItemType } from "@/app/types";
+import { showToast } from "@/app/lib/toast";
 
 interface Props {
   reorderPoints: ReorderPoint[]
@@ -85,7 +86,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
     try {
       await gql(`mutation D($id:ID!){deleteReorderPoint(id:$id){ok}}`, { id });
       onRefresh();
-    } catch (e: unknown) { alert(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { showToast(e instanceof Error ? e.message : "Failed", "error"); }
   }
 
   // Group by warehouse

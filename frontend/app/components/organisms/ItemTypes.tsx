@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { ItemType } from "@/app/types";
+import { showToast } from "@/app/lib/toast";
 
 interface Props {
   itemTypes: ItemType[];
@@ -92,7 +93,7 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
         { id: it.id, active: !it.active });
       onRefresh();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed.");
+      showToast(e instanceof Error ? e.message : "Failed.", "error");
     }
   }
 

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { downloadCsv } from "@/app/lib/csv";
+import { showToast } from "@/app/lib/toast";
 
 interface RawClothBatch {
   id: string; batchNumber: string
@@ -135,7 +136,7 @@ export default function StockAdjustments({
         { id }
       );
     } catch (e) {
-      alert(friendlyError(e));
+      showToast(friendlyError(e), "error");
     } finally {
       setDeleting(null);
     }

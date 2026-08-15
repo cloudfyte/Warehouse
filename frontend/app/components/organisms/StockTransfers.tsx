@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { StockTransfer, WarehouseLocation, RawClothBatch, FinishedProduct } from "@/app/types";
+import { showToast } from "@/app/lib/toast";
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING: "#f59e0b", IN_TRANSIT: "#6366f1", RECEIVED: "#10b981", CANCELLED: "#9ca3af",
@@ -64,7 +65,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
     try {
       await gql(`mutation A($id:ID!){ ${mutation}(id:$id){ transfer{id status} } }`, { id });
       onRefresh();
-    } catch (e: unknown) { alert(e instanceof Error ? e.message : "Failed"); }
+    } catch (e: unknown) { showToast(e instanceof Error ? e.message : "Failed", "error"); }
   }
 
   const inp: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 13 };

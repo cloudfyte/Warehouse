@@ -4,6 +4,7 @@ import { formatMoney, formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
 import { downloadCsv } from "@/app/lib/csv";
+import { showToast } from "@/app/lib/toast";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -293,7 +294,7 @@ export default function PurchaseBills({
     try {
       await onMutate(`mutation D($id:ID!){deleteSupplierPayment(id:$id){ok}}`, { id: paymentId });
     } catch (e) {
-      alert(friendlyError(e));
+      showToast(friendlyError(e), "error");
     }
   }
 
