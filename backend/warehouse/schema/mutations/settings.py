@@ -36,6 +36,11 @@ class UpdateSystemSettings(graphene.Mutation):
         fcm_enabled = graphene.Boolean()
         otp_expiry_minutes = graphene.Int()
         allow_otp_login = graphene.Boolean()
+        print_company_address = graphene.String()
+        print_bank_details = graphene.String()
+        print_terms = graphene.String()
+        print_signature_label = graphene.String()
+        print_show_logo = graphene.Boolean()
 
     settings = graphene.Field(SystemSettingsType)
 

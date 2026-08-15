@@ -1070,6 +1070,7 @@ export default function Home() {
             buyers={data?.buyers || []}
             warehouses={data?.warehouseLocations || []}
             finishedProducts={data?.finishedProducts || []}
+            systemSettings={data?.systemSettings}
             gql={(q, v) => graphql(q, v || {}, token!)}
             onRefresh={() => loadData(token!)}
           />

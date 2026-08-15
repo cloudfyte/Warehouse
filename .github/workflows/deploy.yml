@@ -1,0 +1,41 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build & deploy warehouse ERP
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Deploy to production server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: 22
+          command_timeout: 18m
+          script: |
+            set -e
+            cd /root/ware-house
+
+            echo "=== Pulling latest code ==="
+            git pull origin main
+
+            echo "=== Building images ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+
+            echo "=== Starting containers ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+            echo "=== Running migrations ==="
+            docker exec warehouse_backend python manage.py migrate --noinput
+
+            echo "=== Registering periodic tasks ==="
+            docker exec warehouse_backend python manage.py setup_periodic_tasks
+
+            echo "=== Deploy complete at $(date) ==="

@@ -1104,6 +1104,12 @@ class SystemSettings(models.Model):
     fcm_enabled = models.BooleanField(default=False)
     otp_expiry_minutes = models.PositiveSmallIntegerField(default=10)
     allow_otp_login = models.BooleanField(default=True)
+    # Print / document layout
+    print_company_address = models.TextField(blank=True, help_text="Address shown on printed documents")
+    print_bank_details = models.TextField(blank=True, help_text="Bank account details printed at bottom of invoices/quotations")
+    print_terms = models.TextField(blank=True, default="All disputes subject to local jurisdiction.", help_text="Terms & conditions printed on documents")
+    print_signature_label = models.CharField(max_length=80, blank=True, default="Authorised Signatory", help_text="Label under signature line")
+    print_show_logo = models.BooleanField(default=True, help_text="Show company logo on printed documents")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="settings_updates"

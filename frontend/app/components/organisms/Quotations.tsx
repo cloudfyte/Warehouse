@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { Quotation, Buyer, WarehouseLocation, FinishedProduct } from "@/app/types";
+import { Quotation, Buyer, WarehouseLocation, FinishedProduct, SystemSettings } from "@/app/types";
 import { QUOTATION_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { showToast } from "@/app/lib/toast";
 
@@ -9,6 +9,7 @@ interface Props {
   buyers: Buyer[];
   warehouses: WarehouseLocation[];
   finishedProducts: FinishedProduct[];
+  systemSettings?: SystemSettings;
   gql: <T>(q: string, v?: Record<string, unknown>) => Promise<T>;
   onRefresh: () => void;
 }
@@ -20,7 +21,7 @@ const EMPTY_FORM = {
   items: [{ finishedProductId: "", quantity: "1", unitPrice: "" }],
 };
 
-export default function Quotations({ quotations, buyers, warehouses, finishedProducts, gql, onRefresh }: Props) {
+export default function Quotations({ quotations, buyers, warehouses, finishedProducts, systemSettings, gql, onRefresh }: Props) {
   const [filter, setFilter] = useState("ALL");
   const [selected, setSelected] = useState<Quotation | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -34,7 +35,16 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
   const visible = filter === "ALL" ? quotations : quotations.filter(q => q.status === filter);
 
   function printQuotation(qt: Quotation) {
-    const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+    const ss = systemSettings;
+    const curr = ss?.currencySymbol || "₹";
+    const fmt = (n: number) => `${curr}${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+    const companyName = ss?.companyName || ss?.appName || "Warehouse ERP";
+    const addr = (ss?.printCompanyAddress || "").replace(/\n/g, "<br>");
+    const logoUrl = ss?.printShowLogo !== false && ss?.logoUrl ? ss.logoUrl : "";
+    const sigLabel = ss?.printSignatureLabel || "Authorised Signatory";
+    const bankDetails = (ss?.printBankDetails || "").replace(/\n/g, "<br>");
+    const terms = (ss?.printTerms || "").split("\n").filter(Boolean);
+
     const rows = qt.items.map(it => `
       <tr>
         <td style="padding:10px 12px;border-bottom:1px solid #eee">${it.finishedProduct.itemType?.name ?? "—"} (${it.finishedProduct.size})</td>
@@ -42,23 +52,42 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right">${fmt(it.unitPrice)}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right">${fmt(it.totalPrice)}</td>
       </tr>`).join("");
+
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${qt.quotationNumber}</title>
-    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;padding:40px;max-width:780px;margin:auto}
-    @media print{body{padding:20px}}</style></head><body>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px">
-      <div><h1 style="font-size:26px;font-weight:800;margin-bottom:4px">QUOTATION</h1>
-        <div style="color:#666;font-size:13px">${qt.quotationNumber}</div></div>
-      <div style="text-align:right;font-size:13px;color:#444">
-        <div style="font-weight:700;font-size:16px">${qt.warehouse.name}</div>
-        <div>Date: ${new Date(qt.createdAt).toLocaleDateString("en-IN")}</div>
-        ${qt.validityDate ? `<div>Valid till: ${qt.validityDate}</div>` : ""}
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:Arial,sans-serif;color:#111;padding:40px;max-width:780px;margin:auto}
+      @media print{body{padding:20px}.no-print{display:none}}
+    </style></head><body>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;border-bottom:2px solid #111;padding-bottom:24px">
+      <div style="display:flex;align-items:center;gap:14px">
+        ${logoUrl ? `<img src="${logoUrl}" style="height:52px;object-fit:contain" onerror="this.style.display='none'" />` : ""}
+        <div>
+          <div style="font-size:20px;font-weight:800">${companyName}</div>
+          ${addr ? `<div style="font-size:11px;color:#555;margin-top:4px;line-height:1.5">${addr}</div>` : ""}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <h1 style="font-size:26px;font-weight:800;letter-spacing:1px">QUOTATION</h1>
+        <div style="color:#666;font-size:13px;margin-top:4px">${qt.quotationNumber}</div>
+        <div style="font-size:12px;color:#555;margin-top:6px">Date: ${new Date(qt.createdAt).toLocaleDateString("en-IN")}</div>
+        ${qt.validityDate ? `<div style="font-size:12px;color:#555">Valid till: ${qt.validityDate}</div>` : ""}
       </div>
     </div>
-    <div style="background:#f8f8f8;border-radius:8px;padding:16px 20px;margin-bottom:28px">
-      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Buyer / Customer</div>
-      <div style="font-size:18px;font-weight:700">${qt.buyer.name}</div>
-      ${qt.buyer.phone ? `<div style="font-size:13px;color:#555;margin-top:2px">${qt.buyer.phone}</div>` : ""}
-      ${qt.buyer.gstin ? `<div style="font-size:12px;color:#777;margin-top:2px">GSTIN: ${qt.buyer.gstin}</div>` : ""}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px">
+      <div style="background:#f8f8f8;border-radius:8px;padding:16px 20px">
+        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Bill To</div>
+        <div style="font-size:17px;font-weight:700">${qt.buyer.name}</div>
+        ${qt.buyer.phone ? `<div style="font-size:13px;color:#555;margin-top:3px">${qt.buyer.phone}</div>` : ""}
+        ${qt.buyer.address ? `<div style="font-size:12px;color:#666;margin-top:3px">${qt.buyer.address}</div>` : ""}
+        ${qt.buyer.gstin ? `<div style="font-size:12px;color:#777;margin-top:3px">GSTIN: ${qt.buyer.gstin}</div>` : ""}
+      </div>
+      <div style="background:#f8f8f8;border-radius:8px;padding:16px 20px">
+        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Warehouse</div>
+        <div style="font-size:16px;font-weight:700">${qt.warehouse.name}</div>
+        <div style="font-size:12px;color:#666;margin-top:3px">${qt.warehouse.code}</div>
+        ${qt.createdBy ? `<div style="font-size:12px;color:#777;margin-top:6px">Prepared by: ${qt.createdBy.username}</div>` : ""}
+      </div>
     </div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
       <thead><tr style="background:#111;color:#fff">
@@ -68,14 +97,30 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
         <th style="padding:11px 12px;text-align:right;font-size:12px">Total</th>
       </tr></thead><tbody>${rows}</tbody>
     </table>
-    <div style="margin-left:auto;width:260px;font-size:14px">
-      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee"><span style="color:#666">Subtotal</span><span>${fmt(qt.subtotal)}</span></div>
-      ${qt.discount > 0 ? `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee"><span style="color:#666">Discount</span><span style="color:#e53935">−${fmt(qt.discount)}</span></div>` : ""}
-      ${qt.taxAmount > 0 ? `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee"><span style="color:#666">GST</span><span>${fmt(qt.taxAmount)}</span></div>` : ""}
-      <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:18px;font-weight:800"><span>Total</span><span>${fmt(qt.totalAmount)}</span></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:32px">
+      <div style="width:280px;font-size:14px">
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee"><span style="color:#666">Subtotal</span><span>${fmt(qt.subtotal)}</span></div>
+        ${qt.discount > 0 ? `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee"><span style="color:#666">Discount</span><span style="color:#e53935">−${fmt(qt.discount)}</span></div>` : ""}
+        ${qt.taxAmount > 0 ? `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee"><span style="color:#666">GST</span><span>${fmt(qt.taxAmount)}</span></div>` : ""}
+        <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:18px;font-weight:800;border-top:2px solid #111"><span>Total</span><span>${fmt(qt.totalAmount)}</span></div>
+      </div>
     </div>
-    ${qt.notes ? `<div style="margin-top:32px;padding:16px;background:#fffde7;border-radius:8px;font-size:13px;color:#555"><strong>Notes:</strong> ${qt.notes}</div>` : ""}
-    <div style="margin-top:48px;font-size:11px;color:#aaa;text-align:center">This is a computer-generated quotation. Thank you for your business.</div>
+    ${qt.notes ? `<div style="margin-bottom:24px;padding:14px;background:#fffde7;border-radius:8px;font-size:13px;color:#555"><strong>Notes:</strong> ${qt.notes}</div>` : ""}
+    ${terms.length > 0 ? `
+    <div style="margin-bottom:32px">
+      <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Terms & Conditions</div>
+      <ol style="padding-left:18px;font-size:12px;color:#666;line-height:1.8">${terms.map(t => `<li>${t.replace(/^\d+\.\s*/, "")}</li>`).join("")}</ol>
+    </div>` : ""}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;padding-top:20px;border-top:1px solid #eee">
+      ${bankDetails ? `<div>
+        <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Bank Details</div>
+        <div style="font-size:12px;color:#555;line-height:1.8">${bankDetails}</div>
+      </div>` : "<div></div>"}
+      <div style="text-align:right">
+        <div style="margin-top:60px;border-top:1px solid #333;padding-top:8px;font-size:12px;color:#555">${sigLabel}</div>
+      </div>
+    </div>
+    <div style="margin-top:32px;font-size:10px;color:#bbb;text-align:center">This is a computer-generated quotation. Thank you for your business.</div>
     <script>window.onload=()=>{window.print()}</script></body></html>`;
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); }

@@ -289,6 +289,8 @@ export interface SystemSettings extends AppSettings {
   firebaseServiceAccountJson: string; fcmEnabled: boolean
   otpExpiryMinutes: number; allowOtpLogin: boolean
   companyName: string; companyState: string; currencySymbol: string; taxPercent: number
+  printCompanyAddress: string; printBankDetails: string; printTerms: string
+  printSignatureLabel: string; printShowLogo: boolean
 }
 
 // ─── ledger ──────────────────────────────────────────────────────────────────

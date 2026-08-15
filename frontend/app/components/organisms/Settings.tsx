@@ -13,6 +13,8 @@ interface SettingsData {
   waToken?: string; waPhoneNumberId?: string; waEnabled?: boolean
   firebaseServiceAccountJson?: string; fcmEnabled?: boolean
   otpExpiryMinutes?: number; allowOtpLogin?: boolean
+  printCompanyAddress?: string; printBankDetails?: string; printTerms?: string
+  printSignatureLabel?: string; printShowLogo?: boolean
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -93,7 +95,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $twilioSid:String,$twilioToken:String,$twilioFrom:String,$smsEnabled:Boolean,
           $waToken:String,$waPhoneNumberId:String,$waEnabled:Boolean,
           $firebaseJson:String,$fcmEnabled:Boolean,
-          $otpExpiry:Int,$allowOtp:Boolean
+          $otpExpiry:Int,$allowOtp:Boolean,
+          $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -101,7 +104,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           twilioAccountSid:$twilioSid,twilioAuthToken:$twilioToken,twilioFromNumber:$twilioFrom,smsEnabled:$smsEnabled,
           waToken:$waToken,waPhoneNumberId:$waPhoneNumberId,waEnabled:$waEnabled,
           firebaseServiceAccountJson:$firebaseJson,fcmEnabled:$fcmEnabled,
-          otpExpiryMinutes:$otpExpiry,allowOtpLogin:$allowOtp
+          otpExpiryMinutes:$otpExpiry,allowOtpLogin:$allowOtp,
+          printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -120,6 +124,11 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           firebaseJson: form.firebaseServiceAccountJson || undefined, fcmEnabled: form.fcmEnabled,
           otpExpiry: form.otpExpiryMinutes ? +form.otpExpiryMinutes : undefined,
           allowOtp: form.allowOtpLogin,
+          printAddr: form.printCompanyAddress || undefined,
+          printBank: form.printBankDetails || undefined,
+          printTerms: form.printTerms || undefined,
+          printSig: form.printSignatureLabel || undefined,
+          printLogo: form.printShowLogo,
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -260,6 +269,35 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
         </div>
         <Textarea label="Service Account JSON" value={form.firebaseServiceAccountJson || ""} onChange={set("firebaseServiceAccountJson")} placeholder='Leave blank to keep unchanged. Paste full JSON: {"type":"service_account","project_id":"..."}' rows={5} />
         <Toggle label="Enable Firebase Push Notifications" description="Send real-time push notifications to browsers" checked={!!form.fcmEnabled} onChange={tog("fcmEnabled")} />
+      </SettingsSection>
+
+      <SettingsSection title="Print & Document Layout" badge="New">
+        <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", lineHeight: 1.6 }}>
+          These details appear on all printed documents — quotations, invoices, delivery challans, and purchase orders.
+        </div>
+        <Textarea
+          label="Company Address (printed header)"
+          value={form.printCompanyAddress || ""}
+          onChange={set("printCompanyAddress")}
+          placeholder={"123, Industrial Area, Phase II\nCoimbatore - 641 003, Tamil Nadu\nPhone: +91 98765 43210"}
+          rows={3}
+        />
+        <Textarea
+          label="Bank Details (printed footer)"
+          value={form.printBankDetails || ""}
+          onChange={set("printBankDetails")}
+          placeholder={"Bank: State Bank of India\nA/C No: 12345678901\nIFSC: SBIN0001234\nBranch: Main Branch, Coimbatore"}
+          rows={3}
+        />
+        <Textarea
+          label="Terms & Conditions"
+          value={form.printTerms || ""}
+          onChange={set("printTerms")}
+          placeholder={"1. Goods once sold will not be taken back.\n2. All disputes subject to local jurisdiction.\n3. Payment due within 30 days of invoice date."}
+          rows={3}
+        />
+        <Field label="Signature Line Label" value={form.printSignatureLabel || ""} onChange={set("printSignatureLabel")} placeholder="Authorised Signatory" />
+        <Toggle label="Show Company Logo on Printed Documents" description="Display the logo URL image in the header of all print outputs" checked={form.printShowLogo !== false} onChange={tog("printShowLogo")} />
       </SettingsSection>
     </div>
   );

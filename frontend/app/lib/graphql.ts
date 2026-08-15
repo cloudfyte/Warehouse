@@ -73,6 +73,7 @@ export const DASHBOARD_QUERY = `
       waPhoneNumberId waEnabled
       fcmEnabled
       otpExpiryMinutes allowOtpLogin
+      printCompanyAddress printBankDetails printTerms printSignatureLabel printShowLogo
     }
     employeeProfile { id role phone active username email locations { id name code locationType } }
     warehouseLocations { id name code locationType city state address phone active }
