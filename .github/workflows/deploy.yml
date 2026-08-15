@@ -32,10 +32,13 @@ jobs:
             echo "=== Starting containers ==="
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
+            echo "=== Waiting for backend to be ready ==="
+            sleep 15
+
             echo "=== Running migrations ==="
             docker exec warehouse_backend python manage.py migrate --noinput
 
             echo "=== Registering periodic tasks ==="
-            docker exec warehouse_backend python manage.py setup_periodic_tasks
+            docker exec warehouse_backend python manage.py setup_periodic_tasks || echo "setup_periodic_tasks failed (non-fatal — tasks still run from previous registration)"
 
             echo "=== Deploy complete at $(date) ==="
