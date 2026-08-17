@@ -113,7 +113,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     try {
       const gqlItems = items.map(it => it.kind === "RAW_CLOTH"
         ? { itemKind: "RAW_CLOTH", clothCategoryId: it.categoryId, clothColorId: it.colorId || undefined, orderedMeters: Number(it.meters), unitPrice: Number(it.unitPrice) }
-        : { itemKind: "READYMADE", itemTypeId: it.itemTypeId, itemName: it.itemName, size: it.size, orderedQuantity: Number(it.qty), unitPrice: Number(it.unitPrice) }
+        : { itemKind: "READYMADE", itemTypeId: it.itemTypeId, clothColorId: it.colorId || undefined, itemName: it.itemName, size: it.size, orderedQuantity: Number(it.qty), unitPrice: Number(it.unitPrice) }
       );
       await onMutate(
         `mutation C($sup:ID!,$wh:ID!,$type:String!,$del:Date,$notes:String,$items:[POItemInput!]!){createPurchaseOrder(supplierId:$sup,warehouseId:$wh,orderType:$type,expectedDelivery:$del,notes:$notes,items:$items){purchaseOrder{id poNumber}}}`,
@@ -353,12 +353,17 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                       </label>
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr", gap: 12 }}>
                       <CreatableSelect
                         label="Item Type" options={itemTypes} value={item.itemTypeId}
                         onChange={v => updateItem(idx, { itemTypeId: v })}
                         onCreate={createItemType} placeholder="e.g. Shirt, Pant, Kurti…" required
                         style={submitted && !item.itemTypeId ? { outline: "2px solid #e53935", borderRadius: 8 } : {}}
+                      />
+                      <CreatableSelect
+                        label="Color" options={colors} value={item.colorId}
+                        onChange={v => updateItem(idx, { colorId: v })}
+                        onCreate={createColor} placeholder="Select color…"
                       />
                       <SizeSelect value={item.size} onChange={v => updateItem(idx, { size: v })} label="Size" />
                       <label style={lbl}>
@@ -371,7 +376,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                         <input type="number" min="0" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} style={inp} placeholder="0" />
                       </label>
                       <label style={{ ...lbl, gridColumn: "1 / -1" }}>
-                        Item Description <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>(optional)</span>
+                        Description <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>(optional)</span>
                         <input value={item.itemName} onChange={e => updateItem(idx, { itemName: e.target.value })} style={inp} placeholder="Brand, variant, or any detail…" />
                       </label>
                     </div>
