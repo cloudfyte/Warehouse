@@ -8,6 +8,7 @@ import Modal from "@/app/components/atoms/Modal";
 
 interface Props {
   jobs: StitchingJob[]; assignments: CuttingAssignment[]; tailors: Employee[]
+  warehouses: { id: string; name: string }[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isTailor: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
@@ -101,13 +102,45 @@ function ProgressBar({ value, max, rejected = 0 }: { value: number; max: number;
   );
 }
 
-export default function Stitching({ jobs, assignments, tailors, isAdmin, isSuperAdmin, isManager, isTailor, onMutate }: Props) {
+export default function Stitching({ jobs, assignments, tailors, warehouses, isAdmin, isSuperAdmin, isManager, isTailor, onMutate }: Props) {
   const [selected, setSelected] = useState<StitchingJob | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ assignmentId: "", tailorId: "", pieces: "", notes: "" });
   const [upd, setUpd] = useState({ status: "", piecesCompleted: 0, piecesRejected: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ── Move to Finished Goods ────────────────────────────────────────────────
+  const [fgJob, setFgJob] = useState<StitchingJob | null>(null);
+  const [fgForm, setFgForm] = useState({ qty: "", warehouseId: "", costPrice: "", salePrice: "" });
+  const [fgLoading, setFgLoading] = useState(false);
+  const [fgError, setFgError] = useState("");
+
+  function openFG(j: StitchingJob) {
+    const net = (j.piecesCompleted || 0) - (j.piecesRejected || 0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ca = j.cuttingAssignment as any;
+    const defaultWh = ca?.rawClothBatch?.warehouse?.id || (warehouses[0]?.id ?? "");
+    setFgJob(j);
+    setFgForm({ qty: String(Math.max(0, net)), warehouseId: defaultWh, costPrice: String(ca?.costPerPiece || ""), salePrice: "" });
+    setFgError("");
+  }
+
+  async function saveToFinishedGoods() {
+    if (!fgJob) return;
+    if (!fgForm.qty || +fgForm.qty < 1) { setFgError("Enter quantity (at least 1)."); return; }
+    if (!fgForm.warehouseId) { setFgError("Select a warehouse."); return; }
+    if (!fgForm.salePrice || +fgForm.salePrice <= 0) { setFgError("Enter sale price per piece."); return; }
+    setFgLoading(true); setFgError("");
+    try {
+      await onMutate(
+        `mutation M($sjId:ID!,$qty:Int!,$wh:ID!,$cp:Float!,$sp:Float!){createFinishedProducts(stitchingJobId:$sjId,quantity:$qty,warehouseId:$wh,costPrice:$cp,salePrice:$sp){finishedProduct{id sku}}}`,
+        { sjId: fgJob.id, qty: +fgForm.qty, wh: fgForm.warehouseId, cp: +(fgForm.costPrice || 0), sp: +fgForm.salePrice }
+      );
+      setFgJob(null);
+    } catch (e: unknown) { setFgError(friendlyError(e)); }
+    finally { setFgLoading(false); }
+  }
 
   // Local tailor list (grows when user creates new ones inline)
   const [localTailors, setLocalTailors] = useState<Employee[]>(tailors);
@@ -268,6 +301,43 @@ export default function Stitching({ jobs, assignments, tailors, isAdmin, isSuper
         </Modal>
       )}
 
+      {/* Move to Finished Goods modal */}
+      {fgJob && (
+        <Modal title="Move to Finished Goods"
+          subtitle={`${fgJob.cuttingAssignment.itemType.name} · ${fgJob.jobNumber}`}
+          onClose={() => setFgJob(null)} width={420}
+          footer={<div style={{ display: "flex", gap: 10 }}>
+            <button onClick={saveToFinishedGoods} disabled={fgLoading} style={BTN_PRI}>{fgLoading ? "Moving…" : "Add to Finished Goods"}</button>
+            <button onClick={() => setFgJob(null)} style={BTN_SEC}>Cancel</button>
+          </div>}>
+          {fgError && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{fgError}</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--muted)" }}>
+              Completed: <strong style={{ color: "var(--ink)" }}>{fgJob.piecesCompleted}</strong> pcs &nbsp;·&nbsp;
+              Rejected: <strong style={{ color: "#ef4444" }}>{fgJob.piecesRejected || 0}</strong> pcs &nbsp;·&nbsp;
+              Net: <strong style={{ color: "#10b981" }}>{(fgJob.piecesCompleted || 0) - (fgJob.piecesRejected || 0)}</strong> pcs
+            </div>
+            <label style={LBL}>Quantity to add to Finished Goods *
+              <input type="number" min="1" value={fgForm.qty} onChange={e => setFgForm(p => ({ ...p, qty: e.target.value }))} style={I} placeholder="0" />
+            </label>
+            <label style={LBL}>Warehouse *
+              <select value={fgForm.warehouseId} onChange={e => setFgForm(p => ({ ...p, warehouseId: e.target.value }))} style={I}>
+                <option value="">Select warehouse…</option>
+                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <label style={LBL}>Cost / pc ₹
+                <input type="number" min="0" value={fgForm.costPrice} onChange={e => setFgForm(p => ({ ...p, costPrice: e.target.value }))} style={I} placeholder="0" />
+              </label>
+              <label style={LBL}>Sale Price / pc ₹ *
+                <input type="number" min="0" value={fgForm.salePrice} onChange={e => setFgForm(p => ({ ...p, salePrice: e.target.value }))} style={I} placeholder="0" autoFocus />
+              </label>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* ── Card grid ── */}
       {filtered.length === 0 ? (
         <div style={{ padding: "64px 0", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>No stitching jobs found</div>
@@ -294,13 +364,22 @@ export default function Stitching({ jobs, assignments, tailors, isAdmin, isSuper
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                     <span style={{ fontSize: 11, color: "var(--muted)" }}>{formatDateShort(j.assignedDate)}</span>
-                    {canUpdate && (
-                      <button
-                        onClick={() => { setSelected(j); setUpd({ status: j.status, piecesCompleted: Number(j.piecesCompleted) || 0, piecesRejected: Number(j.piecesRejected) || 0 }); setError(""); }}
-                        style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "var(--primary)" }}>
-                        Update
-                      </button>
-                    )}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {canUpdate && (
+                        <button
+                          onClick={() => { setSelected(j); setUpd({ status: j.status, piecesCompleted: Number(j.piecesCompleted) || 0, piecesRejected: Number(j.piecesRejected) || 0 }); setError(""); }}
+                          style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "var(--primary)" }}>
+                          Update
+                        </button>
+                      )}
+                      {j.status === "READY" && canAssign && (
+                        <button
+                          onClick={() => openFG(j)}
+                          style={{ padding: "4px 12px", borderRadius: 7, border: "none", background: "#10b981", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
+                          → Finished Goods
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

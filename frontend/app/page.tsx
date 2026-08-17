@@ -1014,6 +1014,7 @@ export default function Home() {
             jobs={data?.stitchingJobs || []}
             assignments={data?.cuttingAssignments || []}
             tailors={tailors}
+            warehouses={data?.warehouseLocations || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isTailor={isTailor}
             onMutate={mutate}
           />
