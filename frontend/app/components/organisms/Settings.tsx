@@ -220,7 +220,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Primary Color</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <input type="color" value={form.primaryColor || "#173a2c"}
-                onChange={e => setForm(p => ({ ...p, primaryColor: e.target.value }))}
+                onChange={e => { setForm(p => ({ ...p, primaryColor: e.target.value })); applyBrandColors({ primaryColor: e.target.value }); }}
                 style={{ width: 52, height: 52, padding: 2, borderRadius: 10, border: "2px solid var(--line)", cursor: "pointer", background: "var(--input-bg)" }} />
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontFamily: "monospace" }}>{(form.primaryColor || "#173a2c").toUpperCase()}</div>
@@ -234,7 +234,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Accent Color</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <input type="color" value={form.accentColor || "#d4932f"}
-                onChange={e => setForm(p => ({ ...p, accentColor: e.target.value }))}
+                onChange={e => { setForm(p => ({ ...p, accentColor: e.target.value })); applyBrandColors({ accentColor: e.target.value }); }}
                 style={{ width: 52, height: 52, padding: 2, borderRadius: 10, border: "2px solid var(--line)", cursor: "pointer", background: "var(--input-bg)" }} />
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontFamily: "monospace" }}>{(form.accentColor || "#d4932f").toUpperCase()}</div>

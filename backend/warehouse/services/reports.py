@@ -123,7 +123,7 @@ def get_aging_report(user):
     # ── Supplier aging ────────────────────────────────────────────────────────
     bills = PurchaseBill.objects.filter(
         warehouse__in=warehouses,
-        amount_pending__gt=0,
+        payment_status__in=["PENDING", "PARTIAL"],
     ).select_related("supplier")
 
     supplier_map: dict[str, dict] = {}

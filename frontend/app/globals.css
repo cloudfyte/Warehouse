@@ -32,9 +32,14 @@
   --green-2: var(--primary-3);
 
   /* Component aliases used by organism components */
-  --fg:     var(--ink);
-  --bg:     var(--canvas);
-  --border: var(--line);
+  --fg:             var(--ink);
+  --bg:             var(--canvas);
+  --border:         var(--line);
+
+  /* Aliases used by Quotations.tsx (surface / text-secondary) */
+  --surface:        var(--paper);
+  --surface-2:      var(--canvas);
+  --text-secondary: var(--muted);
 }
 
 /* ─── Reset ───────────────────────────────────────────────────────────────── */
@@ -161,6 +166,14 @@ button { cursor: pointer; }
 .error-banner, .form-error { background: #fff0ef; border: 1px solid #f1cbc8; color: #8d3e39; border-radius: 8px; padding: 11px 14px; font-size: 12px; }
 .error-banner { margin: 18px 34px 0; display: flex; justify-content: space-between; }
 .error-banner button { border: 0; background: none; color: inherit; }
+
+/* ─── Card (generic surface, used by Quotations) ─────────────────────────── */
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  transition: background .25s;
+}
 
 /* ─── Dashboard ───────────────────────────────────────────────────────────── */
 .welcome-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; }
