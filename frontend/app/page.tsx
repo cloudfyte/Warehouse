@@ -391,6 +391,7 @@ export default function Home() {
   const [addingToProducts, setAddingToProducts] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { applyDarkMode(darkMode); }, [darkMode]);
   useEffect(() => {
@@ -490,14 +491,17 @@ export default function Home() {
     setToken(null); setData(null);
   }
 
-  // Returns GraphQL response data AND triggers a full data reload.
-  // Callers that need the response ID (e.g. inline category creation) can use it.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mutate = useCallback(async (query: string, variables: Record<string, unknown>): Promise<any> => {
     if (!token) throw new Error("Not authenticated");
-    const result = await graphql(query, variables, token);
-    await loadData(token);
-    return result;
+    setSaving(true);
+    try {
+      const result = await graphql(query, variables, token);
+      await loadData(token);
+      return result;
+    } finally {
+      setSaving(false);
+    }
   }, [token, loadData]);
 
   const AppSkeleton = () => (
@@ -556,6 +560,13 @@ export default function Home() {
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
       <ToastContainer />
       <FcmManager isAuthenticated={!!token} />
+
+      {/* Global save progress bar — visible for every mutation + reload */}
+      {saving && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 3, zIndex: 9999, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
+          <div style={{ position: "absolute", height: "100%", background: "var(--accent)", animation: "topbarProgress 1.3s ease-in-out infinite" }} />
+        </div>
+      )}
 
       {/* Mobile sidebar backdrop */}
       {isMobile && sidebarOpen && (
