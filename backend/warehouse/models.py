@@ -412,6 +412,7 @@ class ReadymadeStock(models.Model):
     po_item = models.ForeignKey(PurchaseOrderItem, null=True, blank=True, on_delete=models.SET_NULL, related_name="readymade_stocks")
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="readymade_stocks")
     item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="readymade_stocks")
+    cloth_category = models.ForeignKey(ClothCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="readymade_stocks")
     cloth_color = models.ForeignKey(ClothColor, null=True, blank=True, on_delete=models.SET_NULL, related_name="readymade_stocks")
     size = models.CharField(max_length=30, blank=True)
     warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="readymade_stocks")

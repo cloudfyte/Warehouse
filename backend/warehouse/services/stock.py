@@ -44,7 +44,7 @@ def create_raw_cloth_batch(*, user, supplier_id, category_id, color_id, warehous
 
 
 def create_readymade_stock(*, user, supplier_id, item_type_id, warehouse_id,
-                           quantity, cost_price=0, color_id=None, size="", notes="", received_date=None):
+                           quantity, cost_price=0, category_id=None, color_id=None, size="", notes="", received_date=None):
     try:
         supplier = Supplier.objects.get(pk=supplier_id, active=True)
     except Supplier.DoesNotExist as exc:
@@ -56,6 +56,13 @@ def create_readymade_stock(*, user, supplier_id, item_type_id, warehouse_id,
         raise GraphQLError("Item type not found.") from exc
 
     warehouse = get_warehouse(user, warehouse_id)
+
+    category = None
+    if category_id:
+        try:
+            category = ClothCategory.objects.get(pk=category_id, active=True)
+        except ClothCategory.DoesNotExist as exc:
+            raise GraphQLError("Cloth category not found.") from exc
 
     color = None
     if color_id:
@@ -70,7 +77,8 @@ def create_readymade_stock(*, user, supplier_id, item_type_id, warehouse_id,
 
     with transaction.atomic():
         stock = ReadymadeStock.objects.create(
-            supplier=supplier, item_type=item_type, cloth_color=color,
+            supplier=supplier, item_type=item_type,
+            cloth_category=category, cloth_color=color,
             warehouse=warehouse, size=size.strip(),
             quantity_received=qty, quantity_available=qty,
             cost_price=Decimal(str(cost_price)),

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { applyBrandColors } from "@/app/lib/theme";
 import { friendlyError } from "@/app/lib/errors";
 
@@ -66,11 +66,20 @@ function Textarea({ label, value, onChange, placeholder = "", rows = 4 }: { labe
   );
 }
 
+const RESET_PHRASE = "RESET ALL DATA";
+
 export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
   const [form, setForm] = useState<SettingsData>({ ...settings });
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+
+  const [resetModal, setResetModal] = useState(false);
+  const [resetPhrase, setResetPhrase] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetDone, setResetDone] = useState(false);
+  const resetInputRef = useRef<HTMLInputElement>(null);
 
   if (!isSuperAdmin) {
     return (
@@ -84,6 +93,20 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
 
   const set = (field: keyof SettingsData) => (v: string) => setForm(p => ({ ...p, [field]: v }));
   const tog = (field: keyof SettingsData) => (v: boolean) => setForm(p => ({ ...p, [field]: v }));
+
+  async function handleReset() {
+    setResetLoading(true); setResetError("");
+    try {
+      await onMutate(
+        `mutation R($phrase:String!){resetAllData(confirmPhrase:$phrase){ok message}}`,
+        { phrase: resetPhrase }
+      );
+      setResetDone(true);
+      setResetModal(false);
+      setResetPhrase("");
+    } catch (e: unknown) { setResetError(friendlyError(e)); }
+    finally { setResetLoading(false); }
+  }
 
   async function save() {
     setLoading(true); setSaved(false); setError("");
@@ -311,6 +334,83 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
         <Field label="Signature Line Label" value={form.printSignatureLabel || ""} onChange={set("printSignatureLabel")} placeholder="Authorised Signatory" />
         <Toggle label="Show Company Logo on Printed Documents" description="Display the logo URL image in the header of all print outputs" checked={form.printShowLogo !== false} onChange={tog("printShowLogo")} />
       </SettingsSection>
+
+      {/* ── Danger Zone ── */}
+      {resetDone && (
+        <div style={{ background: "#edf8ee", border: "1px solid #c3e6c5", color: "#2e6e34", padding: "12px 16px", borderRadius: 10, marginBottom: 20, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+          ✓ All data has been cleared. You can now create fresh warehouses and data.
+        </div>
+      )}
+      <div style={{ background: "var(--paper)", border: "1.5px solid #ef444433", borderRadius: 14, padding: 24, marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid #ef444422" }}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: "#dc2626", textTransform: "uppercase", letterSpacing: 0.6 }}>Danger Zone</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--ink)", marginBottom: 6 }}>Reset All Data</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, maxWidth: 460 }}>
+              Permanently deletes all warehouses, suppliers, buyers, purchase orders, purchase bills, raw cloth, production records, sales orders, employees (except your account), and all inventory. System settings and your admin account are preserved. This cannot be undone.
+            </div>
+          </div>
+          <button
+            onClick={() => { setResetModal(true); setResetPhrase(""); setResetError(""); setTimeout(() => resetInputRef.current?.focus(), 50); }}
+            style={{ flexShrink: 0, padding: "10px 20px", borderRadius: 9, border: "1.5px solid #dc2626", background: "transparent", color: "#dc2626", fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>
+            Reset All Data
+          </button>
+        </div>
+      </div>
+
+      {/* ── Reset confirmation modal ── */}
+      {resetModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) { setResetModal(false); setResetPhrase(""); } }}>
+          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 32, width: "100%", maxWidth: 480, border: "1.5px solid #ef444433", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 28, marginBottom: 12, textAlign: "center" }}>⚠️</div>
+            <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 800, color: "#dc2626", textAlign: "center" }}>Reset All Data?</h3>
+            <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--muted)", lineHeight: 1.7, textAlign: "center" }}>
+              This will permanently delete <strong>all warehouses, suppliers, buyers, orders, inventory, employees</strong> and every other record in the system. Your admin account and system settings will be preserved.
+            </p>
+
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 14px", marginBottom: 20, fontSize: 12, color: "#991b1b", lineHeight: 1.6 }}>
+              <strong>Cannot be undone.</strong> Take a database backup before proceeding if you want to recover this data later.
+            </div>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                Type <strong style={{ color: "#dc2626", fontFamily: "monospace" }}>{RESET_PHRASE}</strong> to confirm
+              </span>
+              <input
+                ref={resetInputRef}
+                type="text"
+                value={resetPhrase}
+                onChange={e => setResetPhrase(e.target.value)}
+                placeholder={RESET_PHRASE}
+                style={{ padding: "11px 14px", borderRadius: 9, border: `1.5px solid ${resetPhrase === RESET_PHRASE ? "#dc2626" : "var(--line)"}`, background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, fontFamily: "monospace", outline: "none", letterSpacing: 1 }}
+              />
+            </label>
+
+            {resetError && (
+              <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", padding: "10px 14px", borderRadius: 9, marginBottom: 16, fontSize: 13 }}>
+                {resetError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={() => { setResetModal(false); setResetPhrase(""); setResetError(""); }}
+                style={{ flex: 1, padding: "11px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={resetPhrase !== RESET_PHRASE || resetLoading}
+                style={{ flex: 1, padding: "11px", borderRadius: 9, border: "none", background: resetPhrase === RESET_PHRASE ? "#dc2626" : "#e5e7eb", color: resetPhrase === RESET_PHRASE ? "#fff" : "#9ca3af", fontWeight: 700, fontSize: 14, cursor: resetPhrase === RESET_PHRASE ? "pointer" : "not-allowed", transition: "all 0.15s" }}>
+                {resetLoading ? "Deleting…" : "Confirm Reset"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

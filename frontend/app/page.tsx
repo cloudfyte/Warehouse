@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToasts, type ToastItem } from "@/app/lib/toast";
 import { graphql, refreshAccessToken, DASHBOARD_QUERY, SETTINGS_QUERY } from "@/app/lib/graphql";
+import { nameToColorHex } from "@/app/lib/colorUtils";
 import { friendlyError } from "@/app/lib/errors";
 import { applyBrandColors, applyDarkMode } from "@/app/lib/theme";
 import { TAB_TITLES } from "@/app/lib/constants";
@@ -171,7 +172,8 @@ function DirectStockModal({ suppliers, warehouses, categories, colors, itemTypes
     return r.createClothCategory.category.id;
   }
   async function createColor(name: string): Promise<string> {
-    const r = await onMutate(`mutation C($n:String!){createClothColor(name:$n,hexCode:"#CCCCCC"){color{id}}}`, { n: name });
+    const hex = nameToColorHex(name);
+    const r = await onMutate(`mutation C($n:String!,$h:String!){createClothColor(name:$n,hexCode:$h){color{id}}}`, { n: name, h: hex });
     return r.createClothColor.color.id;
   }
   async function createItemType(name: string): Promise<string> {
@@ -179,8 +181,8 @@ function DirectStockModal({ suppliers, warehouses, categories, colors, itemTypes
     return r.createItemType.itemType.id;
   }
 
-  const RMD_MUTATION = `mutation C($sup:ID!,$it:ID!,$wh:ID!,$q:Int!,$cp:Float,$col:ID,$sz:String,$rd:Date,$notes:String){
-    createReadymadeStock(supplierId:$sup,itemTypeId:$it,warehouseId:$wh,quantity:$q,costPrice:$cp,colorId:$col,size:$sz,receivedDate:$rd,notes:$notes){stock{id}}
+  const RMD_MUTATION = `mutation C($sup:ID!,$it:ID!,$wh:ID!,$q:Int!,$cp:Float,$cat:ID,$col:ID,$sz:String,$rd:Date,$notes:String){
+    createReadymadeStock(supplierId:$sup,itemTypeId:$it,warehouseId:$wh,quantity:$q,costPrice:$cp,categoryId:$cat,colorId:$col,size:$sz,receivedDate:$rd,notes:$notes){stock{id}}
   }`;
 
   async function submit() {
@@ -209,8 +211,9 @@ function DirectStockModal({ suppliers, warehouses, categories, colors, itemTypes
         for (const row of sizeRows) {
           await onMutate(RMD_MUTATION, {
             sup: supplierId, it: itemTypeId, wh: warehouseId, q: +row.qty,
-            cp: costPrice ? +costPrice : undefined, col: colorId || undefined,
-            sz: row.size || undefined, rd: receivedDate || undefined, notes: notes || undefined,
+            cp: costPrice ? +costPrice : undefined, cat: categoryId || undefined,
+            col: colorId || undefined, sz: row.size || undefined,
+            rd: receivedDate || undefined, notes: notes || undefined,
           });
         }
       } else {
@@ -219,8 +222,9 @@ function DirectStockModal({ suppliers, warehouses, categories, colors, itemTypes
         if (!singleQty) { setError("Quantity is required"); setLoading(false); return; }
         await onMutate(RMD_MUTATION, {
           sup: supplierId, it: itemTypeId, wh: warehouseId, q: +singleQty,
-          cp: costPrice ? +costPrice : undefined, col: colorId || undefined,
-          sz: singleSize || undefined, rd: receivedDate || undefined, notes: notes || undefined,
+          cp: costPrice ? +costPrice : undefined, cat: categoryId || undefined,
+          col: colorId || undefined, sz: singleSize || undefined,
+          rd: receivedDate || undefined, notes: notes || undefined,
         });
       }
       onClose();
@@ -271,6 +275,8 @@ function DirectStockModal({ suppliers, warehouses, categories, colors, itemTypes
         </>) : (<>
           <CreatableSelect label="Item Type *" options={itemTypes || []} value={itemTypeId}
             onChange={setItemTypeId} onCreate={createItemType} placeholder="Select type…" required />
+          <CreatableSelect label="Fabric / Category" options={categories || []} value={categoryId}
+            onChange={setCategoryId} onCreate={createCategory} placeholder="e.g. Cotton, Polyester…" />
           <CreatableSelect label="Color" options={colors || []} value={colorId}
             onChange={setColorId} onCreate={createColor} placeholder="Any / None" />
           <label style={fld}>Cost / Piece ₹<input type="number" value={costPrice} onChange={e => setCostPrice(e.target.value)} style={inp2} placeholder="0" /></label>
@@ -869,7 +875,7 @@ export default function Home() {
                       <td style={{ padding: "11px 14px" }}>{b.clothCategory?.name}</td>
                       <td style={{ padding: "11px 14px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          {b.clothColor?.hexCode && <span style={{ width: 12, height: 12, borderRadius: 3, background: b.clothColor.hexCode, display: "inline-block", flexShrink: 0 }} />}
+                          {b.clothColor && <span style={{ width: 12, height: 12, borderRadius: 3, background: nameToColorHex(b.clothColor.name, b.clothColor.hexCode), display: "inline-block", flexShrink: 0 }} />}
                           {b.clothColor?.name}
                         </div>
                       </td>
@@ -894,13 +900,13 @@ export default function Home() {
         {currentTab === "readymade_stock" && (
           <div style={{ padding: 24 }}>
             <h2 style={{ margin: "0 0 16px" }}>Readymade Stock <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({(data?.readymadeStock || []).length})</span></h2>
-            <input placeholder="Search item type, color, size or warehouse…" value={readymadeSearch} onChange={e => setReadymadeSearch(e.target.value)}
+            <input placeholder="Search item type, fabric, color, size or warehouse…" value={readymadeSearch} onChange={e => setReadymadeSearch(e.target.value)}
               style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, width: "100%", boxSizing: "border-box", marginBottom: 16 }} />
             <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--border)", overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "var(--bg)", fontSize: 12, color: "var(--muted)", textAlign: "left" }}>
-                    {["Item Type", "Color", "Size", "Received", "Available", "Cost/pc", "Warehouse", "Date", ""].map(h => (
+                    {["Item Type", "Fabric", "Color", "Size", "Received", "Available", "Cost/pc", "Warehouse", "Date", ""].map(h => (
                       <th key={h} style={{ padding: "10px 14px", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{h}</th>
                     ))}
                   </tr>
@@ -908,13 +914,14 @@ export default function Home() {
                 <tbody>
                   {(data?.readymadeStock || []).filter((s: AppData) => {
                     const q = readymadeSearch.toLowerCase();
-                    return !q || s.itemType?.name?.toLowerCase().includes(q) || s.clothColor?.name?.toLowerCase().includes(q) || s.size?.toLowerCase().includes(q) || s.warehouse?.name?.toLowerCase().includes(q);
+                    return !q || s.itemType?.name?.toLowerCase().includes(q) || s.clothCategory?.name?.toLowerCase().includes(q) || s.clothColor?.name?.toLowerCase().includes(q) || s.size?.toLowerCase().includes(q) || s.warehouse?.name?.toLowerCase().includes(q);
                   }).map((s: AppData) => (
                     <tr key={s.id} style={{ borderBottom: "1px solid var(--border)" }}>
                       <td style={{ padding: "11px 14px", fontWeight: 600 }}>{s.itemType?.name}</td>
+                      <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--muted)" }}>{s.clothCategory?.name || "—"}</td>
                       <td style={{ padding: "11px 14px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          {s.clothColor?.hexCode && <span style={{ width: 12, height: 12, borderRadius: 3, background: s.clothColor.hexCode, display: "inline-block", flexShrink: 0 }} />}
+                          {s.clothColor && <span style={{ width: 12, height: 12, borderRadius: 3, background: nameToColorHex(s.clothColor.name, s.clothColor.hexCode), display: "inline-block", flexShrink: 0 }} />}
                           {s.clothColor?.name || "—"}
                         </div>
                       </td>
@@ -953,10 +960,12 @@ export default function Home() {
                       setAddingToProducts(true);
                       try {
                         await mutate(
-                          `mutation A($rsId:ID!,$itId:ID!,$wId:ID!,$qty:Int!,$cp:Float!,$sp:Float!,$col:ID,$sz:String){createFinishedProducts(readymadeStockId:$rsId,itemTypeId:$itId,warehouseId:$wId,quantity:$qty,costPrice:$cp,salePrice:$sp,clothColorId:$col,size:$sz){finishedProduct{id sku}}}`,
+                          `mutation A($rsId:ID!,$itId:ID!,$wId:ID!,$qty:Int!,$cp:Float!,$sp:Float!,$cat:ID,$col:ID,$sz:String){createFinishedProducts(readymadeStockId:$rsId,itemTypeId:$itId,warehouseId:$wId,quantity:$qty,costPrice:$cp,salePrice:$sp,clothCategoryId:$cat,clothColorId:$col,size:$sz){finishedProduct{id sku}}}`,
                           { rsId: addToProducts.item.id, itId: addToProducts.item.itemType?.id, wId: addToProducts.item.warehouse?.id,
                             qty: parseInt(addToProducts.qty), cp: parseFloat(addToProducts.item.costPrice),
-                            sp: parseFloat(addToProducts.salePrice), col: addToProducts.item.clothColor?.id || undefined,
+                            sp: parseFloat(addToProducts.salePrice),
+                            cat: addToProducts.item.clothCategory?.id || undefined,
+                            col: addToProducts.item.clothColor?.id || undefined,
                             sz: addToProducts.item.size || undefined }
                         );
                         setAddToProducts(null);

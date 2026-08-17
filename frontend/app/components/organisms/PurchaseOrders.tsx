@@ -8,6 +8,7 @@ import CreatableSelect from "@/app/components/atoms/CreatableSelect";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import { downloadCsv } from "@/app/lib/csv";
+import { nameToColorHex } from "@/app/lib/colorUtils";
 
 interface Props {
   orders: PurchaseOrder[]; suppliers: Supplier[]; warehouses: WarehouseLocation[]
@@ -62,6 +63,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   const [expectedDelivery, setExpectedDelivery] = useState(defaultDelivery);
   const [poNotes, setPoNotes] = useState("");
   const [items, setItems] = useState<POItem[]>([emptyItem()]);
+  const [submitted, setSubmitted] = useState(false);
 
   const canEdit = isSuperAdmin || isAdmin || isManager;
   const filtered = orders.filter(o => {
@@ -78,7 +80,8 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     return r.createClothCategory.category.id;
   }
   async function createColor(name: string): Promise<string> {
-    const r = await onMutate(`mutation C($n:String!){createClothColor(name:$n,hexCode:"#CCCCCC"){color{id name}}}`, { n: name });
+    const hex = nameToColorHex(name);
+    const r = await onMutate(`mutation C($n:String!,$h:String!){createClothColor(name:$n,hexCode:$h){color{id name}}}`, { n: name, h: hex });
     return r.createClothColor.color.id;
   }
   async function createItemType(name: string): Promise<string> {
@@ -89,7 +92,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   function resetForm() {
     setSupplierId(""); setWarehouseId(""); setOrderType("RAW_CLOTH");
     setExpectedDelivery(defaultDelivery()); setPoNotes(""); setItems([emptyItem()]);
-    setError("");
+    setError(""); setSubmitted(false);
   }
 
   function updateItem(idx: number, patch: Partial<POItem>) {
@@ -101,8 +104,11 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   }
 
   async function createPO() {
-    if (!supplierId || !warehouseId) { setError("Select supplier and warehouse"); return; }
-    if (items.some(it => it.kind === "RAW_CLOTH" ? !it.categoryId : !it.itemTypeId)) { setError("Fill all item details"); return; }
+    setSubmitted(true);
+    if (!supplierId || !warehouseId) { setError("Please select a supplier and destination warehouse."); return; }
+    if (items.some(it => it.kind === "RAW_CLOTH" ? (!it.categoryId || !it.meters) : (!it.itemTypeId || !it.qty))) {
+      setError("Fill in all required fields highlighted in red below."); return;
+    }
     setLoading(true); setError("");
     try {
       const gqlItems = items.map(it => it.kind === "RAW_CLOTH"
@@ -156,7 +162,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         );
       } else {
         await onMutate(
-          `mutation C($poId:ID!,$date:Date!,$cond:String,$qcp:Boolean,$dn:String,$notes:String){createParcelInspection(purchaseOrderId:$poId,inspectionDate:$date,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,notes:$notes){inspection{id parcelCondition}}}`,
+          `mutation C($poId:ID!,$date:Date!,$cond:String,$qcp:Boolean,$dn:String,$notes:String){createParcelInspection(poId:$poId,inspectionDate:$date,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,notes:$notes){inspection{id parcelCondition}}}`,
           { poId: detail.id, date: inspForm.inspectionDate, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, notes: inspForm.notes || undefined }
         );
       }
@@ -247,7 +253,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       {/* ── New PO modal ── */}
       {showNew && (
         <div style={{ position: "fixed", inset: 0, background: "#0009", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "32px 0" }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, width: "min(680px,95vw)", border: "1px solid var(--border)", marginBottom: 32 }}>
+          <div style={{ background: "var(--paper)", borderRadius: 16, width: "min(860px,96vw)", border: "1px solid var(--border)", marginBottom: 32 }}>
             <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3 style={{ margin: 0 }}>New Purchase Order</h3>
               <button onClick={() => { setShowNew(false); resetForm(); }} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)" }}>×</button>
@@ -258,18 +264,22 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               {/* Header fields */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
                 <label style={lbl}>
-                  Supplier *
-                  <select value={supplierId} onChange={e => setSupplierId(e.target.value)} style={sel}>
+                  Supplier <span style={{ color: "#e53935" }}>*</span>
+                  <select value={supplierId} onChange={e => { setSupplierId(e.target.value); }}
+                    style={{ ...sel, borderColor: submitted && !supplierId ? "#e53935" : undefined, boxShadow: submitted && !supplierId ? "0 0 0 2px #e5393520" : undefined }}>
                     <option value="">Select supplier…</option>
                     {suppliers.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
+                  {submitted && !supplierId && <span style={{ fontSize: 11, color: "#e53935", marginTop: 3 }}>Required</span>}
                 </label>
                 <label style={lbl}>
-                  Destination Warehouse *
-                  <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} style={sel}>
+                  Destination Warehouse <span style={{ color: "#e53935" }}>*</span>
+                  <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
+                    style={{ ...sel, borderColor: submitted && !warehouseId ? "#e53935" : undefined, boxShadow: submitted && !warehouseId ? "0 0 0 2px #e5393520" : undefined }}>
                     <option value="">Select warehouse…</option>
                     {warehouses.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
+                  {submitted && !warehouseId && <span style={{ fontSize: 11, color: "#e53935", marginTop: 3 }}>Required</span>}
                 </label>
                 <label style={lbl}>
                   Order Type
@@ -320,45 +330,49 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                   </div>
 
                   {item.kind === "RAW_CLOTH" ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr", gap: 12 }}>
                       <CreatableSelect
-                        label="Category *" options={categories} value={item.categoryId}
+                        label="Fabric / Category" options={categories} value={item.categoryId}
                         onChange={v => updateItem(idx, { categoryId: v })}
-                        onCreate={createCategory} placeholder="Select…" required
+                        onCreate={createCategory} placeholder="e.g. Cotton, Polyester…" required
+                        style={submitted && !item.categoryId ? { outline: "2px solid #e53935", borderRadius: 8 } : {}}
                       />
                       <CreatableSelect
-                        label="Color *" options={colors} value={item.colorId}
+                        label="Color" options={colors} value={item.colorId}
                         onChange={v => updateItem(idx, { colorId: v })}
-                        onCreate={createColor} placeholder="Select color…" required
+                        onCreate={createColor} placeholder="Select color…"
                       />
                       <label style={lbl}>
-                        Meters *
-                        <input type="number" value={item.meters || ""} onChange={e => updateItem(idx, { meters: +e.target.value })} style={inp} placeholder="0" />
+                        Meters <span style={{ color: "#e53935" }}>*</span>
+                        <input type="number" min="0" value={item.meters || ""} onChange={e => updateItem(idx, { meters: +e.target.value })} style={{ ...inp, borderColor: submitted && !item.meters ? "#e53935" : undefined }} placeholder="0" />
+                        {submitted && !item.meters && <span style={{ fontSize: 11, color: "#e53935" }}>Required</span>}
                       </label>
                       <label style={lbl}>
                         Price / meter ₹
-                        <input type="number" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} style={inp} placeholder="0" />
+                        <input type="number" min="0" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} style={inp} placeholder="0" />
                       </label>
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12 }}>
                       <CreatableSelect
-                        label="Item Type *" options={itemTypes} value={item.itemTypeId}
+                        label="Item Type" options={itemTypes} value={item.itemTypeId}
                         onChange={v => updateItem(idx, { itemTypeId: v })}
-                        onCreate={createItemType} placeholder="Select type…" required
+                        onCreate={createItemType} placeholder="e.g. Shirt, Pant, Kurti…" required
+                        style={submitted && !item.itemTypeId ? { outline: "2px solid #e53935", borderRadius: 8 } : {}}
                       />
+                      <SizeSelect value={item.size} onChange={v => updateItem(idx, { size: v })} label="Size" />
                       <label style={lbl}>
-                        Item Name
-                        <input value={item.itemName} onChange={e => updateItem(idx, { itemName: e.target.value })} style={inp} placeholder="Optional" />
+                        Qty (pcs) <span style={{ color: "#e53935" }}>*</span>
+                        <input type="number" min="1" value={item.qty || ""} onChange={e => updateItem(idx, { qty: +e.target.value })} style={{ ...inp, borderColor: submitted && !item.qty ? "#e53935" : undefined }} placeholder="0" />
+                        {submitted && !item.qty && <span style={{ fontSize: 11, color: "#e53935" }}>Required</span>}
                       </label>
-                      <SizeSelect value={item.size} onChange={v => updateItem(idx, { size: v })} />
                       <label style={lbl}>
-                        Qty (pcs)
-                        <input type="number" value={item.qty || ""} onChange={e => updateItem(idx, { qty: +e.target.value })} style={inp} placeholder="0" />
-                      </label>
-                      <label style={{ ...lbl, gridColumn: "4/5" }}>
                         Price / pc ₹
-                        <input type="number" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} style={inp} placeholder="0" />
+                        <input type="number" min="0" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} style={inp} placeholder="0" />
+                      </label>
+                      <label style={{ ...lbl, gridColumn: "1 / -1" }}>
+                        Item Description <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>(optional)</span>
+                        <input value={item.itemName} onChange={e => updateItem(idx, { itemName: e.target.value })} style={inp} placeholder="Brand, variant, or any detail…" />
                       </label>
                     </div>
                   )}
@@ -493,9 +507,13 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
 
       {/* Parcel Inspection Modal */}
       {showInspection && detail && (
-        <div style={{ position: "fixed", inset: 0, background: "#0009", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 440 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{inspection ? "Update" : "Record"} Parcel Inspection</div>
+        <div onClick={e => { if (e.target === e.currentTarget) setShowInspection(false); }}
+          style={{ position: "fixed", inset: 0, background: "#0009", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
+          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 460, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>{inspection ? "Update" : "Record"} Parcel Inspection</div>
+              <button onClick={() => setShowInspection(false)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)", lineHeight: 1, padding: "0 4px" }}>×</button>
+            </div>
             <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>{detail.poNumber} — {detail.supplier.name}</div>
             {inspErr && <div style={{ background: "#fef2f2", color: "#b91c1c", borderRadius: 7, padding: "10px 14px", fontSize: 13, marginBottom: 14 }}>{inspErr}</div>}
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

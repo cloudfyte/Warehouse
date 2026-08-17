@@ -28,6 +28,7 @@ from .stock_transfer import (
 from .parcel_inspection import CreateParcelInspection, UpdateParcelInspection
 from .quotation import CreateQuotation, UpdateQuotationStatus, ConvertQuotationToSO
 from .custom_role import CreateCustomRole, UpdateCustomRole, DeleteCustomRole
+from .admin import ResetAllData
 
 
 class Mutation(graphene.ObjectType):
@@ -131,3 +132,6 @@ class Mutation(graphene.ObjectType):
     # Misc
     mark_notifications_read = MarkNotificationsRead.Field()
     update_system_settings = UpdateSystemSettings.Field()
+
+    # Admin utilities
+    reset_all_data = ResetAllData.Field()

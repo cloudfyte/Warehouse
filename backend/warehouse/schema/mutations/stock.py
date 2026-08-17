@@ -37,6 +37,7 @@ class CreateReadymadeStock(graphene.Mutation):
         warehouse_id = graphene.ID(required=True)
         quantity = graphene.Int(required=True)
         cost_price = graphene.Float()
+        category_id = graphene.ID()
         color_id = graphene.ID()
         size = graphene.String()
         notes = graphene.String()

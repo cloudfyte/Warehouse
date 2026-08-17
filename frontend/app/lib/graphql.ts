@@ -9,9 +9,17 @@ async function _fetch<T>(query: string, variables: Record<string, unknown>, toke
     },
     body: JSON.stringify({ query, variables }),
   });
-  const payload = await response.json();
+  const text = await response.text();
+  let payload: { data?: T; errors?: { message: string }[] };
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    // Server returned non-JSON (HTML error page, Nginx 502, etc.)
+    if (response.status === 401 || response.status === 403) throw new Error("not authenticated");
+    throw new Error(`Server error (${response.status}). Please try again.`);
+  }
   if (payload.errors?.length) throw new Error(payload.errors[0].message || "Something went wrong.");
-  return payload.data;
+  return payload.data as T;
 }
 
 // Silently exchange a refresh token for a new access token and persist it.
@@ -135,6 +143,7 @@ export const DASHBOARD_QUERY = `
     readymadeStock {
       id size quantityReceived quantityAvailable costPrice receivedDate
       itemType { id name }
+      clothCategory { id name }
       clothColor { id name hexCode }
       warehouse { id name code }
       supplier { id name }

@@ -1,8 +1,10 @@
 const MAP: [RegExp | string, string | ((m: string) => string)][] = [
-  // Network
+  // Network / server
   ["Failed to fetch",              "Can't reach the server. Check your connection and try again."],
   ["NetworkError",                 "Network error. Please check your connection."],
   ["Load failed",                  "Can't reach the server. Check your connection and try again."],
+  [/Server error \(\d+\)/,         "Server error. Please wait a moment and try again."],
+  ["Unexpected token",             "Server returned an unexpected response. Please try again."],
 
   // Session
   ["SESSION_EXPIRED",              "Your session has expired. Please log in again."],
