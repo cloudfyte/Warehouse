@@ -342,7 +342,11 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
 
       {/* ── Card grid ── */}
       {filtered.length === 0 ? (
-        <div style={{ padding: "64px 0", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>No stitching jobs found</div>
+        <div style={{ textAlign: "center", padding: "72px 24px" }}>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>🧵</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>No stitching jobs found</div>
+          <div style={{ fontSize: 13, color: "var(--muted)" }}>Jobs are created from Finished Goods after cutting assignments are complete</div>
+        </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 16 }}>
           {filtered.map(j => {

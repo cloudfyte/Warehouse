@@ -247,9 +247,19 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: "56px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
-                {filterCat === "ALL" ? "No expenses recorded yet. Click \"+ Add Expense\" to add one." : `No ${CATEGORIES[filterCat]} expenses found.`}
-              </td></tr>
+              <tr>
+                <td colSpan={7}>
+                  <div style={{ textAlign: "center", padding: "60px 24px" }}>
+                    <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>💸</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
+                      {filterCat === "ALL" ? "No expenses recorded yet" : `No ${CATEGORIES[filterCat]} expenses`}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                      {filterCat === "ALL" ? "Click + Add Expense to record your first operational expense" : "Try switching to a different category"}
+                    </div>
+                  </div>
+                </td>
+              </tr>
             )}
           </tbody>
           {filtered.length > 0 && (

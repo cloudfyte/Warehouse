@@ -79,29 +79,45 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
           <div style={{ fontSize: 20, fontWeight: 700 }}>Stock Transfers</div>
           <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>Move cloth or finished products between warehouse locations</div>
         </div>
-        <button onClick={() => setCreating(true)} style={{ padding: "9px 18px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+        <button onClick={() => setCreating(true)} style={{ padding: "9px 18px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
           + New Transfer
         </button>
       </div>
 
       {/* Filter tabs */}
       <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
-        {["ALL", "PENDING", "IN_TRANSIT", "RECEIVED", "CANCELLED"].map(s => (
-          <button key={s} onClick={() => setFilter(s)} style={{
-            padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            border: `1px solid ${filter === s ? "var(--accent)" : "var(--line)"}`,
-            background: filter === s ? "var(--accent)" : "var(--paper)",
-            color: filter === s ? "#fff" : "var(--muted)",
-          }}>
-            {s.replace("_", " ")} {s !== "ALL" ? `(${transfers.filter(t => t.status === s).length})` : `(${transfers.length})`}
-          </button>
-        ))}
+        {["ALL", "PENDING", "IN_TRANSIT", "RECEIVED", "CANCELLED"].map(s => {
+          const count = s === "ALL" ? transfers.length : transfers.filter(t => t.status === s).length;
+          const active = filter === s;
+          return (
+            <button key={s} onClick={() => setFilter(s)} style={{
+              padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              border: `1px solid ${active ? "var(--primary)" : "var(--line)"}`,
+              background: active ? "var(--primary)" : "var(--paper)",
+              color: active ? "#fff" : "var(--muted)",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              {s.replace(/_/g, " ")}
+              {count > 0 && (
+                <span style={{ background: active ? "rgba(255,255,255,0.25)" : "var(--canvas)", color: active ? "#fff" : "var(--ink)", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "0 6px", lineHeight: "18px" }}>{count}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Transfer list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 0", color: "var(--muted)", fontSize: 14 }}>No transfers found</div>
+          <div style={{ textAlign: "center", padding: "64px 24px" }}>
+            <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>🔄</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
+              {filter === "ALL" ? "No transfers yet" : `No ${filter.replace(/_/g, " ").toLowerCase()} transfers`}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--muted)" }}>
+              {filter === "ALL" ? "Use + New Transfer to move stock between warehouse locations" : "Try selecting a different status filter"}
+            </div>
+          </div>
         ) : filtered.map(t => (
           <div key={t.id} style={{ background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 18px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>

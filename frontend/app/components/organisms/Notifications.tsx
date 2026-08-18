@@ -17,9 +17,9 @@ const LEVEL_COLORS: Record<string, string> = {
   CRITICAL: "#ef4444",
 };
 const LEVEL_BG: Record<string, string> = {
-  INFO: "#eff6ff",
-  WARNING: "#fffbeb",
-  CRITICAL: "#fff1f2",
+  INFO: "color-mix(in srgb, #3b82f6 12%, transparent)",
+  WARNING: "color-mix(in srgb, #f59e0b 12%, transparent)",
+  CRITICAL: "color-mix(in srgb, #ef4444 12%, transparent)",
 };
 const LEVEL_ICONS: Record<string, string> = {
   INFO: "ℹ",

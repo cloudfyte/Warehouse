@@ -231,9 +231,9 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
           <button key={s} onClick={() => setFilter(s)}
             className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
             style={{
-              background: filter === s ? "var(--accent)" : "transparent",
+              background: filter === s ? "var(--primary)" : "transparent",
               color: filter === s ? "#fff" : "var(--text-secondary)",
-              borderColor: filter === s ? "var(--accent)" : "var(--border)",
+              borderColor: filter === s ? "var(--primary)" : "var(--border)",
             }}>
             {s === "ALL" ? "All" : (QUOTATION_STATUS_LABELS[s] ?? s)}
           </button>
@@ -253,7 +253,19 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
             </thead>
             <tbody>
               {visible.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center" style={{ color: "var(--text-secondary)" }}>No quotations</td></tr>
+                <tr>
+                  <td colSpan={8}>
+                    <div style={{ textAlign: "center", padding: "60px 24px" }}>
+                      <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>📄</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
+                        {filter === "ALL" ? "No quotations yet" : `No ${filter.toLowerCase()} quotations`}
+                      </div>
+                      <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                        {filter === "ALL" ? "Click + New Quotation to create your first price proposal" : "Try selecting a different status tab"}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
               ) : visible.map(q => (
                 <tr key={q.id} className="hover:bg-[var(--surface-2)] cursor-pointer transition-colors"
                   style={{ borderBottom: "1px solid var(--border)" }}

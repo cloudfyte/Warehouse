@@ -98,7 +98,19 @@ export default function AuditLogs({ logs }: Props) {
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No audit log entries</td></tr>
+              <tr>
+                <td colSpan={6}>
+                  <div style={{ textAlign: "center", padding: "60px 24px" }}>
+                    <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>📋</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
+                      {logs.length === 0 ? "No activity recorded yet" : "No matching entries"}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                      {logs.length === 0 ? "System actions will appear here as the team uses the ERP" : "Try clearing the search or changing the entity filter"}
+                    </div>
+                  </div>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

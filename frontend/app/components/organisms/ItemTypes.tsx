@@ -105,7 +105,7 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
         <h2 className="text-xl font-bold">Item Types</h2>
         {canManage && (
           <button onClick={openCreate} className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-            style={{ background: "var(--accent)" }}>
+            style={{ background: "var(--primary)" }}>
             + New Item Type
           </button>
         )}
@@ -123,7 +123,15 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
             </thead>
             <tbody>
               {itemTypes.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: "var(--text-secondary)" }}>No item types yet</td></tr>
+                <tr>
+                  <td colSpan={7}>
+                    <div style={{ textAlign: "center", padding: "60px 24px" }}>
+                      <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>🏷️</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>No item types yet</div>
+                      <div style={{ fontSize: 13, color: "var(--muted)" }}>Create item types to classify finished garment products</div>
+                    </div>
+                  </td>
+                </tr>
               ) : itemTypes.map(it => (
                 <tr key={it.id} style={{ borderBottom: "1px solid var(--border)" }}
                   className="hover:bg-[var(--surface-2)] transition-colors">
@@ -147,7 +155,7 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
                     {canManage && (
                       <div className="flex gap-2">
                         <button onClick={() => openEdit(it)}
-                          className="text-xs px-2 py-1 rounded" style={{ background: "var(--surface-2)", color: "var(--accent)" }}>
+                          className="text-xs px-2 py-1 rounded" style={{ background: "var(--surface-2)", color: "var(--primary)" }}>
                           Edit
                         </button>
                         <button onClick={() => toggleActive(it)}
@@ -206,9 +214,9 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
                     <button key={r} onClick={() => setForm(f => ({ ...f, gstRate: String(r) }))}
                       className="px-3 py-1.5 rounded text-sm font-medium border transition-colors"
                       style={{
-                        background: form.gstRate === String(r) ? "var(--accent)" : "transparent",
+                        background: form.gstRate === String(r) ? "var(--primary)" : "transparent",
                         color: form.gstRate === String(r) ? "#fff" : "var(--text-secondary)",
-                        borderColor: form.gstRate === String(r) ? "var(--accent)" : "var(--border)",
+                        borderColor: form.gstRate === String(r) ? "var(--primary)" : "var(--border)",
                       }}>
                       {r}%
                     </button>
@@ -220,7 +228,7 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
             <div className="flex gap-3 justify-end pt-1">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded text-sm" style={{ color: "var(--text-secondary)" }}>Cancel</button>
               <button onClick={save} disabled={saving} className="px-4 py-2 rounded text-sm font-medium text-white"
-                style={{ background: "var(--accent)" }}>
+                style={{ background: "var(--primary)" }}>
                 {saving ? "Saving…" : editing ? "Update" : "Create"}
               </button>
             </div>

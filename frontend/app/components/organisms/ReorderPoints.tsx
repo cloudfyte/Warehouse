@@ -108,20 +108,27 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
           <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>Stock levels that trigger low-stock alerts</div>
         </div>
         {canEdit && (
-          <button onClick={openCreate} style={{ padding: "9px 18px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+          <button onClick={openCreate} style={{ padding: "9px 18px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
             + Add Threshold
           </button>
         )}
       </div>
 
       {reorderPoints.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "64px 0", color: "var(--muted)", fontSize: 14 }}>
-          No reorder thresholds configured. Add one to start receiving low-stock alerts.
+        <div style={{ textAlign: "center", padding: "72px 24px" }}>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>🔔</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>No reorder thresholds yet</div>
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>Set minimum stock levels to receive automatic low-stock alerts</div>
+          {canEdit && (
+            <button onClick={openCreate} style={{ padding: "9px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+              + Add First Threshold
+            </button>
+          )}
         </div>
       ) : (
         Object.entries(byWarehouse).map(([, rps]) => (
           <div key={rps[0].warehouse.id} style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, padding: "4px 0", borderBottom: "2px solid var(--accent)", display: "inline-block", paddingRight: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, padding: "4px 0", borderBottom: "2px solid var(--primary)", display: "inline-block", paddingRight: 20 }}>
               {rps[0].warehouse.name}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
@@ -251,7 +258,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
               <button onClick={() => setShowForm(false)} style={{ padding: "9px 20px", border: "1px solid var(--line)", borderRadius: 8, background: "transparent", color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ padding: "9px 20px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+              <button onClick={save} disabled={saving} style={{ padding: "9px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
                 {saving ? "Saving…" : editing ? "Save Changes" : "Add Threshold"}
               </button>
             </div>

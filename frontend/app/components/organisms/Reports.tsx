@@ -78,7 +78,7 @@ export default function Reports({ gql }: Props) {
           <button key={s} onClick={() => setSection(s)}
             className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={{
-              background: section === s ? "var(--accent)" : "var(--surface-2)",
+              background: section === s ? "var(--primary)" : "var(--surface-2)",
               color: section === s ? "#fff" : "var(--text-secondary)",
             }}>
             {s === "pl" ? "Profit & Loss" : "Receivables Aging"}
@@ -90,27 +90,29 @@ export default function Reports({ gql }: Props) {
       {section === "pl" && (
         <div className="space-y-5">
           {/* Controls */}
-          <div className="flex items-end gap-3 flex-wrap">
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Year</label>
-              <select value={year} onChange={e => setYear(Number(e.target.value))} className="input">
-                {Array.from({ length: 4 }, (_, i) => CURRENT_YEAR - i).map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+          <div className="card p-4">
+            <div className="flex items-end gap-3 flex-wrap">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Year</label>
+                <select value={year} onChange={e => setYear(Number(e.target.value))} className="input">
+                  {Array.from({ length: 4 }, (_, i) => CURRENT_YEAR - i).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Month (optional)</label>
+                <select value={month} onChange={e => setMonth(e.target.value === "" ? "" : Number(e.target.value))} className="input">
+                  <option value="">Full Year</option>
+                  {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                </select>
+              </div>
+              <button onClick={fetchPL} disabled={plLoading}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white self-end"
+                style={{ background: "var(--primary)" }}>
+                {plLoading ? "Loading…" : "Generate"}
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Month (optional)</label>
-              <select value={month} onChange={e => setMonth(e.target.value === "" ? "" : Number(e.target.value))} className="input">
-                <option value="">Full Year</option>
-                {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-            </div>
-            <button onClick={fetchPL} disabled={plLoading}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white self-end"
-              style={{ background: "var(--accent)" }}>
-              {plLoading ? "Loading…" : "Generate"}
-            </button>
           </div>
 
           {plErr && <div className="p-3 rounded text-sm" style={{ background: "#fce4ec", color: "#c62828" }}>{plErr}</div>}
@@ -169,7 +171,7 @@ export default function Reports({ gql }: Props) {
           <div>
             <button onClick={fetchAging} disabled={agingLoading}
               className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-              style={{ background: "var(--accent)" }}>
+              style={{ background: "var(--primary)" }}>
               {agingLoading ? "Loading…" : "Generate Aging Report"}
             </button>
           </div>

@@ -133,7 +133,7 @@ export default function Ledger({ buyers, suppliers, salesOrders, creditTransacti
             <button key={m} onClick={() => { setMode(m); setPartyId(""); }}
               className="px-4 py-2 text-sm font-medium transition-colors"
               style={{
-                background: mode === m ? "var(--accent)" : "var(--surface)",
+                background: mode === m ? "var(--primary)" : "var(--surface)",
                 color: mode === m ? "#fff" : "var(--text-secondary)",
               }}>
               {m === "buyer" ? "Buyer" : "Supplier"}
