@@ -148,12 +148,15 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
       {creating && (
         <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>New Stock Transfer</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>New Stock Transfer</div>
+              <button onClick={() => { setCreating(false); setErr(""); }} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)", lineHeight: 1 }}>×</button>
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {err && <div style={{ background: "#fef2f2", color: "#b91c1c", borderRadius: 7, padding: "10px 14px", fontSize: 13 }}>{err}</div>}
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Transfer Kind</label>
-                <select value={form.transferKind} onChange={e => setForm(f => ({ ...f, transferKind: e.target.value, rawClothBatchId: "", finishedProductId: "" }))} style={sel}>
+                <select value={form.transferKind} onChange={e => setForm(f => ({ ...f, transferKind: e.target.value, rawClothBatchId: "", finishedProductId: "", metersToTransfer: "", quantityToTransfer: "" }))} style={sel}>
                   <option value="RAW_CLOTH">Raw Cloth</option>
                   <option value="FINISHED">Finished Products</option>
                 </select>
@@ -196,7 +199,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
                     <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Finished Product</label>
                     <select value={form.finishedProductId} onChange={e => setForm(f => ({ ...f, finishedProductId: e.target.value }))} style={sel}>
                       <option value="">Select product…</option>
-                      {finishedProducts.filter(p => !form.fromWarehouseId || p.warehouse.id === form.fromWarehouseId).map(p => (
+                      {finishedProducts.filter(p => !form.fromWarehouseId || p.warehouse?.id === form.fromWarehouseId).map(p => (
                         <option key={p.id} value={p.id}>{p.sku} — {p.itemType.name} {p.size} ({p.quantity} pcs available)</option>
                       ))}
                     </select>

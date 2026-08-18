@@ -128,7 +128,9 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
 
   async function saveToFinishedGoods() {
     if (!fgJob) return;
+    const netPieces = (fgJob.piecesCompleted || 0) - (fgJob.piecesRejected || 0);
     if (!fgForm.qty || +fgForm.qty < 1) { setFgError("Enter quantity (at least 1)."); return; }
+    if (+fgForm.qty > netPieces) { setFgError(`Quantity cannot exceed net pieces (${netPieces}).`); return; }
     if (!fgForm.warehouseId) { setFgError("Select a warehouse."); return; }
     if (!fgForm.salePrice || +fgForm.salePrice <= 0) { setFgError("Enter sale price per piece."); return; }
     setFgLoading(true); setFgError("");
@@ -232,10 +234,10 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
       {/* New Job modal */}
       {showForm && (
         <Modal title="New Stitching Job" subtitle="Assign cut pieces to a tailor for stitching"
-          onClose={() => { setShowForm(false); setError(""); }} width={480}
+          onClose={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" }); }} width={480}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <button onClick={createJob} disabled={loading || !form.assignmentId || !form.tailorId} style={BTN_PRI}>{loading ? "Creating…" : "Create Job"}</button>
-            <button onClick={() => { setShowForm(false); setError(""); }} style={BTN_SEC}>Cancel</button>
+            <button onClick={createJob} disabled={loading || !form.assignmentId || !form.tailorId || !form.pieces} style={BTN_PRI}>{loading ? "Creating…" : "Create Job"}</button>
+            <button onClick={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" }); }} style={BTN_SEC}>Cancel</button>
           </div>}>
           {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -318,7 +320,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
               Net: <strong style={{ color: "#10b981" }}>{(fgJob.piecesCompleted || 0) - (fgJob.piecesRejected || 0)}</strong> pcs
             </div>
             <label style={LBL}>Quantity to add to Finished Goods *
-              <input type="number" min="1" value={fgForm.qty} onChange={e => setFgForm(p => ({ ...p, qty: e.target.value }))} style={I} placeholder="0" />
+              <input type="number" min="1" value={fgForm.qty} onChange={e => setFgForm(p => ({ ...p, qty: e.target.value }))} style={I} placeholder="0" autoFocus />
             </label>
             <label style={LBL}>Warehouse *
               <select value={fgForm.warehouseId} onChange={e => setFgForm(p => ({ ...p, warehouseId: e.target.value }))} style={I}>
@@ -331,7 +333,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                 <input type="number" min="0" value={fgForm.costPrice} onChange={e => setFgForm(p => ({ ...p, costPrice: e.target.value }))} style={I} placeholder="0" />
               </label>
               <label style={LBL}>Sale Price / pc ₹ *
-                <input type="number" min="0" value={fgForm.salePrice} onChange={e => setFgForm(p => ({ ...p, salePrice: e.target.value }))} style={I} placeholder="0" autoFocus />
+                <input type="number" min="0" value={fgForm.salePrice} onChange={e => setFgForm(p => ({ ...p, salePrice: e.target.value }))} style={I} placeholder="0" />
               </label>
             </div>
           </div>
@@ -372,7 +374,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                           Update
                         </button>
                       )}
-                      {j.status === "READY" && canAssign && (
+                      {j.status === "READY" && canAssign && (j.piecesCompleted || 0) > (j.piecesRejected || 0) && (
                         <button
                           onClick={() => openFG(j)}
                           style={{ padding: "4px 12px", borderRadius: 7, border: "none", background: "#10b981", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>

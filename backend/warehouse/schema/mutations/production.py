@@ -97,6 +97,30 @@ class UpdateStitchingJob(graphene.Mutation):
         return UpdateStitchingJob(job=update_stitching_job(id=id, **kwargs))
 
 
+class UpdateFinishedProduct(graphene.Mutation):
+    class Arguments:
+        id = graphene.ID(required=True)
+        tags_printed = graphene.Boolean()
+        sale_price = graphene.Float()
+
+    finished_product = graphene.Field(FinishedProductType)
+
+    @login_required
+    def mutate(self, info, id, **kwargs):
+        from warehouse.models import FinishedProduct
+        try:
+            fp = FinishedProduct.objects.get(pk=id)
+        except FinishedProduct.DoesNotExist as exc:
+            raise GraphQLError("Finished product not found.") from exc
+        if "tags_printed" in kwargs and kwargs["tags_printed"] is not None:
+            fp.tags_printed = kwargs["tags_printed"]
+        if "sale_price" in kwargs and kwargs["sale_price"] is not None:
+            from decimal import Decimal
+            fp.sale_price = Decimal(str(kwargs["sale_price"]))
+        fp.save()
+        return UpdateFinishedProduct(finished_product=fp)
+
+
 class CreateFinishedProducts(graphene.Mutation):
     class Arguments:
         item_type_id = graphene.ID()

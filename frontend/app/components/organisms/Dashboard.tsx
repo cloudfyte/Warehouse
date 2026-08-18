@@ -115,6 +115,8 @@ export default function Dashboard({
 }) {
   const customRole: CustomRole | null = profile?.customRole ?? null;
   const [alertsDismissed, setAlertsDismissed] = useState(false);
+  const [now, setNow] = useState(new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
 
   if (!stats || !profile) {
     return <div style={{ padding: 28, color: "var(--muted)" }}>Loading dashboard…</div>;
@@ -137,9 +139,6 @@ export default function Dashboard({
   const isAuditor = !isCustomRole && role === "AUDITOR";
 
   const showFullStats = isSuperAdmin || isAdmin || isManager || isAuditor;
-
-  const [now, setNow] = useState(new Date());
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -220,7 +219,7 @@ export default function Dashboard({
               </div>
             </>
           )}
-          {!tp.cutting && !tp.raw_cloth && !tp.sales_orders && !tp.purchase_orders && (
+          {Object.values(tp).every(v => !v) && (
             <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)" }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>👋</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>Welcome, {profile.username}</div>

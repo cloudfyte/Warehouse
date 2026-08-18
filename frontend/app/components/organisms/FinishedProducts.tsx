@@ -85,7 +85,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
     setMarkingPrinted(true);
     try {
       await onMutate(
-        `mutation M($id:ID!,$p:Boolean!){createFinishedProducts(id:$id,tagsPrinted:$p){finishedProduct{id}}}`,
+        `mutation M($id:ID!,$p:Boolean!){updateFinishedProduct(id:$id,tagsPrinted:$p){finishedProduct{id tagsPrinted}}}`,
         { id, p: true }
       );
     } catch { /* ignore */ }

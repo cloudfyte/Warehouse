@@ -142,7 +142,7 @@ export default function Reports({ gql }: Props) {
                         tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
                       <Tooltip
                         contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
-                        formatter={(v: unknown) => fmt(typeof v === "number" ? v : 0)} />
+                        formatter={(v: unknown, name: string) => [fmt(typeof v === "number" ? v : 0), name]} />
                       <Legend />
                       <Bar dataKey="revenue" name="Revenue" fill="#2196f3" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="cogs" name="COGS" fill="#ff9800" radius={[4, 4, 0, 0]} />

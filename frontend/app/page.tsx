@@ -953,7 +953,7 @@ export default function Home() {
                     </tr>
                   ))}
                   {!(data?.readymadeStock?.length) && (
-                    <tr><td colSpan={9} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
+                    <tr><td colSpan={10} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
                       No readymade stock. Click &quot;+ Add Stock&quot; above to add existing inventory.
                     </td></tr>
                   )}
@@ -963,10 +963,10 @@ export default function Home() {
 
             {/* Convert readymade stock → Finished Product modal */}
             {addToProducts && (
-              <Modal title="Add to Finished Products" subtitle={`${addToProducts.item.itemType?.name} · ${addToProducts.item.clothColor?.name || ""} · ${addToProducts.item.size || ""}`.replace(/ · $/, "").replace(/^ · /, "")}
+              <Modal title="Add to Finished Products" subtitle={[addToProducts.item.itemType?.name, addToProducts.item.clothColor?.name, addToProducts.item.size].filter(Boolean).join(" · ")}
                 onClose={() => setAddToProducts(null)} width={420}
                 footer={<div style={{ display: "flex", gap: 10 }}>
-                  <button disabled={addingToProducts || !addToProducts.salePrice || !addToProducts.qty}
+                  <button disabled={addingToProducts || !(parseFloat(addToProducts.salePrice) > 0) || !(parseInt(addToProducts.qty) > 0)}
                     onClick={async () => {
                       setAddingToProducts(true);
                       try {

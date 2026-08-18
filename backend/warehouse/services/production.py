@@ -151,6 +151,7 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             item_type_id = sj.cutting_assignment.item_type_id
             cloth_category_id = sj.cutting_assignment.raw_cloth_batch.cloth_category_id
             cloth_color_id = sj.cutting_assignment.raw_cloth_batch.cloth_color_id
+            size = sj.cutting_assignment.size
 
         if readymade_stock_id:
             try:

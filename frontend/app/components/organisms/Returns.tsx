@@ -29,7 +29,7 @@ export default function Returns({ buyerReturns, supplierReturns }: Props) {
               <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
                 <td style={{ padding: "12px 14px", fontWeight: 600, fontSize: 13 }}>{r.returnNumber}</td>
                 <td style={{ padding: "12px 14px" }}>{r.buyer.name}</td>
-                <td style={{ padding: "12px 14px", fontSize: 13 }}>{r.finishedProduct.itemType.name} <span style={{ color: "var(--muted)" }}>({r.finishedProduct.sku})</span></td>
+                <td style={{ padding: "12px 14px", fontSize: 13 }}>{r.finishedProduct?.itemType?.name ?? "—"} <span style={{ color: "var(--muted)" }}>({r.finishedProduct?.sku ?? "—"})</span></td>
                 <td style={{ padding: "12px 14px", fontSize: 13 }}>{r.quantity}</td>
                 <td style={{ padding: "12px 14px" }}><Badge s={r.condition} /></td>
                 <td style={{ padding: "12px 14px", fontSize: 13, maxWidth: 200 }}>{r.reason}</td>
@@ -59,7 +59,7 @@ export default function Returns({ buyerReturns, supplierReturns }: Props) {
                 <td style={{ padding: "12px 14px" }}>{r.supplier.name}</td>
                 <td style={{ padding: "12px 14px" }}><Badge s={r.returnKind} /></td>
                 <td style={{ padding: "12px 14px", fontSize: 13 }}>
-                  {r.returnKind === "RAW_CLOTH" ? `${r.metersReturned}m — ${r.rawClothBatch?.batchNumber}` : `${r.quantityReturned} pcs`}
+                  {r.returnKind === "RAW_CLOTH" ? `${r.metersReturned}m — ${r.rawClothBatch?.batchNumber ?? "N/A"}` : `${r.quantityReturned} pcs`}
                 </td>
                 <td style={{ padding: "12px 14px", fontSize: 13, maxWidth: 200 }}>{r.reason}</td>
                 <td style={{ padding: "12px 14px", fontSize: 13 }}>{formatDateShort(r.createdAt)}</td>

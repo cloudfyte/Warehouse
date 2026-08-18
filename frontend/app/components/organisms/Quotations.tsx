@@ -201,6 +201,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
       await gql(`mutation CQSO($id:ID!,$paymentMode:String){convertQuotationToSo(id:$id,paymentMode:$paymentMode){salesOrder{id orderNumber}}}`,
         { id: qt.id, paymentMode });
       setConvertMode(null);
+      setSelected(null);
       onRefresh();
       showToast(`Sales Order created from ${qt.quotationNumber}!`, "success");
     } catch (e: unknown) {
@@ -301,7 +302,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                   title="Print / Save as PDF">
                   🖨 Print
                 </button>
-                <button onClick={() => setSelected(null)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                <button onClick={() => { setSelected(null); setConvertMode(null); }} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
             </div>
 
@@ -329,7 +330,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                   <tbody>
                     {selected.items.map(it => (
                       <tr key={it.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                        <td className="py-2">{it.finishedProduct.sku} — {it.finishedProduct.itemType.name}</td>
+                        <td className="py-2">{it.finishedProduct.sku} — {it.finishedProduct.itemType?.name ?? "—"}</td>
                         <td className="py-2">{it.quantity}</td>
                         <td className="py-2">{fmt(it.unitPrice)}</td>
                         <td className="py-2 font-medium">{fmt(it.totalPrice)}</td>
@@ -440,7 +441,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
             style={{ background: "var(--surface)" }}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">New Quotation</h3>
-              <button onClick={() => setShowCreate(false)} className="text-2xl" style={{ color: "var(--text-secondary)" }}>×</button>
+              <button onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setErr(""); }} className="text-2xl" style={{ color: "var(--text-secondary)" }}>×</button>
             </div>
 
             {err && <div className="p-3 rounded text-sm" style={{ background: "#fce4ec", color: "#c62828" }}>{err}</div>}
@@ -511,7 +512,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
             </div>
 
             <div className="flex gap-3 pt-2 justify-end">
-              <button onClick={() => setShowCreate(false)}
+              <button onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setErr(""); }}
                 className="px-4 py-2 rounded text-sm" style={{ color: "var(--text-secondary)" }}>Cancel</button>
               <button onClick={saveQuotation} disabled={saving}
                 className="px-4 py-2 rounded text-sm font-medium text-white"

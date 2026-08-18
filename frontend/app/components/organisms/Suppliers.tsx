@@ -166,7 +166,7 @@ function SupplierHistory({ supplier, purchaseBills, purchaseOrders, supplierRetu
   );
 }
 
-export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, purchaseBills = [], purchaseOrders = [], supplierReturns = [], onMutate }: Props) {
+export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager = false, purchaseBills = [], purchaseOrders = [], supplierReturns = [], onMutate }: Props) {
   const [editing, setEditing] = useState<Partial<Supplier> | null>(null);
   const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -175,7 +175,7 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, purchaseBi
   const [error, setError] = useState("");
   const [waIsSameAsPhone, setWaIsSameAsPhone] = useState(false);
 
-  const canEdit = isSuperAdmin || isAdmin;
+  const canEdit = isSuperAdmin || isAdmin || isManager;
   const filtered = suppliers.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.contactPerson?.toLowerCase().includes(search.toLowerCase())

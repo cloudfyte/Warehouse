@@ -231,10 +231,10 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       {/* New Assignment modal */}
       {showForm && (
         <Modal title="New Cutting Assignment" subtitle="Assign cloth from a batch to a cutting master"
-          onClose={() => { setShowForm(false); setError(""); }} width={520}
+          onClose={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" }); }} width={520}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId} style={BTN_PRI}>{loading ? "Assigning…" : "Create Assignment"}</button>
-            <button onClick={() => { setShowForm(false); setError(""); }} style={BTN_SEC}>Cancel</button>
+            <button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId || !form.meters || !form.targetPieces} style={BTN_PRI}>{loading ? "Assigning…" : "Create Assignment"}</button>
+            <button onClick={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" }); }} style={BTN_SEC}>Cancel</button>
           </div>}>
           {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

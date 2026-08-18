@@ -164,7 +164,7 @@ function BuyerHistory({ buyer, salesOrders, creditTransactions, buyerReturns, on
   );
 }
 
-export default function Buyers({ buyers, isAdmin, isSuperAdmin, salesOrders = [], creditTransactions = [], buyerReturns = [], onMutate }: Props) {
+export default function Buyers({ buyers, isAdmin, isSuperAdmin, isManager = false, salesOrders = [], creditTransactions = [], buyerReturns = [], onMutate }: Props) {
   const [editing, setEditing] = useState<Partial<Buyer> | null>(null);
   const [historyBuyer, setHistoryBuyer] = useState<Buyer | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -173,7 +173,7 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, salesOrders = []
   const [error, setError] = useState("");
   const [waIsSameAsPhone, setWaIsSameAsPhone] = useState(false);
 
-  const canEdit = isSuperAdmin || isAdmin;
+  const canEdit = isSuperAdmin || isAdmin || isManager;
 
   function openNew() {
     setIsNew(true); setEditing({ name: "", contactPerson: "", email: "", phone: "", whatsapp: "", address: "", city: "", state: "", gstin: "", buyerType: "WHOLESALE", creditLimit: 0, notes: "" }); setError(""); setWaIsSameAsPhone(false);
@@ -275,6 +275,14 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, salesOrders = []
                   borderColor: !waIsSameAsPhone && editing?.whatsapp ? "#25d366" : undefined }} />
             </div>
             {inp("GSTIN", "gstin")}
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <label style={LBL}>Address
+              <textarea value={editing?.address ?? ""} onChange={e => setEditing(p => ({ ...p, address: e.target.value }))}
+                style={{ ...I, resize: "vertical", minHeight: 60 }} placeholder="Street / building address" />
+            </label>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
             <StateCity
               state={editing.state || ""} city={editing.city || ""}
               onStateChange={v => setEditing(p => ({ ...p, state: v }))}

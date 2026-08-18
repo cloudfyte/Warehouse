@@ -126,7 +126,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
             ].map(item => (
               <div key={item.label} style={{ background: "var(--canvas)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--line)" }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{item.label}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: item.color }}>₹{item.value}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: item.color }}>{item.value}</div>
               </div>
             ))}
           </div>
@@ -142,7 +142,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
                       <div style={{ fontSize: 13 }}>{formatDateShort(p.paymentDate)} · <span style={{ fontWeight: 600 }}>{p.paymentMethod}</span></div>
                       {p.reference && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Ref: {p.reference}</div>}
                     </div>
-                    <div style={{ fontWeight: 800, color: "#347050", fontSize: 14 }}>+₹{formatMoney(p.amount)}</div>
+                    <div style={{ fontWeight: 800, color: "#347050", fontSize: 14 }}>+{formatMoney(p.amount)}</div>
                   </div>
                 ))}
               </div>
@@ -169,7 +169,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
                 <label style={LBL}>Reference (UTR / Cheque No.)
                   <input value={payForm.reference} onChange={e => setPayForm(p => ({ ...p, reference: e.target.value }))} style={I} placeholder="Optional" />
                 </label>
-                <button onClick={recordPayment} disabled={loading || !payForm.amount}
+                <button onClick={recordPayment} disabled={loading || !(parseFloat(payForm.amount) > 0)}
                   style={{ padding: "12px", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
                   {loading ? "Recording…" : "Record Payment"}
                 </button>
@@ -198,9 +198,9 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
               <tr key={c.id} style={{ borderBottom: "1px solid var(--panel-border)" }}>
                 <td style={{ padding: "13px 16px", fontWeight: 700, fontSize: 13 }}>{c.buyer.name}</td>
                 <td style={{ padding: "13px 16px", fontSize: 13, color: "var(--muted)" }}>{c.salesOrder.orderNumber}</td>
-                <td style={{ padding: "13px 16px", fontSize: 13 }}>₹{formatMoney(c.totalAmount)}</td>
-                <td style={{ padding: "13px 16px", fontSize: 13, color: "#347050", fontWeight: 600 }}>₹{formatMoney(c.amountPaid)}</td>
-                <td style={{ padding: "13px 16px", fontSize: 13, fontWeight: 800, color: c.amountDue > 0 ? "#b95c56" : "var(--muted)" }}>₹{formatMoney(c.amountDue)}</td>
+                <td style={{ padding: "13px 16px", fontSize: 13 }}>{formatMoney(c.totalAmount)}</td>
+                <td style={{ padding: "13px 16px", fontSize: 13, color: "#347050", fontWeight: 600 }}>{formatMoney(c.amountPaid)}</td>
+                <td style={{ padding: "13px 16px", fontSize: 13, fontWeight: 800, color: c.amountDue > 0 ? "#b95c56" : "var(--muted)" }}>{formatMoney(c.amountDue)}</td>
                 <td style={{ padding: "13px 16px", fontSize: 12, color: "var(--muted)" }}>{c.dueDate ? formatDateShort(c.dueDate) : "—"}</td>
                 <td style={{ padding: "13px 16px" }}><Badge s={c.status} /></td>
                 <td style={{ padding: "13px 16px" }}>
