@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { formatMoney, formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
+import AgeGroupSelect from "@/app/components/atoms/AgeGroupSelect";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Textarea from "@/app/components/atoms/Textarea";
@@ -83,6 +84,7 @@ interface DraftItem {
   binLocation: string
   clothCode: string
   itemTypeId: string
+  ageGroup: string
   size: string
   quantity: string
   unitPrice: string
@@ -118,7 +120,7 @@ function blankItem(): DraftItem {
   return {
     itemKind: "RAW_CLOTH", clothCategoryId: "", clothColorId: "",
     totalMeters: "", costPerMeter: "", binLocation: "", clothCode: "",
-    itemTypeId: "", size: "", quantity: "", unitPrice: "", gstRate: "", notes: "",
+    itemTypeId: "", ageGroup: "", size: "", quantity: "", unitPrice: "", gstRate: "", notes: "",
   };
 }
 
@@ -265,6 +267,7 @@ export default function PurchaseBills({
             binLocation: it.binLocation,
             clothCode: it.clothCode,
             itemTypeId: it.itemTypeId || null,
+            ageGroup: it.ageGroup || null,
             size: it.size,
             quantity: it.quantity ? parseInt(it.quantity) : null,
             unitPrice: it.unitPrice ? parseFloat(it.unitPrice) : null,
@@ -898,8 +901,11 @@ function ItemEditor({
               {clothColors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </Field>
+          <Field label="Age Group">
+            <AgeGroupSelect value={item.ageGroup} onChange={v => onChange({ ageGroup: v, size: "" })} />
+          </Field>
           <div>
-            <SizeSelect value={item.size} onChange={v => onChange({ size: v })} label="Size" />
+            <SizeSelect value={item.size} onChange={v => onChange({ size: v })} label="Size" ageGroup={item.ageGroup || undefined} />
           </div>
           <Field label="Quantity" required>
             <Input type="number" min="0" step="1" value={item.quantity} onChange={e => onChange({ quantity: e.target.value })} placeholder="e.g. 24" />

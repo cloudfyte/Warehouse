@@ -8,6 +8,8 @@ import Modal from "@/app/components/atoms/Modal";
 import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
+import SizeSelect from "@/app/components/atoms/SizeSelect";
+import AgeGroupSelect from "@/app/components/atoms/AgeGroupSelect";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
@@ -85,7 +87,7 @@ function ProgressBar({ value, max, color = "var(--primary)" }: { value: number; 
 export default function Cutting({ assignments, batches, cuttingMasters, itemTypes, isAdmin, isSuperAdmin, isManager, isCuttingMaster, onMutate }: Props) {
   const [selected, setSelected] = useState<CuttingAssignment | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" });
+  const [form, setForm] = useState({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
   const [update, setUpdate] = useState({ piecesCompleted: 0, clothUsed: 0, clothWasted: 0, status: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -156,11 +158,11 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
     setLoading(true); setError("");
     try {
       await onMutate(
-        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int!,$size:String,$notes:String){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,size:$size,notes:$notes){assignment{id}}}`,
-        { b: form.batchId, m: form.masterId, t: form.itemTypeId, meters: +form.meters, target: +form.targetPieces, size: form.size || undefined, notes: form.notes }
+        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int!,$ag:String,$size:String,$notes:String){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,ageGroup:$ag,size:$size,notes:$notes){assignment{id}}}`,
+        { b: form.batchId, m: form.masterId, t: form.itemTypeId, meters: +form.meters, target: +form.targetPieces, ag: form.ageGroup || undefined, size: form.size || undefined, notes: form.notes }
       );
       setShowForm(false);
-      setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" });
+      setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
     } catch (e: unknown) { setError(friendlyError(e)); }
     finally { setLoading(false); }
   }
@@ -200,10 +202,10 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       {/* New Assignment modal */}
       {showForm && (
         <Modal title="New Cutting Assignment" subtitle="Assign cloth from a batch to a cutting master"
-          onClose={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" }); }} width={520}
+          onClose={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" }); }} width={520}
           footer={<div style={{ display: "flex", gap: 10 }}>
             <Button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId || !form.meters || !form.targetPieces} style={{ flex: 1 }}>{loading ? "Assigning…" : "Create Assignment"}</Button>
-            <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" }); }} style={{ flex: 1 }}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" }); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
           <ErrorBanner msg={error} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -258,15 +260,13 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
                 <Input type="number" value={form.targetPieces} placeholder="0" onChange={e => setForm(p => ({ ...p, targetPieces: e.target.value }))} />
               </Field>
             </FormGrid>
-            <FormGrid>
-              <Field label="Size (optional)">
-                <Select value={form.size} onChange={e => setForm(p => ({ ...p, size: e.target.value }))}>
-                  <option value="">Free Size / Not specified</option>
-                  {["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40", "42", "44"].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </Select>
+            <FormGrid cols={3}>
+              <Field label="Age Group (optional)">
+                <AgeGroupSelect value={form.ageGroup} onChange={v => setForm(p => ({ ...p, ageGroup: v, size: "" })) } />
               </Field>
+              <div>
+                <SizeSelect value={form.size} onChange={v => setForm(p => ({ ...p, size: v }))} label="Size (optional)" ageGroup={form.ageGroup || undefined} />
+              </div>
               <Field label="Notes">
                 <Input value={form.notes} placeholder="Optional notes…" onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
               </Field>
@@ -325,6 +325,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
                     <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1 }}>{a.itemType.name}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
                       ✂ {a.cuttingMaster.username} &nbsp;·&nbsp; {a.rawClothBatch.batchNumber} {a.rawClothBatch.clothColor.name}
+                      {a.ageGroup && <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 10, background: "var(--canvas)", fontWeight: 700 }}>{a.ageGroup}</span>}
                       {a.size && <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 10, background: "var(--canvas)", fontWeight: 700 }}>Size: {a.size}</span>}
                     </div>
                   </div>

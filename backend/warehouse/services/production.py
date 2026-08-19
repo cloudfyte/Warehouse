@@ -10,7 +10,7 @@ from warehouse.services.barcode import generate_barcode_svg
 
 
 def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, item_type_id,
-                              meters_assigned, target_pieces, size="", assigned_date=None, due_date=None, notes=""):
+                              meters_assigned, target_pieces, age_group="", size="", assigned_date=None, due_date=None, notes=""):
     meters = Decimal(str(meters_assigned))
 
     try:
@@ -44,6 +44,7 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
             item_type=item_type,
             meters_assigned=meters,
             target_pieces=target_pieces,
+            age_group=age_group.strip(),
             size=size.strip(),
             assigned_date=assigned_date or timezone.now().date(),
             due_date=due_date,
@@ -132,7 +133,7 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
 
 def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=None,
                               item_type_id=None, cloth_category_id=None, cloth_color_id=None,
-                              size="", quantity, warehouse_id, cost_price, sale_price):
+                              age_group="", size="", quantity, warehouse_id, cost_price, sale_price):
     from warehouse.permissions import get_warehouse
     from warehouse.models import ReadymadeStock
 
@@ -151,6 +152,7 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             item_type_id = sj.cutting_assignment.item_type_id
             cloth_category_id = sj.cutting_assignment.raw_cloth_batch.cloth_category_id
             cloth_color_id = sj.cutting_assignment.raw_cloth_batch.cloth_color_id
+            age_group = sj.cutting_assignment.age_group
             size = sj.cutting_assignment.size
 
         if readymade_stock_id:
@@ -164,11 +166,13 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             rs.save(update_fields=["quantity_available"])
             item_type_id = rs.item_type_id
             cloth_color_id = rs.cloth_color_id
+            age_group = rs.age_group
 
         fp = FinishedProduct.objects.create(
             item_type_id=item_type_id,
             cloth_category_id=cloth_category_id,
             cloth_color_id=cloth_color_id,
+            age_group=age_group.strip() if age_group else "",
             size=size.strip(),
             source=source,
             stitching_job=sj,

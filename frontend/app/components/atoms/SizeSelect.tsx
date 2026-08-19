@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
+import { AGE_GROUP_SIZES } from "./AgeGroupSelect";
 
 const ALPHA_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "Free Size"];
 const NUMERIC_SIZES = ["28", "30", "32", "34", "36", "38", "40", "42", "44", "46", "48", "50"];
-
-const ALL_STANDARD = [...ALPHA_SIZES, ...NUMERIC_SIZES];
+const ALL_STANDARD = [...ALPHA_SIZES, ...NUMERIC_SIZES, ...Object.values(AGE_GROUP_SIZES).flat()];
 
 const I: React.CSSProperties = {
   padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
@@ -14,15 +14,18 @@ const I: React.CSSProperties = {
 interface Props {
   value: string;
   onChange: (v: string) => void;
+  ageGroup?: string;
   extraOptions?: string[];
   label?: string;
   required?: boolean;
 }
 
-export default function SizeSelect({ value, onChange, extraOptions = [], label = "Size", required }: Props) {
+export default function SizeSelect({ value, onChange, ageGroup, extraOptions = [], label = "Size", required }: Props) {
   const isCustom = value !== "" && !ALL_STANDARD.includes(value) && !extraOptions.includes(value);
   const [custom, setCustom] = useState(isCustom ? value : "");
 
+  // When ageGroup is set, show only those sizes; otherwise show the generic list
+  const ageSizes = ageGroup && AGE_GROUP_SIZES[ageGroup] ? AGE_GROUP_SIZES[ageGroup] : null;
   const extraFiltered = extraOptions.filter(e => !ALL_STANDARD.includes(e));
 
   function handleSelect(v: string) {
@@ -41,12 +44,20 @@ export default function SizeSelect({ value, onChange, extraOptions = [], label =
       {label}{required && " *"}
       <select value={selectValue} onChange={e => handleSelect(e.target.value)} style={I}>
         <option value="">— Select size —</option>
-        <optgroup label="Clothing sizes">
-          {ALPHA_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-        </optgroup>
-        <optgroup label="Numeric sizes (waist / trouser)">
-          {NUMERIC_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-        </optgroup>
+        {ageSizes ? (
+          <optgroup label={ageGroup}>
+            {ageSizes.map(s => <option key={s} value={s}>{s}</option>)}
+          </optgroup>
+        ) : (
+          <>
+            <optgroup label="Clothing sizes">
+              {ALPHA_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+            </optgroup>
+            <optgroup label="Numeric sizes (waist / trouser)">
+              {NUMERIC_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+            </optgroup>
+          </>
+        )}
         {extraFiltered.length > 0 && (
           <optgroup label="Other">
             {extraFiltered.map(s => <option key={s} value={s}>{s}</option>)}

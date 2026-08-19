@@ -18,6 +18,7 @@ class POItemInput(graphene.InputObjectType):
     ordered_meters = graphene.Float()
     item_type_id = graphene.ID()
     item_name = graphene.String()
+    age_group = graphene.String()
     size = graphene.String()
     ordered_quantity = graphene.Int()
     unit_price = graphene.Float()

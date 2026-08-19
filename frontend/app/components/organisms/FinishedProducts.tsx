@@ -23,7 +23,7 @@ function printTag(product: FinishedProduct) {
   const win = window.open("", "_blank");
   if (!win) return;
   const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-  const desc = [product.clothColor?.name, product.size].filter(Boolean).map(cap).join(" · ");
+  const desc = [product.clothColor?.name, product.ageGroup, product.size].filter(Boolean).map(cap).join(" · ");
   const mrp = Number(product.salePrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
   <style>
@@ -105,7 +105,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
     if (local) { setSelected(local); return; }
     if (gql) {
       const res = await gql(
-        `query L($b:String!){productByBarcode(barcode:$b){id sku quantity salePrice costPrice size source barcode barcodeSvg tagsPrinted createdAt itemType{id name} clothColor{id name hexCode} clothCategory{id name} warehouse{id name}}}`,
+        `query L($b:String!){productByBarcode(barcode:$b){id sku quantity salePrice costPrice ageGroup size source barcode barcodeSvg tagsPrinted createdAt itemType{id name} clothColor{id name hexCode} clothCategory{id name} warehouse{id name}}}`,
         { b: code }
       ).catch(() => null);
       if (res?.productByBarcode) { setSelected(res.productByBarcode); return; }
@@ -135,7 +135,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
             <Button variant="secondary" onClick={() => downloadCsv(
               `finished_goods_${new Date().toISOString().slice(0, 10)}.csv`,
               filtered.map(p => ({
-                "SKU": p.sku, "Item Type": p.itemType.name, "Size": p.size || "", "Color": p.clothColor?.name || "",
+                "SKU": p.sku, "Item Type": p.itemType.name, "Age Group": p.ageGroup || "", "Size": p.size || "", "Color": p.clothColor?.name || "",
                 "Source": p.source, "Quantity": p.quantity, "Sale Price (₹)": p.salePrice,
                 "Cost Price (₹)": p.costPrice, "Warehouse": p.warehouse?.name || "",
                 "Barcode": p.barcode, "Created": formatDateShort(p.createdAt),
@@ -176,6 +176,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[
                   ["Color", selected.clothColor?.name || "—"],
+                  ["Age Group", selected.ageGroup || "—"],
                   ["Size", selected.size || "—"],
                   ["Source", selected.source === "IN_HOUSE" ? "Stitched" : "Imported"],
                   ["Quantity", `${selected.quantity} pcs`],
@@ -226,7 +227,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
               />
             </div>
             <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10 }}>
-              {[p.clothColor?.name, p.size].filter(Boolean).join(" · ") || "—"} · {p.warehouse.code}
+              {[p.clothColor?.name, p.ageGroup, p.size].filter(Boolean).join(" · ") || "—"} · {p.warehouse.code}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>

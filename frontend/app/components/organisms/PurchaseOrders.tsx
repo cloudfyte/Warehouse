@@ -6,6 +6,7 @@ import { friendlyError } from "@/app/lib/errors";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
+import AgeGroupSelect from "@/app/components/atoms/AgeGroupSelect";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import { downloadCsv } from "@/app/lib/csv";
 import { nameToColorHex } from "@/app/lib/colorUtils";
@@ -32,8 +33,8 @@ function Badge({ s }: { s: string }) {
   return <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: (STATUS_BADGE_COLORS[s] || "#888") + "22", color: STATUS_BADGE_COLORS[s] || "#888" }}>{PO_STATUS_LABELS[s] || s}</span>;
 }
 
-interface POItem { kind: "RAW_CLOTH" | "READYMADE"; categoryId: string; colorId: string; meters: number; itemTypeId: string; itemName: string; size: string; qty: number; unitPrice: number }
-const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "", meters: 0, itemTypeId: "", itemName: "", size: "", qty: 0, unitPrice: 0 });
+interface POItem { kind: "RAW_CLOTH" | "READYMADE"; categoryId: string; colorId: string; meters: number; itemTypeId: string; itemName: string; ageGroup: string; size: string; qty: number; unitPrice: number }
+const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "", meters: 0, itemTypeId: "", itemName: "", ageGroup: "", size: "", qty: 0, unitPrice: 0 });
 
 const STATUSES = ["DRAFT", "PLACED", "DISPATCHED", "RECEIVED", "VERIFIED", "CANCELLED"];
 const PO_NEXT: Record<string, string> = { DRAFT: "PLACED", PLACED: "DISPATCHED", DISPATCHED: "RECEIVED", RECEIVED: "VERIFIED" };
@@ -123,7 +124,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     try {
       const gqlItems = items.map(it => it.kind === "RAW_CLOTH"
         ? { itemKind: "RAW_CLOTH", clothCategoryId: it.categoryId, clothColorId: it.colorId || undefined, orderedMeters: Number(it.meters), unitPrice: Number(it.unitPrice) }
-        : { itemKind: "READYMADE", itemTypeId: it.itemTypeId, clothColorId: it.colorId || undefined, itemName: it.itemName, size: it.size, orderedQuantity: Number(it.qty), unitPrice: Number(it.unitPrice) }
+        : { itemKind: "READYMADE", itemTypeId: it.itemTypeId, clothColorId: it.colorId || undefined, itemName: it.itemName, ageGroup: it.ageGroup || undefined, size: it.size, orderedQuantity: Number(it.qty), unitPrice: Number(it.unitPrice) }
       );
       await onMutate(
         `mutation C($sup:ID!,$wh:ID!,$type:String!,$del:Date,$notes:String,$items:[POItemInput!]!){createPurchaseOrder(supplierId:$sup,warehouseId:$wh,orderType:$type,expectedDelivery:$del,notes:$notes,items:$items){purchaseOrder{id poNumber}}}`,
@@ -363,7 +364,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                       </Field>
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr", gap: 12 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 1fr", gap: 12 }}>
                       <CreatableSelect
                         label="Item Type" options={itemTypes} value={item.itemTypeId}
                         onChange={v => updateItem(idx, { itemTypeId: v })}
@@ -375,7 +376,10 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                         onChange={v => updateItem(idx, { colorId: v })}
                         onCreate={createColor} placeholder="Select color…"
                       />
-                      <SizeSelect value={item.size} onChange={v => updateItem(idx, { size: v })} label="Size" />
+                      <Field label="Age Group">
+                        <AgeGroupSelect value={item.ageGroup} onChange={v => updateItem(idx, { ageGroup: v, size: "" })} />
+                      </Field>
+                      <SizeSelect value={item.size} onChange={v => updateItem(idx, { size: v })} label="Size" ageGroup={item.ageGroup || undefined} />
                       <Field label="Qty (pcs)" required hint={submitted && !item.qty ? "Required" : undefined}>
                         <Input type="number" min="1" value={item.qty || ""} onChange={e => updateItem(idx, { qty: +e.target.value })}
                           style={{ borderColor: submitted && !item.qty ? "#e53935" : undefined }} placeholder="0" />
