@@ -55,6 +55,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   const [inspForm, setInspForm] = useState({
     parcelCondition: "GOOD", quantityCheckPassed: true,
     discrepancyNotes: "", notes: "", inspectionDate: new Date().toISOString().slice(0, 10),
+    proofImage: "",
   });
   const [inspSaving, setInspSaving] = useState(false);
   const [inspErr, setInspErr] = useState("");
@@ -62,14 +63,14 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   // New PO form state
   const [supplierId, setSupplierId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
-  // orderType derived from items — no manual dropdown needed
-  const orderType = items.every(i => i.kind === "RAW_CLOTH") ? "RAW_CLOTH"
-    : items.every(i => i.kind === "READYMADE") ? "READYMADE"
-    : "MIXED";
   const defaultDelivery = () => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); };
   const [expectedDelivery, setExpectedDelivery] = useState(defaultDelivery);
   const [poNotes, setPoNotes] = useState("");
   const [items, setItems] = useState<POItem[]>([emptyItem()]);
+  // orderType derived from items — no manual dropdown needed
+  const orderType = items.every(i => i.kind === "RAW_CLOTH") ? "RAW_CLOTH"
+    : items.every(i => i.kind === "READYMADE") ? "READYMADE"
+    : "MIXED";
   const [submitted, setSubmitted] = useState(false);
 
   const canEdit = isSuperAdmin || isAdmin || isManager;
@@ -149,10 +150,11 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         discrepancyNotes: existing.discrepancyNotes || "",
         notes: existing.notes || "",
         inspectionDate: existing.inspectionDate,
+        proofImage: existing.photos || "",
       });
       setInspection(existing);
     } else {
-      setInspForm({ parcelCondition: "GOOD", quantityCheckPassed: true, discrepancyNotes: "", notes: "", inspectionDate: new Date().toISOString().slice(0, 10) });
+      setInspForm({ parcelCondition: "GOOD", quantityCheckPassed: true, discrepancyNotes: "", notes: "", inspectionDate: new Date().toISOString().slice(0, 10), proofImage: "" });
       setInspection(null);
     }
     setInspErr(""); setShowInspection(true);
@@ -162,17 +164,30 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     if (!detail) return;
     setInspSaving(true); setInspErr("");
     try {
+      let savedId = inspection?.id ?? "";
       if (inspection) {
         await onMutate(
-          `mutation U($id:ID!,$cond:String,$qcp:Boolean,$dn:String,$notes:String){updateParcelInspection(id:$id,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,notes:$notes){inspection{id parcelCondition}}}`,
-          { id: inspection.id, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, notes: inspForm.notes || undefined }
+          `mutation U($id:ID!,$cond:String,$qcp:Boolean,$dn:String,$photos:String,$notes:String){updateParcelInspection(id:$id,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,photos:$photos,notes:$notes){inspection{id parcelCondition}}}`,
+          { id: inspection.id, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, photos: inspForm.proofImage || undefined, notes: inspForm.notes || undefined }
         );
       } else {
-        await onMutate(
-          `mutation C($poId:ID!,$date:Date!,$cond:String,$qcp:Boolean,$dn:String,$notes:String){createParcelInspection(poId:$poId,inspectionDate:$date,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,notes:$notes){inspection{id parcelCondition}}}`,
-          { poId: detail.id, date: inspForm.inspectionDate, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, notes: inspForm.notes || undefined }
+        const r = await onMutate(
+          `mutation C($poId:ID!,$date:Date!,$cond:String,$qcp:Boolean,$dn:String,$photos:String,$notes:String){createParcelInspection(poId:$poId,inspectionDate:$date,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,photos:$photos,notes:$notes){inspection{id parcelCondition}}}`,
+          { poId: detail.id, date: inspForm.inspectionDate, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, photos: inspForm.proofImage || undefined, notes: inspForm.notes || undefined }
         );
+        savedId = r.createParcelInspection.inspection.id;
       }
+      // Update detail immediately so panel reflects without a page refresh
+      const updated = {
+        id: savedId, parcelCondition: inspForm.parcelCondition,
+        quantityCheckPassed: inspForm.quantityCheckPassed,
+        discrepancyNotes: inspForm.discrepancyNotes, photos: inspForm.proofImage,
+        notes: inspForm.notes, inspectionDate: inspForm.inspectionDate,
+        createdAt: inspection?.createdAt ?? new Date().toISOString(),
+        inspectedBy: inspection?.inspectedBy,
+      };
+      setDetail(d => d ? { ...d, parcelInspection: updated } : null);
+      setInspection(updated);
       setShowInspection(false);
     } catch (e: unknown) { setInspErr(e instanceof Error ? e.message : "Failed"); }
     finally { setInspSaving(false); }
@@ -485,6 +500,9 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                     </span>
                   </div>
                   {detail.parcelInspection.discrepancyNotes && <div style={{ color: "var(--muted)", fontSize: 12 }}>{detail.parcelInspection.discrepancyNotes}</div>}
+                  {detail.parcelInspection.photos && (
+                    <img src={detail.parcelInspection.photos} alt="Proof" style={{ marginTop: 8, maxWidth: "100%", maxHeight: 140, borderRadius: 6, border: "1px solid var(--line)", display: "block" }} />
+                  )}
                   <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 4 }}>Inspected: {detail.parcelInspection.inspectionDate} · by {detail.parcelInspection.inspectedBy?.username ?? "unknown"}</div>
                 </div>
               ) : (
@@ -530,6 +548,22 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               </Field>
               <Field label="Additional Notes">
                 <Textarea value={inspForm.notes} onChange={e => setInspForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Optional notes…" style={{ minHeight: "unset" }} />
+              </Field>
+              <Field label="Proof Photo">
+                <input type="file" accept="image/*" onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = ev => setInspForm(f => ({ ...f, proofImage: ev.target?.result as string ?? "" }));
+                  reader.readAsDataURL(file);
+                }} style={{ fontSize: 13 }} />
+                {inspForm.proofImage && (
+                  <div style={{ marginTop: 8, position: "relative", display: "inline-block" }}>
+                    <img src={inspForm.proofImage} alt="Proof" style={{ maxWidth: "100%", maxHeight: 160, borderRadius: 6, border: "1px solid var(--line)" }} />
+                    <button type="button" onClick={() => setInspForm(f => ({ ...f, proofImage: "" }))}
+                      style={{ position: "absolute", top: 4, right: 4, background: "#ef4444", border: "none", borderRadius: "50%", width: 20, height: 20, color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                  </div>
+                )}
               </Field>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>

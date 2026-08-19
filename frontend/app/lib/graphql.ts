@@ -112,7 +112,7 @@ export const DASHBOARD_QUERY = `
       items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name } }
       parcelInspection {
-        id parcelCondition quantityCheckPassed discrepancyNotes notes inspectionDate createdAt
+        id parcelCondition quantityCheckPassed discrepancyNotes photos notes inspectionDate createdAt
         inspectedBy { id username }
       }
     }
