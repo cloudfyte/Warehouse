@@ -272,7 +272,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               {/* Header fields */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
                 <label style={lbl}>
-                  Supplier <span style={{ color: "#e53935" }}>*</span>
+                  <span>Supplier <span style={{ color: "#e53935" }}>*</span></span>
                   <select value={supplierId} onChange={e => { setSupplierId(e.target.value); }}
                     style={{ ...sel, borderColor: submitted && !supplierId ? "#e53935" : undefined, boxShadow: submitted && !supplierId ? "0 0 0 2px #e5393520" : undefined }}>
                     <option value="">Select supplier…</option>
@@ -281,7 +281,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                   {submitted && !supplierId && <span style={{ fontSize: 11, color: "#e53935", marginTop: 3 }}>Required</span>}
                 </label>
                 <label style={lbl}>
-                  Destination Warehouse <span style={{ color: "#e53935" }}>*</span>
+                  <span>Destination Warehouse <span style={{ color: "#e53935" }}>*</span></span>
                   <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
                     style={{ ...sel, borderColor: submitted && !warehouseId ? "#e53935" : undefined, boxShadow: submitted && !warehouseId ? "0 0 0 2px #e5393520" : undefined }}>
                     <option value="">Select warehouse…</option>
@@ -351,7 +351,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                         onCreate={createColor} placeholder="Select color…"
                       />
                       <label style={lbl}>
-                        Meters <span style={{ color: "#e53935" }}>*</span>
+                        <span>Meters <span style={{ color: "#e53935" }}>*</span></span>
                         <input type="number" min="0" value={item.meters || ""} onChange={e => updateItem(idx, { meters: +e.target.value })} style={{ ...inp, borderColor: submitted && !item.meters ? "#e53935" : undefined }} placeholder="0" />
                         {submitted && !item.meters && <span style={{ fontSize: 11, color: "#e53935" }}>Required</span>}
                       </label>
@@ -375,7 +375,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                       />
                       <SizeSelect value={item.size} onChange={v => updateItem(idx, { size: v })} label="Size" />
                       <label style={lbl}>
-                        Qty (pcs) <span style={{ color: "#e53935" }}>*</span>
+                        <span>Qty (pcs) <span style={{ color: "#e53935" }}>*</span></span>
                         <input type="number" min="1" value={item.qty || ""} onChange={e => updateItem(idx, { qty: +e.target.value })} style={{ ...inp, borderColor: submitted && !item.qty ? "#e53935" : undefined }} placeholder="0" />
                         {submitted && !item.qty && <span style={{ fontSize: 11, color: "#e53935" }}>Required</span>}
                       </label>
