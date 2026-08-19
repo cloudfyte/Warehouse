@@ -12,7 +12,7 @@ services:
     environment:
       - DJANGO_DEBUG=False
       - DJANGO_ALLOWED_HOSTS=${SERVER_IP:-103.86.177.246},localhost,sri-warehouse.hms.rest
-      - CORS_ALLOWED_ORIGINS=https://sri-warehouse.hms.rest,https://sri-warehouse.hms.rest:8443
+      - CORS_ALLOWED_ORIGINS=https://sri-warehouse.hms.rest,https://sri-warehouse.hms.rest:8443,http://localhost:3002,http://localhost:3000
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&

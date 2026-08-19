@@ -1,7 +1,8 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  turbopack: {},  // empty config silences the error, turbopack handles hot reload natively
+  turbopack: {},
+  distDir: process.env.NEXT_DIST_DIR || '.next',
 }
 
 export default nextConfig

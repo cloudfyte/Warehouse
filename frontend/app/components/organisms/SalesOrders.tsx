@@ -201,24 +201,32 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
       </div>
 
       {/* ── Filters ── */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
         <input placeholder="Search order or buyer…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 220, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14 }} />
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14 }}>
-          <option value="">All statuses</option>
-          {Object.entries(SO_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From date"
-          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: dateFrom ? "var(--ink)" : "var(--muted)", fontSize: 14 }} />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To date"
-          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: dateTo ? "var(--ink)" : "var(--muted)", fontSize: 14 }} />
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(""); setDateTo(""); }}
-            style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "transparent", color: "var(--muted)", fontSize: 13, cursor: "pointer" }}>
-            Clear dates
-          </button>
-        )}
+          style={{ width: "100%", padding: "9px 14px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, boxSizing: "border-box", outline: "none" }} />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, minWidth: 160 }}>
+            <option value="">All statuses</option>
+            {Object.entries(SO_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>
+            From
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              style={{ padding: "7px 10px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 13 }} />
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>
+            To
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              style={{ padding: "7px 10px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 13 }} />
+          </label>
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+              style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--muted)", fontSize: 13, cursor: "pointer" }}>
+              ✕ Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Create Sales Order drawer ── */}

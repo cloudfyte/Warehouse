@@ -431,7 +431,7 @@ export default function Login({ onLogin }: Props) {
                   color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   fontFamily: "inherit",
-                }} disabled={loading}>
+                }} type="submit" disabled={loading}>
                   {loading
                     ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Signing in…</>
                     : <><LogIn size={16} /> Sign in</>
