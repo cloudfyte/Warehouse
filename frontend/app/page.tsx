@@ -687,10 +687,10 @@ export default function Home() {
             )}
           </button>
 
-          {/* Controls row */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Controls row — stacks vertically when collapsed so buttons fit in 56px */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexDirection: sidebarOpen ? "row" : "column" }}>
             <button onClick={() => setDarkMode(d => !d)} title={darkMode ? "Light mode" : "Dark mode"}
-              style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffffcc", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}>
+              style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffffcc", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: sidebarOpen ? "auto" : 36 }}>
               {darkMode ? <Sun size={14} /> : <Moon size={14} />}
             </button>
             {sidebarOpen ? (
@@ -700,7 +700,7 @@ export default function Home() {
               </button>
             ) : (
               <button onClick={() => setConfirmLogout(true)} title="Log out"
-                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "#ffffffaa", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "#ffffffaa", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 36 }}>
                 <LogOut size={14} />
               </button>
             )}

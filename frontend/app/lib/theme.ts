@@ -16,6 +16,9 @@ export function applyBrandColors(cfg: Partial<AppSettings>) {
     root.style.setProperty("--primary-2",   lighten(p, 0.12));
     root.style.setProperty("--primary-3",   lighten(p, 0.32));
     root.style.setProperty("--pale-green",  lighten(p, 0.84));
+    // Derive a very subtle tint for page backgrounds so the whole UI feels on-theme
+    root.style.setProperty("--bg",          lighten(p, 0.97));
+    root.style.setProperty("--canvas",      lighten(p, 0.94));
   }
   if (cfg.accentColor) root.style.setProperty("--accent", cfg.accentColor);
 }
