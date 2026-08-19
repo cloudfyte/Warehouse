@@ -16,7 +16,8 @@ interface Props {
 function printTag(product: FinishedProduct) {
   const win = window.open("", "_blank");
   if (!win) return;
-  const desc = [product.clothColor?.name, product.size].filter(Boolean).join(" · ");
+  const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const desc = [product.clothColor?.name, product.size].filter(Boolean).map(cap).join(" · ");
   const mrp = Number(product.salePrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
   <style>
@@ -44,7 +45,7 @@ function printTag(product: FinishedProduct) {
   <div class="page">
     <div class="tag">
       <div class="brand">Garment Tag</div>
-      <div class="name">${product.itemType.name}</div>
+      <div class="name">${cap(product.itemType.name)}</div>
       ${desc ? `<div class="desc">${desc}</div>` : ""}
       <div class="barcode-wrap">
         ${product.barcodeSvg ? product.barcodeSvg : `<span style="font-family:monospace;font-size:9pt;">${product.barcode}</span>`}
