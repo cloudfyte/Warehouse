@@ -481,3 +481,37 @@ textarea { min-height: 78px; resize: vertical; }
   .topbar-actions .primary-button::after { content: "＋"; font-size: 16px; }
   .welcome-row { align-items: flex-start; gap: 15px; flex-direction: column; }
 }
+
+/* ─── Mobile-first improvements (sidebar is JS-controlled drawer on mobile) ── */
+@media (max-width: 480px) {
+  /* When sidebar is off-screen on mobile, main takes full width */
+  .page-content { padding: 16px 14px 32px; }
+  .topbar { padding: 0 12px; }
+  /* KPI tiles: 2 cols on small screens */
+  .stat-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+  .quick-actions { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+  /* Single col form grids */
+  .form-grid { grid-template-columns: 1fr !important; }
+  /* Topbar title clamp */
+  .topbar h1 { font-size: 15px !important; }
+}
+
+/* ─── Modal mobile sizing ─────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  /* All modals should fit the screen with breathing room */
+  [role="dialog"], .modal-overlay > div > div,
+  div[style*="border-radius: 18px"], div[style*="border-radius:18px"],
+  div[style*="border-radius: 20px"], div[style*="border-radius:20px"] {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin: 0 12px !important;
+    max-height: 90dvh !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* ─── Filter bar wrapping (PO, SO, etc.) ─────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Filter rows that use flex should wrap */
+  .filter-bar { flex-wrap: wrap !important; }
+}

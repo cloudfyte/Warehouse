@@ -188,10 +188,13 @@ export default function Login({ onLogin }: Props) {
         .login-channel-pill { transition: all 0.15s; }
         .login-channel-pill:hover { opacity: 0.85; }
         @media (max-width: 768px) {
-          .login-shell { flex-direction: column !important; }
-          .login-left { position: static !important; height: auto !important; width: 100% !important; min-height: 0 !important; padding: 22px 24px !important; flex-direction: row !important; align-items: center !important; gap: 14px !important; }
+          .login-shell { flex-direction: column !important; min-height: 100dvh !important; }
+          .login-left { position: static !important; height: auto !important; width: 100% !important; min-height: 0 !important; padding: 18px 20px !important; flex-direction: row !important; align-items: center !important; gap: 12px !important; flex-shrink: 0 !important; }
           .login-hero, .login-features, .login-left-footer { display: none !important; }
-          .login-right { min-height: 0 !important; flex: none !important; padding: 28px 20px 40px !important; }
+          .login-right { min-height: 0 !important; flex: 1 !important; padding: 28px 20px 36px !important; display: flex !important; align-items: flex-start !important; justify-content: center !important; }
+        }
+        @media (max-width: 480px) {
+          .login-right > div { max-width: 100% !important; }
         }
       `}</style>
 
