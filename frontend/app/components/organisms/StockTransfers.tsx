@@ -50,12 +50,23 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
       };
       if (form.transferKind === "RAW_CLOTH") {
         if (!form.rawClothBatchId || !form.metersToTransfer) { setErr("Select batch and enter meters."); setSaving(false); return; }
+        const selectedBatch = rawClothBatches.find(b => b.id === form.rawClothBatchId);
+        const meters = parseFloat(form.metersToTransfer);
+        if (selectedBatch && meters > selectedBatch.availableMeters) {
+          setErr(`Only ${selectedBatch.availableMeters}m available in this batch.`); setSaving(false); return;
+        }
         vars.rawClothBatchId = form.rawClothBatchId;
-        vars.metersToTransfer = parseFloat(form.metersToTransfer);
+        vars.metersToTransfer = meters;
       } else {
         if (!form.finishedProductId || !form.quantityToTransfer) { setErr("Select product and enter quantity."); setSaving(false); return; }
+        const selectedProduct = finishedProducts.find(p => p.id === form.finishedProductId);
+        const qty = parseInt(form.quantityToTransfer);
+        if (selectedProduct && qty > selectedProduct.quantity) {
+          setErr(`Only ${selectedProduct.quantity} pcs available for this product.`); setSaving(false); return;
+        }
+        if (qty < 1) { setErr("Quantity must be at least 1."); setSaving(false); return; }
         vars.finishedProductId = form.finishedProductId;
-        vars.quantityToTransfer = parseInt(form.quantityToTransfer);
+        vars.quantityToTransfer = qty;
       }
       await gql(`mutation CreateTransfer($fromWarehouseId:ID!,$toWarehouseId:ID!,$transferKind:String!,$rawClothBatchId:ID,$metersToTransfer:Float,$finishedProductId:ID,$quantityToTransfer:Int,$notes:String){
         createStockTransfer(fromWarehouseId:$fromWarehouseId,toWarehouseId:$toWarehouseId,transferKind:$transferKind,rawClothBatchId:$rawClothBatchId,metersToTransfer:$metersToTransfer,finishedProductId:$finishedProductId,quantityToTransfer:$quantityToTransfer,notes:$notes){
@@ -65,7 +76,8 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
       setCreating(false);
       setForm({ fromWarehouseId: "", toWarehouseId: "", transferKind: "RAW_CLOTH", rawClothBatchId: "", metersToTransfer: "", finishedProductId: "", quantityToTransfer: "", notes: "" });
       onRefresh();
-    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Failed"); }
+      showToast("Transfer created.", "success");
+    } catch (e: unknown) { const msg = e instanceof Error ? e.message : "Failed"; setErr(msg); showToast(msg, "error"); }
     finally { setSaving(false); }
   }
 
@@ -73,6 +85,8 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
     try {
       await gql(`mutation A($id:ID!){ ${mutation}(id:$id){ transfer{id status} } }`, { id });
       onRefresh();
+      const label: Record<string, string> = { dispatchStockTransfer: "Transfer dispatched.", markStockTransferReceived: "Transfer received — stock updated.", cancelStockTransfer: "Transfer cancelled." };
+      showToast(label[mutation] || "Transfer updated.", "success");
     } catch (e: unknown) { showToast(e instanceof Error ? e.message : "Failed", "error"); }
   }
 
@@ -201,7 +215,24 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
                     </Select>
                   </Field>
                   <Field label="Meters to Transfer">
-                    <Input type="number" min="0.01" step="0.01" value={form.metersToTransfer} onChange={e => setForm(f => ({ ...f, metersToTransfer: e.target.value }))} placeholder="e.g. 50" />
+                    {(() => {
+                      const batch = rawClothBatches.find(b => b.id === form.rawClothBatchId);
+                      return (
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <Input type="number" min="0.01" step="0.01"
+                            max={batch ? batch.availableMeters : undefined}
+                            value={form.metersToTransfer}
+                            onChange={e => setForm(f => ({ ...f, metersToTransfer: e.target.value }))}
+                            placeholder={batch ? `Max ${batch.availableMeters}m` : "e.g. 50"} />
+                          {batch && (
+                            <Button variant="secondary" size="sm"
+                              onClick={() => setForm(f => ({ ...f, metersToTransfer: String(batch.availableMeters) }))}>
+                              All ({batch.availableMeters}m)
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </Field>
                 </>
               ) : (
@@ -215,7 +246,24 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
                     </Select>
                   </Field>
                   <Field label="Quantity to Transfer">
-                    <Input type="number" min="1" value={form.quantityToTransfer} onChange={e => setForm(f => ({ ...f, quantityToTransfer: e.target.value }))} placeholder="e.g. 20" />
+                    {(() => {
+                      const prod = finishedProducts.find(p => p.id === form.finishedProductId);
+                      return (
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <Input type="number" min="1" step="1"
+                            max={prod ? prod.quantity : undefined}
+                            value={form.quantityToTransfer}
+                            onChange={e => setForm(f => ({ ...f, quantityToTransfer: e.target.value }))}
+                            placeholder={prod ? `Max ${prod.quantity} pcs` : "e.g. 20"} />
+                          {prod && (
+                            <Button variant="secondary" size="sm"
+                              onClick={() => setForm(f => ({ ...f, quantityToTransfer: String(prod.quantity) }))}>
+                              All ({prod.quantity} pcs)
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </Field>
                 </>
               )}
