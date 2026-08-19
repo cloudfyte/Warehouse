@@ -206,7 +206,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
           style={{ width: "100%", padding: "9px 14px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, boxSizing: "border-box", outline: "none" }} />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, minWidth: 160 }}>
+            style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, minWidth: 160, width: "auto" }}>
             <option value="">All statuses</option>
             {Object.entries(SO_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
