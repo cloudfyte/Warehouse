@@ -22,7 +22,7 @@ interface Props {
 function printTag(product: FinishedProduct) {
   const win = window.open("", "_blank");
   if (!win) return;
-  const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const cap = (s: string | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   const desc = [product.clothColor?.name, product.ageGroup, product.size].filter(Boolean).map(cap).join(" · ");
   const mrp = Number(product.salePrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
