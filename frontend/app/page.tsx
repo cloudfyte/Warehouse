@@ -87,10 +87,11 @@ interface SidebarSection { label: string; tabs: Tab[] }
 
 const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
-  { label: "Procurement", tabs: ["suppliers", "buyers", "purchase_orders", "purchase_bills"] },
+  { label: "Purchasing", tabs: ["suppliers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
-  { label: "Sales & Finance", tabs: ["sales_orders", "credit", "returns", "quotations", "expenses", "reports", "ledger"] },
+  { label: "Sales", tabs: ["buyers", "quotations", "sales_orders", "credit", "returns"] },
+  { label: "Finance", tabs: ["expenses", "reports", "ledger"] },
   { label: "Admin", tabs: ["item_types", "employees", "warehouses", "roles"] },
   { label: "System", tabs: ["notifications", "audit_log", "settings"] },
 ];
