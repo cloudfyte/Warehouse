@@ -188,13 +188,33 @@ export default function Login({ onLogin }: Props) {
         .login-channel-pill { transition: all 0.15s; }
         .login-channel-pill:hover { opacity: 0.85; }
         @media (max-width: 768px) {
-          .login-shell { flex-direction: column !important; min-height: 100dvh !important; }
-          .login-left { position: static !important; height: auto !important; width: 100% !important; min-height: 0 !important; padding: 18px 20px !important; flex-direction: row !important; align-items: center !important; gap: 12px !important; flex-shrink: 0 !important; }
-          .login-hero, .login-features, .login-left-footer { display: none !important; }
-          .login-right { min-height: 0 !important; flex: 1 !important; padding: 28px 20px 36px !important; display: flex !important; align-items: flex-start !important; justify-content: center !important; }
+          /* Dark hero fills top; white card slides up from bottom */
+          .login-shell { flex-direction: column !important; min-height: 100dvh !important; background: #0c1220 !important; }
+          .login-left {
+            position: static !important; height: auto !important; width: 100% !important;
+            min-height: 0 !important; flex-shrink: 0 !important; flex: none !important;
+            padding: 52px 24px 36px !important;
+            flex-direction: column !important; align-items: center !important;
+            text-align: center !important; gap: 0 !important;
+          }
+          /* Show a simplified hero headline on mobile */
+          .login-hero { display: flex !important; flex-direction: column !important; align-items: center !important; margin-top: 16px !important; flex: 0 0 auto !important; }
+          .login-hero > div:first-child { justify-content: center !important; }
+          .login-hero h1 { font-size: 22px !important; text-align: center !important; margin-bottom: 0 !important; }
+          .login-hero > p { display: none !important; }
+          .login-features, .login-left-footer { display: none !important; }
+          /* White card with rounded top slides up */
+          .login-right {
+            min-height: 0 !important; flex: 1 !important;
+            padding: 32px 20px 44px !important;
+            display: flex !important; align-items: flex-start !important; justify-content: center !important;
+            border-radius: 28px 28px 0 0 !important;
+            box-shadow: 0 -4px 32px rgba(0,0,0,0.35) !important;
+          }
         }
         @media (max-width: 480px) {
           .login-right > div { max-width: 100% !important; }
+          .login-left { padding: 44px 20px 28px !important; }
         }
       `}</style>
 
