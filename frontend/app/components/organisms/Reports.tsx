@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
-  type NameType,
 } from "recharts";
 import { PLReport, AgingReport } from "@/app/types";
 import { PL_REPORT_QUERY, AGING_REPORT_QUERY } from "@/app/lib/graphql";
@@ -145,7 +144,7 @@ export default function Reports({ gql }: Props) {
                         tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
                       <Tooltip
                         contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
-                        formatter={(v: unknown, name: NameType) => [fmt(typeof v === "number" ? v : 0), name as string]} />
+                        formatter={(v: unknown, name: unknown) => [fmt(typeof v === "number" ? v : 0), name as string]} />
                       <Legend />
                       <Bar dataKey="revenue" name="Revenue" fill="#2196f3" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="cogs" name="COGS" fill="#ff9800" radius={[4, 4, 0, 0]} />
