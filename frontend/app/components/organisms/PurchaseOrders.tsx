@@ -13,6 +13,8 @@ import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Textarea from "@/app/components/atoms/Textarea";
+import FileInput from "@/app/components/atoms/FileInput";
+import Checkbox from "@/app/components/atoms/Checkbox";
 import Field from "@/app/components/molecules/Field";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
@@ -532,17 +534,14 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 8 }}>Parcel Condition</label>
                 <div style={{ display: "flex", gap: 8 }}>
                   {["GOOD", "PARTIAL_DAMAGE", "DAMAGED"].map(c => (
-                    <button key={c} type="button" onClick={() => setInspForm(f => ({ ...f, parcelCondition: c }))}
-                      style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: `2px solid ${inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--line)"}`, background: inspForm.parcelCondition === c ? CONDITION_COLOR[c] + "22" : "transparent", color: inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--muted)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                    <Button key={c} variant="secondary" size="sm" onClick={() => setInspForm(f => ({ ...f, parcelCondition: c }))}
+                      style={{ flex: 1, justifyContent: "center", border: `2px solid ${inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--line)"}`, background: inspForm.parcelCondition === c ? CONDITION_COLOR[c] + "22" : "transparent", color: inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--muted)" }}>
                       {CONDITION_LABEL[c]}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}>
-                <input type="checkbox" checked={inspForm.quantityCheckPassed} onChange={e => setInspForm(f => ({ ...f, quantityCheckPassed: e.target.checked }))} />
-                Quantity check passed (received matches ordered)
-              </label>
+              <Checkbox label="Quantity check passed (received matches ordered)" checked={inspForm.quantityCheckPassed} onChange={e => setInspForm(f => ({ ...f, quantityCheckPassed: e.target.checked }))} />
               <Field label="Discrepancy Notes">
                 <Textarea value={inspForm.discrepancyNotes} onChange={e => setInspForm(f => ({ ...f, discrepancyNotes: e.target.value }))} rows={2} placeholder="Describe any discrepancies…" style={{ minHeight: "unset" }} />
               </Field>
@@ -550,18 +549,18 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 <Textarea value={inspForm.notes} onChange={e => setInspForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Optional notes…" style={{ minHeight: "unset" }} />
               </Field>
               <Field label="Proof Photo">
-                <input type="file" accept="image/*" onChange={e => {
+                <FileInput accept="image/*" onChange={e => {
                   const file = e.target.files?.[0];
                   if (!file) return;
                   const reader = new FileReader();
                   reader.onload = ev => setInspForm(f => ({ ...f, proofImage: ev.target?.result as string ?? "" }));
                   reader.readAsDataURL(file);
-                }} style={{ fontSize: 13 }} />
+                }} />
                 {inspForm.proofImage && (
                   <div style={{ marginTop: 8, position: "relative", display: "inline-block" }}>
                     <img src={inspForm.proofImage} alt="Proof" style={{ maxWidth: "100%", maxHeight: 160, borderRadius: 6, border: "1px solid var(--line)" }} />
-                    <button type="button" onClick={() => setInspForm(f => ({ ...f, proofImage: "" }))}
-                      style={{ position: "absolute", top: 4, right: 4, background: "#ef4444", border: "none", borderRadius: "50%", width: 20, height: 20, color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                    <Button variant="danger" size="sm" onClick={() => setInspForm(f => ({ ...f, proofImage: "" }))}
+                      style={{ position: "absolute", top: 4, right: 4, borderRadius: "50%", width: 20, height: 20, padding: 0, fontSize: 12, lineHeight: 1, justifyContent: "center" }}>×</Button>
                   </div>
                 )}
               </Field>

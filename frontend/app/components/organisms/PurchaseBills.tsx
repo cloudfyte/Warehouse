@@ -168,8 +168,7 @@ export default function PurchaseBills({
   const [invoiceRef, setInvoiceRef] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
   const [notes, setNotes] = useState("");
-  const [billImageB64, setBillImageB64] = useState("");
-  const [billImageName, setBillImageName] = useState("");
+  const [billImages, setBillImages] = useState<{ b64: string; name: string }[]>([]);
   const [items, setItems] = useState<DraftItem[]>([blankItem()]);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -177,21 +176,25 @@ export default function PurchaseBills({
     setSupplierId(""); setWarehouseId(warehouses[0]?.id ?? "");
     setBillDate(new Date().toISOString().slice(0, 10));
     setInvoiceRef(""); setAmountPaid(""); setNotes("");
-    setBillImageB64(""); setBillImageName("");
+    setBillImages([]);
     setItems([blankItem()]); setErr("");
   }
 
   function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setErr("Bill photo must be under 5 MB."); return; }
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) { setErr(`${file.name} must be under 5 MB.`); return; }
+    }
     setErr("");
-    const reader = new FileReader();
-    reader.onload = () => {
-      setBillImageB64(reader.result as string);
-      setBillImageName(file.name);
-    };
-    reader.readAsDataURL(file);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setBillImages(prev => [...prev, { b64: reader.result as string, name: file.name }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
   }
 
   function updateItem(idx: number, patch: Partial<DraftItem>) {
@@ -252,7 +255,7 @@ export default function PurchaseBills({
           supplierId, warehouseId, billDate, invoiceRef, notes,
           totalAmount: grandTotal,
           amountPaid: paid,
-          billImage: billImageB64,
+          billImage: billImages.length ? JSON.stringify(billImages.map(i => i.b64)) : undefined,
           items: items.map(it => ({
             itemKind: it.itemKind,
             clothCategoryId: it.clothCategoryId || null,
@@ -510,14 +513,23 @@ export default function PurchaseBills({
                       </table>
                     </div>
 
-                    {/* Bill image */}
-                    {bill.billImage && (
-                      <div style={{ marginTop: 14 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>Bill Photo</div>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={bill.billImage} alt="Bill" style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, border: "1px solid var(--line)" }} />
-                      </div>
-                    )}
+                    {/* Bill images */}
+                    {bill.billImage && (() => {
+                      let imgs: string[];
+                      try { imgs = JSON.parse(bill.billImage); if (!Array.isArray(imgs)) imgs = [bill.billImage]; }
+                      catch { imgs = [bill.billImage]; }
+                      return (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>Bill Photo{imgs.length > 1 ? "s" : ""}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            {imgs.map((src, i) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img key={i} src={src} alt={`Bill page ${i + 1}`} style={{ maxWidth: 300, maxHeight: 220, borderRadius: 8, border: "1px solid var(--line)", objectFit: "contain" }} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Supplier payment history */}
                     <div style={{ marginTop: 18 }}>
@@ -740,23 +752,25 @@ export default function PurchaseBills({
                 })()}
               </div>
 
-              {/* Bill photo */}
+              {/* Bill photos */}
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Bill Photo (optional)</label>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <Button variant="secondary" onClick={() => fileRef.current?.click()}>
-                    📷 {billImageName ? "Change Photo" : "Upload Bill"}
-                  </Button>
-                  {billImageName && <span style={{ fontSize: 12, color: "var(--muted)" }}>{billImageName}</span>}
-                  {billImageB64 && (
-                    <button onClick={() => { setBillImageB64(""); setBillImageName(""); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--muted)" }}>×</button>
-                  )}
-                </div>
-                <input ref={fileRef} type="file" accept="image/*" onChange={handleImagePick} style={{ display: "none" }} />
-                {billImageB64 && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={billImageB64} alt="Preview" style={{ marginTop: 8, maxWidth: 220, maxHeight: 160, borderRadius: 8, border: "1px solid var(--line)" }} />
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Bill Photos (optional — upload multiple pages)</label>
+                <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
+                  📷 Add Photo{billImages.length > 0 ? ` (${billImages.length} added)` : ""}
+                </Button>
+                <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleImagePick} style={{ display: "none" }} />
+                {billImages.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                    {billImages.map((img, i) => (
+                      <div key={i} style={{ position: "relative", display: "inline-block" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.b64} alt={img.name} style={{ width: 100, height: 80, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)" }} />
+                        <Button variant="danger" size="sm" onClick={() => setBillImages(prev => prev.filter((_, j) => j !== i))}
+                          style={{ position: "absolute", top: 2, right: 2, borderRadius: "50%", width: 18, height: 18, padding: 0, fontSize: 11, justifyContent: "center", minWidth: "unset" }}>×</Button>
+                        <div style={{ fontSize: 10, color: "var(--muted)", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{img.name}</div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -916,9 +930,9 @@ function ItemEditor({
         {lineTotal > 0 && (
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>LINE TOTAL</div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>₹{formatMoney(lineTotal)}</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>{formatMoney(lineTotal)}</div>
             {gstEnabled && (parseFloat(item.gstRate) || 0) > 0 && (
-              <div style={{ fontSize: 11, color: "var(--muted)" }}>+ {item.gstRate}% GST = ₹{formatMoney(lineTotal * (parseFloat(item.gstRate) || 0) / 100)}</div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>+ {item.gstRate}% GST = {formatMoney(lineTotal * (parseFloat(item.gstRate) || 0) / 100)}</div>
             )}
           </div>
         )}
