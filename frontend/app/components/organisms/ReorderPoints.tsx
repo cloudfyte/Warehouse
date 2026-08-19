@@ -2,6 +2,12 @@
 import { useState } from "react";
 import type { ReorderPoint, WarehouseLocation, ClothCategory, ClothColor, ItemType } from "@/app/types";
 import { showToast } from "@/app/lib/toast";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import Field from "@/app/components/molecules/Field";
 
 interface Props {
   reorderPoints: ReorderPoint[]
@@ -34,6 +40,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
   const [form, setForm] = useState<Form>(empty());
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [pendingDel, setPendingDel] = useState<string | null>(null);
 
   const canEdit = isAdmin || isManager;
 
@@ -77,14 +84,25 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
         });
       }
       setShowForm(false); onRefresh();
-    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Failed"); }
+      showToast(editing ? "Threshold updated." : "Threshold created.", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed";
+      setErr(msg); showToast(msg, "error");
+    }
     finally { setSaving(false); }
   }
 
   async function del(id: string) {
-    if (!confirm("Delete this reorder threshold?")) return;
+    if (pendingDel !== id) {
+      setPendingDel(id);
+      showToast("Click delete again to confirm.", "warn");
+      setTimeout(() => setPendingDel(prev => prev === id ? null : prev), 4000);
+      return;
+    }
+    setPendingDel(null);
     try {
       await gql(`mutation D($id:ID!){deleteReorderPoint(id:$id){ok}}`, { id });
+      showToast("Reorder threshold deleted.", "success");
       onRefresh();
     } catch (e: unknown) { showToast(e instanceof Error ? e.message : "Failed", "error"); }
   }
@@ -97,22 +115,13 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
     byWarehouse[key].push(rp);
   }
 
-  const inp: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 13, boxSizing: "border-box" };
-  const sel: React.CSSProperties = { ...inp, cursor: "pointer" };
-
   return (
     <div style={{ padding: "0 0 40px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Reorder Thresholds</div>
-          <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>Stock levels that trigger low-stock alerts</div>
-        </div>
-        {canEdit && (
-          <button onClick={openCreate} style={{ padding: "9px 18px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-            + Add Threshold
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Reorder Thresholds"
+        sub="Stock levels that trigger low-stock alerts"
+        actions={canEdit && <Button variant="primary" onClick={openCreate}>+ Add Threshold</Button>}
+      />
 
       {reorderPoints.length === 0 ? (
         <div style={{ textAlign: "center", padding: "72px 24px" }}>
@@ -120,9 +129,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>No reorder thresholds yet</div>
           <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>Set minimum stock levels to receive automatic low-stock alerts</div>
           {canEdit && (
-            <button onClick={openCreate} style={{ padding: "9px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-              + Add First Threshold
-            </button>
+            <Button variant="primary" onClick={openCreate}>+ Add First Threshold</Button>
           )}
         </div>
       ) : (
@@ -165,8 +172,8 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
                     </div>
                     {canEdit && (
                       <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={() => openEdit(rp)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontSize: 11 }}>Edit</button>
-                        <button onClick={() => del(rp.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #fca5a5", background: "transparent", color: "#dc2626", cursor: "pointer", fontSize: 11 }}>Delete</button>
+                        <Button variant="secondary" size="sm" onClick={() => openEdit(rp)}>Edit</Button>
+                        <Button variant="danger" size="sm" onClick={() => del(rp.id)}>{pendingDel === rp.id ? "Confirm?" : "Delete"}</Button>
                       </div>
                     )}
                   </div>
@@ -182,71 +189,63 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
           <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>{editing ? "Edit Threshold" : "Add Reorder Threshold"}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {err && <div style={{ background: "#fef2f2", color: "#b91c1c", borderRadius: 7, padding: "10px 14px", fontSize: 13 }}>{err}</div>}
+              <ErrorBanner msg={err} />
               {!editing && (
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Item Kind</label>
-                  <select value={form.itemKind} onChange={e => setForm(f => ({ ...f, itemKind: e.target.value }))} style={sel}>
+                <Field label="Item Kind">
+                  <Select value={form.itemKind} onChange={e => setForm(f => ({ ...f, itemKind: e.target.value }))}>
                     <option value="RAW_CLOTH">Raw Cloth</option>
                     <option value="FINISHED">Finished Product</option>
-                  </select>
-                </div>
+                  </Select>
+                </Field>
               )}
               {!editing && (
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Warehouse</label>
-                  <select value={form.warehouseId} onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))} style={sel}>
+                <Field label="Warehouse">
+                  <Select value={form.warehouseId} onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))}>
                     <option value="">Select warehouse…</option>
                     {warehouses.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
-                </div>
+                  </Select>
+                </Field>
               )}
               {form.itemKind === "RAW_CLOTH" ? (
                 <>
                   {!editing && (
                     <>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Cloth Category</label>
-                        <select value={form.clothCategoryId} onChange={e => setForm(f => ({ ...f, clothCategoryId: e.target.value }))} style={sel}>
+                      <Field label="Cloth Category">
+                        <Select value={form.clothCategoryId} onChange={e => setForm(f => ({ ...f, clothCategoryId: e.target.value }))}>
                           <option value="">Any / All</option>
                           {categories.filter(c => c.active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Cloth Color (optional)</label>
-                        <select value={form.clothColorId} onChange={e => setForm(f => ({ ...f, clothColorId: e.target.value }))} style={sel}>
+                        </Select>
+                      </Field>
+                      <Field label="Cloth Color (optional)">
+                        <Select value={form.clothColorId} onChange={e => setForm(f => ({ ...f, clothColorId: e.target.value }))}>
                           <option value="">Any / All</option>
                           {colors.filter(c => c.active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                      </div>
+                        </Select>
+                      </Field>
                     </>
                   )}
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Alert Threshold (meters)</label>
-                    <input type="number" min="0" step="0.5" value={form.thresholdMeters} onChange={e => setForm(f => ({ ...f, thresholdMeters: e.target.value }))} style={inp} placeholder="e.g. 100" />
-                  </div>
+                  <Field label="Alert Threshold (meters)">
+                    <Input type="number" min="0" step="0.5" value={form.thresholdMeters} onChange={e => setForm(f => ({ ...f, thresholdMeters: e.target.value }))} placeholder="e.g. 100" />
+                  </Field>
                 </>
               ) : (
                 <>
                   {!editing && (
                     <>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Item Type</label>
-                        <select value={form.itemTypeId} onChange={e => setForm(f => ({ ...f, itemTypeId: e.target.value }))} style={sel}>
+                      <Field label="Item Type">
+                        <Select value={form.itemTypeId} onChange={e => setForm(f => ({ ...f, itemTypeId: e.target.value }))}>
                           <option value="">Any / All</option>
                           {itemTypes.filter(t => t.active).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Size (optional)</label>
-                        <input value={form.size} onChange={e => setForm(f => ({ ...f, size: e.target.value }))} style={inp} placeholder="e.g. M, L, XL" />
-                      </div>
+                        </Select>
+                      </Field>
+                      <Field label="Size (optional)">
+                        <Input value={form.size} onChange={e => setForm(f => ({ ...f, size: e.target.value }))} placeholder="e.g. M, L, XL" />
+                      </Field>
                     </>
                   )}
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Alert Threshold (pieces)</label>
-                    <input type="number" min="1" value={form.thresholdPieces} onChange={e => setForm(f => ({ ...f, thresholdPieces: e.target.value }))} style={inp} placeholder="e.g. 50" />
-                  </div>
+                  <Field label="Alert Threshold (pieces)">
+                    <Input type="number" min="1" value={form.thresholdPieces} onChange={e => setForm(f => ({ ...f, thresholdPieces: e.target.value }))} placeholder="e.g. 50" />
+                  </Field>
                 </>
               )}
               {editing && (
@@ -257,10 +256,10 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
               )}
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-              <button onClick={() => setShowForm(false)} style={{ padding: "9px 20px", border: "1px solid var(--line)", borderRadius: 8, background: "transparent", color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ padding: "9px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="primary" onClick={save} disabled={saving}>
                 {saving ? "Saving…" : editing ? "Save Changes" : "Add Threshold"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

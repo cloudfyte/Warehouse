@@ -53,7 +53,7 @@ export interface Expense {
 export interface PurchaseBillItem {
   id: string; itemKind: string; clothCategory?: { id: string; name: string }
   clothColor?: { id: string; name: string; hexCode: string }; itemType?: { id: string; name: string }
-  totalMeters?: number; costPerMeter?: number; size?: string; quantity?: number
+  totalMeters?: number; costPerMeter?: number; ageGroup?: string; size?: string; quantity?: number
   unitPrice: number; totalPrice: number; binLocation: string; clothCode: string; notes: string
 }
 
@@ -70,7 +70,7 @@ export interface PurchaseBill {
 export interface POItem {
   id: string; itemKind: string; clothCategory?: ClothCategory; clothColor?: ClothColor
   orderedMeters?: number; receivedMeters?: number; itemType?: ItemType
-  itemName?: string; size?: string; orderedQuantity?: number; receivedQuantity?: number
+  itemName?: string; ageGroup?: string; size?: string; orderedQuantity?: number; receivedQuantity?: number
   unitPrice: number; totalPrice: number; notes: string
 }
 
@@ -93,7 +93,7 @@ export interface RawClothBatch {
 }
 
 export interface ReadymadeStock {
-  id: string; itemType: ItemType; clothColor?: ClothColor; size: string
+  id: string; itemType: ItemType; clothColor?: ClothColor; ageGroup?: string; size: string
   warehouse: WarehouseLocation; quantityReceived: number; quantityAvailable: number
   costPrice: number; receivedDate: string; supplier: Supplier
 }
@@ -103,7 +103,7 @@ export interface ReadymadeStock {
 export interface CuttingAssignment {
   id: string; assignmentNumber: string; rawClothBatch: RawClothBatch
   cuttingMaster: Employee; itemType: ItemType; metersAssigned: number
-  targetPieces: number; size: string; status: string; assignedDate: string; dueDate?: string
+  targetPieces: number; ageGroup?: string; size: string; status: string; assignedDate: string; dueDate?: string
   piecesCompleted: number; clothUsed: number; clothWasted: number; completedDate?: string; notes: string
   costPerPiece?: number
 }
@@ -119,7 +119,7 @@ export interface StitchingJob {
 
 export interface FinishedProduct {
   id: string; sku: string; itemType: ItemType; clothCategory?: ClothCategory
-  clothColor?: ClothColor; size: string; source: string; quantity: number
+  clothColor?: ClothColor; ageGroup?: string; size: string; source: string; quantity: number
   warehouse: WarehouseLocation; costPrice: number; salePrice: number
   profitMargin: number; barcode: string; barcodeSvg: string; tagsPrinted: boolean; createdAt: string
 }

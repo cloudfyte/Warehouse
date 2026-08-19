@@ -6,9 +6,21 @@ import { friendlyError } from "@/app/lib/errors";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
+import AgeGroupSelect from "@/app/components/atoms/AgeGroupSelect";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import { downloadCsv } from "@/app/lib/csv";
 import { nameToColorHex } from "@/app/lib/colorUtils";
+import Button from "@/app/components/atoms/Button";
+import { showToast } from "@/app/lib/toast";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Textarea from "@/app/components/atoms/Textarea";
+import FileInput from "@/app/components/atoms/FileInput";
+import Checkbox from "@/app/components/atoms/Checkbox";
+import Field from "@/app/components/molecules/Field";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props {
   orders: PurchaseOrder[]; suppliers: Supplier[]; warehouses: WarehouseLocation[]
@@ -22,15 +34,11 @@ function Badge({ s }: { s: string }) {
   return <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: (STATUS_BADGE_COLORS[s] || "#888") + "22", color: STATUS_BADGE_COLORS[s] || "#888" }}>{PO_STATUS_LABELS[s] || s}</span>;
 }
 
-interface POItem { kind: "RAW_CLOTH" | "READYMADE"; categoryId: string; colorId: string; meters: number; itemTypeId: string; itemName: string; size: string; qty: number; unitPrice: number }
-const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "", meters: 0, itemTypeId: "", itemName: "", size: "", qty: 0, unitPrice: 0 });
+interface POItem { kind: "RAW_CLOTH" | "READYMADE"; categoryId: string; colorId: string; meters: number; itemTypeId: string; itemName: string; ageGroup: string; size: string; qty: number; unitPrice: number }
+const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "", meters: 0, itemTypeId: "", itemName: "", ageGroup: "", size: "", qty: 0, unitPrice: 0 });
 
 const STATUSES = ["DRAFT", "PLACED", "DISPATCHED", "RECEIVED", "VERIFIED", "CANCELLED"];
 const PO_NEXT: Record<string, string> = { DRAFT: "PLACED", PLACED: "DISPATCHED", DISPATCHED: "RECEIVED", RECEIVED: "VERIFIED" };
-
-const sel: React.CSSProperties = { padding: "9px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 14, width: "100%" };
-const inp: React.CSSProperties = { padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 14, width: "100%", boxSizing: "border-box" };
-const lbl: React.CSSProperties = { fontSize: 12, color: "var(--muted)", display: "flex", flexDirection: "column", gap: 4 };
 
 const CONDITION_LABEL: Record<string, string> = { GOOD: "Good Condition", PARTIAL_DAMAGE: "Partial Damage", DAMAGED: "Damaged" };
 const CONDITION_COLOR: Record<string, string> = { GOOD: "#10b981", PARTIAL_DAMAGE: "#f59e0b", DAMAGED: "#ef4444" };
@@ -45,12 +53,59 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Receive Goods modal state
+  interface ReceiveRow { poItemId: string; label: string; kind: string; receivedMeters: string; receivedQuantity: string; binLocation: string; }
+  const [showReceive, setShowReceive] = useState(false);
+  const [receiveRows, setReceiveRows] = useState<ReceiveRow[]>([]);
+  const [receiveSaving, setReceiveSaving] = useState(false);
+  const [receiveErr, setReceiveErr] = useState("");
+
+  function openReceive(po: PurchaseOrder) {
+    setReceiveRows(po.items.map(it => ({
+      poItemId: it.id,
+      label: it.itemKind === "RAW_CLOTH"
+        ? `${it.clothCategory?.name || "Cloth"} — ${it.clothColor?.name || "any color"}`
+        : (it.itemType?.name || it.itemName || "Readymade"),
+      kind: it.itemKind,
+      receivedMeters: String(it.orderedMeters ?? ""),
+      receivedQuantity: String(it.orderedQuantity ?? ""),
+      binLocation: "",
+    })));
+    setReceiveErr(""); setShowReceive(true);
+  }
+
+  async function submitReceive() {
+    if (!detail) return;
+    setReceiveSaving(true); setReceiveErr("");
+    try {
+      const items = receiveRows.map(r => ({
+        poItemId: r.poItemId,
+        ...(r.kind === "RAW_CLOTH"
+          ? { receivedMeters: r.receivedMeters ? +r.receivedMeters : undefined }
+          : { receivedQuantity: r.receivedQuantity ? +r.receivedQuantity : undefined }),
+        binLocation: r.binLocation || undefined,
+      }));
+      await onMutate(
+        `mutation R($poId:ID!,$items:[ReceiptItemInput!]!){receivePurchaseOrder(poId:$poId,receiptItems:$items){purchaseOrder{id status actualDelivery receivedBy{id username}}}}`,
+        { poId: detail.id, items }
+      );
+      setDetail(d => d ? { ...d, status: "RECEIVED" } : null);
+      setShowReceive(false);
+      showToast("Goods received and stock updated.", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to receive";
+      setReceiveErr(msg); showToast(msg, "error");
+    }
+    finally { setReceiveSaving(false); }
+  }
+
   // Parcel inspection state
   const [showInspection, setShowInspection] = useState(false);
   const [inspection, setInspection] = useState<ParcelInspection | null>(null);
   const [inspForm, setInspForm] = useState({
     parcelCondition: "GOOD", quantityCheckPassed: true,
     discrepancyNotes: "", notes: "", inspectionDate: new Date().toISOString().slice(0, 10),
+    proofImage: "",
   });
   const [inspSaving, setInspSaving] = useState(false);
   const [inspErr, setInspErr] = useState("");
@@ -58,11 +113,14 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   // New PO form state
   const [supplierId, setSupplierId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
-  const [orderType, setOrderType] = useState("RAW_CLOTH");
   const defaultDelivery = () => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); };
   const [expectedDelivery, setExpectedDelivery] = useState(defaultDelivery);
   const [poNotes, setPoNotes] = useState("");
   const [items, setItems] = useState<POItem[]>([emptyItem()]);
+  // orderType derived from items — no manual dropdown needed
+  const orderType = items.every(i => i.kind === "RAW_CLOTH") ? "RAW_CLOTH"
+    : items.every(i => i.kind === "READYMADE") ? "READYMADE"
+    : "MIXED";
   const [submitted, setSubmitted] = useState(false);
 
   const canEdit = isSuperAdmin || isAdmin || isManager;
@@ -90,7 +148,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   }
 
   function resetForm() {
-    setSupplierId(""); setWarehouseId(""); setOrderType("RAW_CLOTH");
+    setSupplierId(""); setWarehouseId("");
     setExpectedDelivery(defaultDelivery()); setPoNotes(""); setItems([emptyItem()]);
     setError(""); setSubmitted(false);
   }
@@ -113,14 +171,15 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     try {
       const gqlItems = items.map(it => it.kind === "RAW_CLOTH"
         ? { itemKind: "RAW_CLOTH", clothCategoryId: it.categoryId, clothColorId: it.colorId || undefined, orderedMeters: Number(it.meters), unitPrice: Number(it.unitPrice) }
-        : { itemKind: "READYMADE", itemTypeId: it.itemTypeId, clothColorId: it.colorId || undefined, itemName: it.itemName, size: it.size, orderedQuantity: Number(it.qty), unitPrice: Number(it.unitPrice) }
+        : { itemKind: "READYMADE", itemTypeId: it.itemTypeId, clothColorId: it.colorId || undefined, itemName: it.itemName, ageGroup: it.ageGroup || undefined, size: it.size, orderedQuantity: Number(it.qty), unitPrice: Number(it.unitPrice) }
       );
       await onMutate(
         `mutation C($sup:ID!,$wh:ID!,$type:String!,$del:Date,$notes:String,$items:[POItemInput!]!){createPurchaseOrder(supplierId:$sup,warehouseId:$wh,orderType:$type,expectedDelivery:$del,notes:$notes,items:$items){purchaseOrder{id poNumber}}}`,
         { sup: supplierId, wh: warehouseId, type: orderType, del: expectedDelivery || undefined, notes: poNotes || undefined, items: gqlItems }
       );
       setShowNew(false); resetForm();
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Purchase order created.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -129,7 +188,8 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     try {
       await onMutate(`mutation U($id:ID!,$s:String!){updatePurchaseOrderStatus(id:$id,status:$s){purchaseOrder{id status}}}`, { id, s: status });
       setDetail(d => d ? { ...d, status } : null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(`Order marked as ${PO_STATUS_LABELS[status] || status}.`, "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -142,10 +202,11 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         discrepancyNotes: existing.discrepancyNotes || "",
         notes: existing.notes || "",
         inspectionDate: existing.inspectionDate,
+        proofImage: existing.photos || "",
       });
       setInspection(existing);
     } else {
-      setInspForm({ parcelCondition: "GOOD", quantityCheckPassed: true, discrepancyNotes: "", notes: "", inspectionDate: new Date().toISOString().slice(0, 10) });
+      setInspForm({ parcelCondition: "GOOD", quantityCheckPassed: true, discrepancyNotes: "", notes: "", inspectionDate: new Date().toISOString().slice(0, 10), proofImage: "" });
       setInspection(null);
     }
     setInspErr(""); setShowInspection(true);
@@ -155,19 +216,36 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     if (!detail) return;
     setInspSaving(true); setInspErr("");
     try {
+      let savedId = inspection?.id ?? "";
       if (inspection) {
         await onMutate(
-          `mutation U($id:ID!,$cond:String,$qcp:Boolean,$dn:String,$notes:String){updateParcelInspection(id:$id,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,notes:$notes){inspection{id parcelCondition}}}`,
-          { id: inspection.id, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, notes: inspForm.notes || undefined }
+          `mutation U($id:ID!,$cond:String,$qcp:Boolean,$dn:String,$photos:String,$notes:String){updateParcelInspection(id:$id,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,photos:$photos,notes:$notes){inspection{id parcelCondition}}}`,
+          { id: inspection.id, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, photos: inspForm.proofImage || undefined, notes: inspForm.notes || undefined }
         );
       } else {
-        await onMutate(
-          `mutation C($poId:ID!,$date:Date!,$cond:String,$qcp:Boolean,$dn:String,$notes:String){createParcelInspection(poId:$poId,inspectionDate:$date,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,notes:$notes){inspection{id parcelCondition}}}`,
-          { poId: detail.id, date: inspForm.inspectionDate, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, notes: inspForm.notes || undefined }
+        const r = await onMutate(
+          `mutation C($poId:ID!,$date:Date!,$cond:String,$qcp:Boolean,$dn:String,$photos:String,$notes:String){createParcelInspection(poId:$poId,inspectionDate:$date,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,photos:$photos,notes:$notes){inspection{id parcelCondition}}}`,
+          { poId: detail.id, date: inspForm.inspectionDate, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, photos: inspForm.proofImage || undefined, notes: inspForm.notes || undefined }
         );
+        savedId = r.createParcelInspection.inspection.id;
       }
+      // Update detail immediately so panel reflects without a page refresh
+      const updated = {
+        id: savedId, parcelCondition: inspForm.parcelCondition,
+        quantityCheckPassed: inspForm.quantityCheckPassed,
+        discrepancyNotes: inspForm.discrepancyNotes, photos: inspForm.proofImage,
+        notes: inspForm.notes, inspectionDate: inspForm.inspectionDate,
+        createdAt: inspection?.createdAt ?? new Date().toISOString(),
+        inspectedBy: inspection?.inspectedBy,
+      };
+      setDetail(d => d ? { ...d, parcelInspection: updated } : null);
+      setInspection(updated);
       setShowInspection(false);
-    } catch (e: unknown) { setInspErr(e instanceof Error ? e.message : "Failed"); }
+      showToast("Inspection recorded.", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed";
+      setInspErr(msg); showToast(msg, "error");
+    }
     finally { setInspSaving(false); }
   }
 
@@ -212,51 +290,45 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     `, po.poNumber);
   }
 
+  function exportCsv() {
+    downloadCsv(`purchase_orders_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(o => ({
+      "PO Number": o.poNumber, "Supplier": o.supplier.name, "Type": o.orderType,
+      "Order Date": o.orderDate, "Expected Delivery": o.expectedDelivery || "",
+      "Total (INR)": o.totalAmount, "Status": PO_STATUS_LABELS[o.status] || o.status,
+    })));
+  }
+
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>Purchase Orders <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({orders.length})</span></h2>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => downloadCsv(`purchase_orders_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(o => ({
-            "PO Number": o.poNumber, "Supplier": o.supplier.name, "Type": o.orderType,
-            "Order Date": o.orderDate, "Expected Delivery": o.expectedDelivery || "",
-            "Total (₹)": o.totalAmount, "Status": PO_STATUS_LABELS[o.status] || o.status,
-          })))}
-            style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            ⬇ Export CSV
-          </button>
-          {canEdit && <button onClick={() => { setShowNew(true); resetForm(); }}
-            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>+ New Order</button>}
-        </div>
-      </div>
+      <PageHeader
+        title="Purchase Orders"
+        sub={`${orders.length} orders`}
+        actions={<>
+          <Button variant="secondary" onClick={exportCsv}>⬇ Export CSV</Button>
+          {canEdit && <Button onClick={() => { setShowNew(true); resetForm(); }}>+ New Order</Button>}
+        </>}
+      />
 
-      <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        <input placeholder="Search PO number or supplier…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ width: "100%", padding: "9px 14px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 14, boxSizing: "border-box", outline: "none" }} />
+      <FilterBar style={{ marginBottom: 16, flexDirection: "column", alignItems: "stretch" }}>
+        <Input placeholder="Search PO number or supplier…" value={search} onChange={e => setSearch(e.target.value)} />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 14, minWidth: 160, width: "auto" }}>
+          <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ minWidth: 160, width: "auto" }}>
             <option value="">All statuses</option>
             {STATUSES.map(s => <option key={s} value={s}>{PO_STATUS_LABELS[s]}</option>)}
-          </select>
+          </Select>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>
             From
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              style={{ padding: "7px 10px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 13 }} />
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: "auto" }} />
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>
             To
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              style={{ padding: "7px 10px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 13 }} />
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: "auto" }} />
           </label>
           {(dateFrom || dateTo) && (
-            <button onClick={() => { setDateFrom(""); setDateTo(""); }}
-              style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", fontSize: 13, cursor: "pointer" }}>
-              ✕ Clear
-            </button>
+            <Button variant="secondary" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>✕ Clear</Button>
           )}
         </div>
-      </div>
+      </FilterBar>
 
       {/* ── New PO modal ── */}
       {showNew && (
@@ -267,46 +339,32 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               <button onClick={() => { setShowNew(false); resetForm(); }} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)" }}>×</button>
             </div>
             <div style={{ padding: 28 }}>
-              {error && <div style={{ background: "#f4433618", border: "1px solid #f4433644", color: "#d32f2f", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
+              <ErrorBanner msg={error} />
 
               {/* Header fields */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-                <label style={lbl}>
-                  Supplier <span style={{ color: "#e53935" }}>*</span>
-                  <select value={supplierId} onChange={e => { setSupplierId(e.target.value); }}
-                    style={{ ...sel, borderColor: submitted && !supplierId ? "#e53935" : undefined, boxShadow: submitted && !supplierId ? "0 0 0 2px #e5393520" : undefined }}>
+                <Field label="Supplier" required hint={submitted && !supplierId ? "Required" : undefined}>
+                  <Select value={supplierId} onChange={e => setSupplierId(e.target.value)}
+                    style={{ borderColor: submitted && !supplierId ? "#e53935" : undefined, boxShadow: submitted && !supplierId ? "0 0 0 2px #e5393520" : undefined }}>
                     <option value="">Select supplier…</option>
                     {suppliers.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                  {submitted && !supplierId && <span style={{ fontSize: 11, color: "#e53935", marginTop: 3 }}>Required</span>}
-                </label>
-                <label style={lbl}>
-                  Destination Warehouse <span style={{ color: "#e53935" }}>*</span>
-                  <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
-                    style={{ ...sel, borderColor: submitted && !warehouseId ? "#e53935" : undefined, boxShadow: submitted && !warehouseId ? "0 0 0 2px #e5393520" : undefined }}>
+                  </Select>
+                </Field>
+                <Field label="Destination Warehouse" required hint={submitted && !warehouseId ? "Required" : undefined}>
+                  <Select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
+                    style={{ borderColor: submitted && !warehouseId ? "#e53935" : undefined, boxShadow: submitted && !warehouseId ? "0 0 0 2px #e5393520" : undefined }}>
                     <option value="">Select warehouse…</option>
                     {warehouses.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
-                  {submitted && !warehouseId && <span style={{ fontSize: 11, color: "#e53935", marginTop: 3 }}>Required</span>}
-                </label>
-                <label style={lbl}>
-                  Order Type
-                  <select value={orderType} onChange={e => setOrderType(e.target.value)} style={sel}>
-                    <option value="RAW_CLOTH">Raw Cloth</option>
-                    <option value="READYMADE">Readymade</option>
-                    <option value="MIXED">Mixed</option>
-                  </select>
-                </label>
-                <label style={lbl}>
-                  Expected Delivery
-                  <input type="date" value={expectedDelivery} onChange={e => setExpectedDelivery(e.target.value)} style={inp} />
-                </label>
+                  </Select>
+                </Field>
+                <Field label="Expected Delivery">
+                  <Input type="date" value={expectedDelivery} onChange={e => setExpectedDelivery(e.target.value)} />
+                </Field>
                 <div style={{ position: "relative", gridColumn: "1/-1" }}>
-                  <label style={lbl}>
-                    Notes
-                    <textarea value={poNotes} onChange={e => setPoNotes(e.target.value.slice(0, 200))} placeholder="Optional notes for this order"
-                      style={{ ...inp, resize: "vertical", minHeight: 60 }} maxLength={200} />
-                  </label>
+                  <Field label="Notes">
+                    <Textarea value={poNotes} onChange={e => setPoNotes(e.target.value.slice(0, 200))} placeholder="Optional notes for this order"
+                      style={{ minHeight: 60 }} maxLength={200} />
+                  </Field>
                   <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, color: poNotes.length > 170 ? "#e07" : "var(--muted)", pointerEvents: "none" }}>{poNotes.length}/200</span>
                 </div>
               </div>
@@ -350,18 +408,16 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                         onChange={v => updateItem(idx, { colorId: v })}
                         onCreate={createColor} placeholder="Select color…"
                       />
-                      <label style={lbl}>
-                        Meters <span style={{ color: "#e53935" }}>*</span>
-                        <input type="number" min="0" value={item.meters || ""} onChange={e => updateItem(idx, { meters: +e.target.value })} style={{ ...inp, borderColor: submitted && !item.meters ? "#e53935" : undefined }} placeholder="0" />
-                        {submitted && !item.meters && <span style={{ fontSize: 11, color: "#e53935" }}>Required</span>}
-                      </label>
-                      <label style={lbl}>
-                        Price / meter ₹
-                        <input type="number" min="0" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} style={inp} placeholder="0" />
-                      </label>
+                      <Field label="Meters" required hint={submitted && !item.meters ? "Required" : undefined}>
+                        <Input type="number" min="0" value={item.meters || ""} onChange={e => updateItem(idx, { meters: +e.target.value })}
+                          style={{ borderColor: submitted && !item.meters ? "#e53935" : undefined }} placeholder="0" />
+                      </Field>
+                      <Field label="Price / meter ₹">
+                        <Input type="number" min="0" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} placeholder="0" />
+                      </Field>
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr", gap: 12 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 1fr", gap: 12 }}>
                       <CreatableSelect
                         label="Item Type" options={itemTypes} value={item.itemTypeId}
                         onChange={v => updateItem(idx, { itemTypeId: v })}
@@ -373,32 +429,30 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                         onChange={v => updateItem(idx, { colorId: v })}
                         onCreate={createColor} placeholder="Select color…"
                       />
-                      <SizeSelect value={item.size} onChange={v => updateItem(idx, { size: v })} label="Size" />
-                      <label style={lbl}>
-                        Qty (pcs) <span style={{ color: "#e53935" }}>*</span>
-                        <input type="number" min="1" value={item.qty || ""} onChange={e => updateItem(idx, { qty: +e.target.value })} style={{ ...inp, borderColor: submitted && !item.qty ? "#e53935" : undefined }} placeholder="0" />
-                        {submitted && !item.qty && <span style={{ fontSize: 11, color: "#e53935" }}>Required</span>}
-                      </label>
-                      <label style={lbl}>
-                        Price / pc ₹
-                        <input type="number" min="0" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} style={inp} placeholder="0" />
-                      </label>
-                      <label style={{ ...lbl, gridColumn: "1 / -1" }}>
-                        Description <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>(optional)</span>
-                        <input value={item.itemName} onChange={e => updateItem(idx, { itemName: e.target.value })} style={inp} placeholder="Brand, variant, or any detail…" />
-                      </label>
+                      <Field label="Age Group">
+                        <AgeGroupSelect value={item.ageGroup} onChange={v => updateItem(idx, { ageGroup: v, size: "" })} />
+                      </Field>
+                      <SizeSelect value={item.size} onChange={v => updateItem(idx, { size: v })} label="Size" ageGroup={item.ageGroup || undefined} />
+                      <Field label="Qty (pcs)" required hint={submitted && !item.qty ? "Required" : undefined}>
+                        <Input type="number" min="1" value={item.qty || ""} onChange={e => updateItem(idx, { qty: +e.target.value })}
+                          style={{ borderColor: submitted && !item.qty ? "#e53935" : undefined }} placeholder="0" />
+                      </Field>
+                      <Field label="Price / pc ₹">
+                        <Input type="number" min="0" value={item.unitPrice || ""} onChange={e => updateItem(idx, { unitPrice: +e.target.value })} placeholder="0" />
+                      </Field>
+                      <Field label="Description" style={{ gridColumn: "1 / -1" }}>
+                        <Input value={item.itemName} onChange={e => updateItem(idx, { itemName: e.target.value })} placeholder="Brand, variant, or any detail…" />
+                      </Field>
                     </div>
                   )}
                 </div>
               ))}
 
               <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                <button onClick={createPO} disabled={loading}
-                  style={{ flex: 1, padding: "12px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
+                <Button onClick={createPO} disabled={loading} style={{ flex: 1, fontSize: 15 }}>
                   {loading ? "Creating…" : "Create Purchase Order"}
-                </button>
-                <button onClick={() => { setShowNew(false); resetForm(); }}
-                  style={{ padding: "12px 24px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", cursor: "pointer" }}>Cancel</button>
+                </Button>
+                <Button variant="secondary" onClick={() => { setShowNew(false); resetForm(); }}>Cancel</Button>
               </div>
             </div>
           </div>
@@ -415,11 +469,11 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 <div style={{ color: "var(--muted)", fontSize: 14 }}>{detail.supplier.name}</div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button onClick={() => printPO(detail)} style={{ padding: "5px 14px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>🖨 Print</button>
+                <Button variant="secondary" size="sm" onClick={() => printPO(detail)}>🖨 Print</Button>
                 <button onClick={() => { setDetail(null); setError(""); }} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}>×</button>
               </div>
             </div>
-            {error && <div style={{ color: "#f44", marginBottom: 12, fontSize: 13 }}>{error}</div>}
+            <ErrorBanner msg={error} />
             <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
               <Badge s={detail.status} />
               <span style={{ fontSize: 13, color: "var(--muted)" }}>Ordered: {formatDateShort(detail.orderDate)}</span>
@@ -474,16 +528,18 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
             </div>
 
             {canEdit && PO_NEXT[detail.status] && (
-              <button onClick={() => updateStatus(detail.id, PO_NEXT[detail.status])} disabled={loading}
-                style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
-                {loading ? "Updating…" : `Mark as ${PO_STATUS_LABELS[PO_NEXT[detail.status]]}`}
-              </button>
+              <Button
+                onClick={() => PO_NEXT[detail.status] === "RECEIVED" ? openReceive(detail) : updateStatus(detail.id, PO_NEXT[detail.status])}
+                disabled={loading}
+                style={{ width: "100%", marginBottom: 8 }}
+              >
+                {loading ? "Updating…" : PO_NEXT[detail.status] === "RECEIVED" ? "Receive Goods" : `Mark as ${PO_STATUS_LABELS[PO_NEXT[detail.status]]}`}
+              </Button>
             )}
             {canEdit && !["CANCELLED", "VERIFIED"].includes(detail.status) && (
-              <button onClick={() => updateStatus(detail.id, "CANCELLED")} disabled={loading}
-                style={{ width: "100%", padding: "9px", borderRadius: 8, border: "1px solid #f44336", background: "none", color: "#f44336", cursor: "pointer", fontSize: 13 }}>
+              <Button variant="danger" onClick={() => updateStatus(detail.id, "CANCELLED")} disabled={loading} style={{ width: "100%" }}>
                 Cancel Order
-              </button>
+              </Button>
             )}
 
             {/* Parcel Inspection */}
@@ -491,10 +547,9 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>Parcel Inspection</div>
                 {canEdit && (
-                  <button onClick={() => openInspection(detail)}
-                    style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontSize: 12 }}>
+                  <Button variant="secondary" size="sm" onClick={() => openInspection(detail)}>
                     {detail.parcelInspection ? "Update Inspection" : "Record Inspection"}
-                  </button>
+                  </Button>
                 )}
               </div>
               {detail.parcelInspection ? (
@@ -508,11 +563,59 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                     </span>
                   </div>
                   {detail.parcelInspection.discrepancyNotes && <div style={{ color: "var(--muted)", fontSize: 12 }}>{detail.parcelInspection.discrepancyNotes}</div>}
+                  {detail.parcelInspection.photos && (
+                    <img src={detail.parcelInspection.photos} alt="Proof" style={{ marginTop: 8, maxWidth: "100%", maxHeight: 140, borderRadius: 6, border: "1px solid var(--line)", display: "block" }} />
+                  )}
                   <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 4 }}>Inspected: {detail.parcelInspection.inspectionDate} · by {detail.parcelInspection.inspectedBy?.username ?? "unknown"}</div>
                 </div>
               ) : (
                 <div style={{ fontSize: 13, color: "var(--muted)", fontStyle: "italic" }}>No inspection recorded yet.</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receive Goods Modal */}
+      {showReceive && detail && (
+        <div onClick={e => { if (e.target === e.currentTarget) setShowReceive(false); }}
+          style={{ position: "fixed", inset: 0, background: "#0009", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
+          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 520, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>Receive Goods</div>
+              <Button variant="ghost" onClick={() => setShowReceive(false)} style={{ fontSize: 20, padding: "0 6px" }}>×</Button>
+            </div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
+              Confirm quantities received for {detail.poNumber}. Stock will be added to inventory.
+            </div>
+            {receiveRows.map((row, i) => (
+              <div key={row.poItemId} style={{ background: "var(--bg)", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{row.label}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {row.kind === "RAW_CLOTH" ? (
+                    <Field label="Received Meters *">
+                      <Input type="number" value={row.receivedMeters} min="0" step="0.01"
+                        onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, receivedMeters: e.target.value } : x))} />
+                    </Field>
+                  ) : (
+                    <Field label="Received Qty (pcs) *">
+                      <Input type="number" value={row.receivedQuantity} min="0" step="1"
+                        onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, receivedQuantity: e.target.value } : x))} />
+                    </Field>
+                  )}
+                  <Field label="Bin / Shelf Location">
+                    <Input placeholder="e.g. A-12" value={row.binLocation}
+                      onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, binLocation: e.target.value } : x))} />
+                  </Field>
+                </div>
+              </div>
+            ))}
+            {receiveErr && <ErrorBanner msg={receiveErr} />}
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <Button variant="primary" onClick={submitReceive} disabled={receiveSaving} style={{ flex: 1 }}>
+                {receiveSaving ? "Receiving…" : "Confirm Receipt & Add to Stock"}
+              </Button>
+              <Button variant="secondary" onClick={() => setShowReceive(false)}>Cancel</Button>
             </div>
           </div>
         </div>
@@ -528,41 +631,51 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               <button onClick={() => setShowInspection(false)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)", lineHeight: 1, padding: "0 4px" }}>×</button>
             </div>
             <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>{detail.poNumber} — {detail.supplier.name}</div>
-            {inspErr && <div style={{ background: "#fef2f2", color: "#b91c1c", borderRadius: 7, padding: "10px 14px", fontSize: 13, marginBottom: 14 }}>{inspErr}</div>}
+            <ErrorBanner msg={inspErr} />
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Inspection Date</label>
-                <input type="date" value={inspForm.inspectionDate} onChange={e => setInspForm(f => ({ ...f, inspectionDate: e.target.value }))} style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 13, boxSizing: "border-box" }} />
-              </div>
+              <Field label="Inspection Date">
+                <Input type="date" value={inspForm.inspectionDate} onChange={e => setInspForm(f => ({ ...f, inspectionDate: e.target.value }))} />
+              </Field>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 8 }}>Parcel Condition</label>
                 <div style={{ display: "flex", gap: 8 }}>
                   {["GOOD", "PARTIAL_DAMAGE", "DAMAGED"].map(c => (
-                    <button key={c} type="button" onClick={() => setInspForm(f => ({ ...f, parcelCondition: c }))}
-                      style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: `2px solid ${inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--line)"}`, background: inspForm.parcelCondition === c ? CONDITION_COLOR[c] + "22" : "transparent", color: inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--muted)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                    <Button key={c} variant="secondary" size="sm" onClick={() => setInspForm(f => ({ ...f, parcelCondition: c }))}
+                      style={{ flex: 1, justifyContent: "center", border: `2px solid ${inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--line)"}`, background: inspForm.parcelCondition === c ? CONDITION_COLOR[c] + "22" : "transparent", color: inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--muted)" }}>
                       {CONDITION_LABEL[c]}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}>
-                <input type="checkbox" checked={inspForm.quantityCheckPassed} onChange={e => setInspForm(f => ({ ...f, quantityCheckPassed: e.target.checked }))} />
-                Quantity check passed (received matches ordered)
-              </label>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Discrepancy Notes</label>
-                <textarea value={inspForm.discrepancyNotes} onChange={e => setInspForm(f => ({ ...f, discrepancyNotes: e.target.value }))} rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 13, resize: "vertical", boxSizing: "border-box" }} placeholder="Describe any discrepancies…" />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Additional Notes</label>
-                <textarea value={inspForm.notes} onChange={e => setInspForm(f => ({ ...f, notes: e.target.value }))} rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 13, resize: "vertical", boxSizing: "border-box" }} placeholder="Optional notes…" />
-              </div>
+              <Checkbox label="Quantity check passed (received matches ordered)" checked={inspForm.quantityCheckPassed} onChange={e => setInspForm(f => ({ ...f, quantityCheckPassed: e.target.checked }))} />
+              <Field label="Discrepancy Notes">
+                <Textarea value={inspForm.discrepancyNotes} onChange={e => setInspForm(f => ({ ...f, discrepancyNotes: e.target.value }))} rows={2} placeholder="Describe any discrepancies…" style={{ minHeight: "unset" }} />
+              </Field>
+              <Field label="Additional Notes">
+                <Textarea value={inspForm.notes} onChange={e => setInspForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Optional notes…" style={{ minHeight: "unset" }} />
+              </Field>
+              <Field label="Proof Photo">
+                <FileInput accept="image/*" onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = ev => setInspForm(f => ({ ...f, proofImage: ev.target?.result as string ?? "" }));
+                  reader.readAsDataURL(file);
+                }} />
+                {inspForm.proofImage && (
+                  <div style={{ marginTop: 8, position: "relative", display: "inline-block" }}>
+                    <img src={inspForm.proofImage} alt="Proof" style={{ maxWidth: "100%", maxHeight: 160, borderRadius: 6, border: "1px solid var(--line)" }} />
+                    <Button variant="danger" size="sm" onClick={() => setInspForm(f => ({ ...f, proofImage: "" }))}
+                      style={{ position: "absolute", top: 4, right: 4, borderRadius: "50%", width: 20, height: 20, padding: 0, fontSize: 12, lineHeight: 1, justifyContent: "center" }}>×</Button>
+                  </div>
+                )}
+              </Field>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-              <button onClick={() => setShowInspection(false)} style={{ padding: "9px 20px", border: "1px solid var(--line)", borderRadius: 8, background: "transparent", color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
-              <button onClick={saveInspection} disabled={inspSaving} style={{ padding: "9px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: inspSaving ? 0.6 : 1 }}>
+              <Button variant="secondary" onClick={() => setShowInspection(false)}>Cancel</Button>
+              <Button onClick={saveInspection} disabled={inspSaving}>
                 {inspSaving ? "Saving…" : inspection ? "Update" : "Save Inspection"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -587,8 +700,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 <td style={{ padding: "12px 16px", fontWeight: 600 }}>{formatMoney(o.totalAmount)}</td>
                 <td style={{ padding: "12px 16px" }}><Badge s={o.status} /></td>
                 <td style={{ padding: "12px 16px" }}>
-                  <button onClick={() => { setDetail(o); setError(""); }}
-                    style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", fontSize: 13 }}>View</button>
+                  <Button variant="secondary" size="sm" onClick={() => { setDetail(o); setError(""); }}>View</Button>
                 </td>
               </tr>
             ))}

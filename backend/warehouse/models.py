@@ -14,6 +14,17 @@ from django.db import models
 from django.utils import timezone
 
 
+# ─── shared choices ───────────────────────────────────────────────────────────
+
+class AgeGroup(models.TextChoices):
+    MEN    = "MEN",    "Men"
+    WOMEN  = "WOMEN",  "Women"
+    BOYS   = "BOYS",   "Boys"
+    GIRLS  = "GIRLS",  "Girls"
+    INFANT = "INFANT", "Infant / Baby"
+    UNISEX = "UNISEX", "Unisex"
+
+
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
 def _serial(prefix: str, model) -> str:
@@ -286,6 +297,7 @@ class PurchaseOrderItem(models.Model):
     # Readymade fields
     item_type = models.ForeignKey(ItemType, null=True, blank=True, on_delete=models.SET_NULL, related_name="po_items")
     item_name = models.CharField(max_length=200, blank=True)
+    age_group = models.CharField(max_length=10, choices=AgeGroup.choices, blank=True)
     size = models.CharField(max_length=30, blank=True)
     ordered_quantity = models.PositiveIntegerField(default=0)
     received_quantity = models.PositiveIntegerField(default=0)
@@ -359,6 +371,7 @@ class PurchaseBillItem(models.Model):
 
     # Readymade fields
     item_type = models.ForeignKey(ItemType, null=True, blank=True, on_delete=models.SET_NULL, related_name="bill_items")
+    age_group = models.CharField(max_length=10, choices=AgeGroup.choices, blank=True)
     size = models.CharField(max_length=30, blank=True)
     quantity = models.PositiveIntegerField(default=0)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -414,6 +427,7 @@ class ReadymadeStock(models.Model):
     item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="readymade_stocks")
     cloth_category = models.ForeignKey(ClothCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="readymade_stocks")
     cloth_color = models.ForeignKey(ClothColor, null=True, blank=True, on_delete=models.SET_NULL, related_name="readymade_stocks")
+    age_group = models.CharField(max_length=10, choices=AgeGroup.choices, blank=True)
     size = models.CharField(max_length=30, blank=True)
     warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="readymade_stocks")
     quantity_received = models.PositiveIntegerField()
@@ -446,6 +460,7 @@ class CuttingAssignment(models.Model):
     item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="cutting_assignments")
     meters_assigned = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
     target_pieces = models.PositiveIntegerField()
+    age_group = models.CharField(max_length=10, choices=AgeGroup.choices, blank=True)
     size = models.CharField(max_length=30, blank=True, help_text="Garment size being cut e.g. S / M / L / XL / Free Size")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     assigned_date = models.DateField(default=timezone.now)
@@ -526,6 +541,7 @@ class FinishedProduct(models.Model):
     item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="finished_products")
     cloth_category = models.ForeignKey(ClothCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="finished_products")
     cloth_color = models.ForeignKey(ClothColor, null=True, blank=True, on_delete=models.SET_NULL, related_name="finished_products")
+    age_group = models.CharField(max_length=10, choices=AgeGroup.choices, blank=True)
     size = models.CharField(max_length=30, blank=True)
     source = models.CharField(max_length=20, choices=Source.choices)
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useToasts, type ToastItem } from "@/app/lib/toast";
+import { useToasts, showToast, type ToastItem } from "@/app/lib/toast";
 import { graphql, refreshAccessToken, DASHBOARD_QUERY, SETTINGS_QUERY } from "@/app/lib/graphql";
 import { nameToColorHex } from "@/app/lib/colorUtils";
 import { friendlyError } from "@/app/lib/errors";
@@ -87,10 +87,11 @@ interface SidebarSection { label: string; tabs: Tab[] }
 
 const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
-  { label: "Procurement", tabs: ["suppliers", "buyers", "purchase_orders", "purchase_bills"] },
+  { label: "Purchasing", tabs: ["suppliers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
-  { label: "Sales & Finance", tabs: ["sales_orders", "credit", "returns", "quotations", "expenses", "reports", "ledger"] },
+  { label: "Sales", tabs: ["buyers", "quotations", "sales_orders", "credit", "returns"] },
+  { label: "Finance", tabs: ["expenses", "reports", "ledger"] },
   { label: "Admin", tabs: ["item_types", "employees", "warehouses", "roles"] },
   { label: "System", tabs: ["notifications", "audit_log", "settings"] },
 ];
@@ -127,215 +128,6 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   profile: <User size={16} />,
 };
 
-// ─── Direct stock entry modals (defined at module level to prevent focus loss)
-
-interface DirectEntryProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  suppliers: any[]; warehouses: any[]; categories?: any[]; colors?: any[]; itemTypes?: any[]
-  kind: "raw_cloth" | "readymade"
-  onClose: () => void
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
-}
-
-const fld: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 5, fontSize: 13 };
-const inp2: React.CSSProperties = { padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 14, width: "100%", boxSizing: "border-box" };
-const sel2: React.CSSProperties = { ...inp2 };
-
-function DirectStockModal({ suppliers, warehouses, categories, colors, itemTypes, kind, onClose, onMutate }: DirectEntryProps) {
-  const [supplierId, setSupplierId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [colorId, setColorId] = useState("");
-  const [meters, setMeters] = useState("");
-  const [costPerMeter, setCostPerMeter] = useState("");
-  const [binLocation, setBinLocation] = useState("");
-  const [itemTypeId, setItemTypeId] = useState("");
-  const [costPrice, setCostPrice] = useState("");
-  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  // Batch size mode: each row = { size, qty }
-  const [batchMode, setBatchMode] = useState(false);
-  const [sizeRows, setSizeRows] = useState<{ size: string; qty: string }[]>([{ size: "", qty: "" }]);
-
-  function addRow() { setSizeRows(r => [...r, { size: "", qty: "" }]); }
-  function removeRow(i: number) { setSizeRows(r => r.filter((_, idx) => idx !== i)); }
-  function updateRow(i: number, patch: { size?: string; qty?: string }) {
-    setSizeRows(r => r.map((row, idx) => idx === i ? { ...row, ...patch } : row));
-  }
-
-  async function createCategory(name: string): Promise<string> {
-    const r = await onMutate(`mutation C($n:String!){createClothCategory(name:$n,description:""){category{id}}}`, { n: name });
-    return r.createClothCategory.category.id;
-  }
-  async function createColor(name: string): Promise<string> {
-    const hex = nameToColorHex(name);
-    const r = await onMutate(`mutation C($n:String!,$h:String!){createClothColor(name:$n,hexCode:$h){color{id}}}`, { n: name, h: hex });
-    return r.createClothColor.color.id;
-  }
-  async function createItemType(name: string): Promise<string> {
-    const r = await onMutate(`mutation C($n:String!){createItemType(name:$n,category:"OTHER",clothLengthPerPiece:1.0){itemType{id}}}`, { n: name });
-    return r.createItemType.itemType.id;
-  }
-
-  const RMD_MUTATION = `mutation C($sup:ID!,$it:ID!,$wh:ID!,$q:Int!,$cp:Float,$cat:ID,$col:ID,$sz:String,$rd:Date,$notes:String){
-    createReadymadeStock(supplierId:$sup,itemTypeId:$it,warehouseId:$wh,quantity:$q,costPrice:$cp,categoryId:$cat,colorId:$col,size:$sz,receivedDate:$rd,notes:$notes){stock{id}}
-  }`;
-
-  async function submit() {
-    if (!supplierId || !warehouseId) { setError("Select supplier and warehouse"); return; }
-    if (kind === "raw_cloth" && (!categoryId || !colorId || !meters)) { setError("Category, color and meters are required"); return; }
-    if (kind === "readymade") {
-      if (!itemTypeId) { setError("Item type is required"); return; }
-      if (batchMode) {
-        const bad = sizeRows.find(r => !r.qty || +r.qty <= 0);
-        if (bad) { setError("All size rows need a valid quantity"); return; }
-        if (sizeRows.length === 0) { setError("Add at least one size row"); return; }
-      }
-    }
-    setLoading(true); setError("");
-    try {
-      if (kind === "raw_cloth") {
-        await onMutate(
-          `mutation C($sup:ID!,$cat:ID!,$col:ID!,$wh:ID!,$m:Float!,$cpm:Float,$bin:String,$rd:Date,$notes:String){
-            createRawClothBatch(supplierId:$sup,categoryId:$cat,colorId:$col,warehouseId:$wh,totalMeters:$m,costPerMeter:$cpm,binLocation:$bin,receivedDate:$rd,notes:$notes){batch{id batchNumber}}
-          }`,
-          { sup: supplierId, cat: categoryId, col: colorId, wh: warehouseId, m: +meters,
-            cpm: costPerMeter ? +costPerMeter : undefined, bin: binLocation || undefined,
-            rd: receivedDate || undefined, notes: notes || undefined }
-        );
-      } else if (batchMode) {
-        for (const row of sizeRows) {
-          await onMutate(RMD_MUTATION, {
-            sup: supplierId, it: itemTypeId, wh: warehouseId, q: +row.qty,
-            cp: costPrice ? +costPrice : undefined, cat: categoryId || undefined,
-            col: colorId || undefined, sz: row.size || undefined,
-            rd: receivedDate || undefined, notes: notes || undefined,
-          });
-        }
-      } else {
-        const singleSize = sizeRows[0]?.size || "";
-        const singleQty = sizeRows[0]?.qty || "";
-        if (!singleQty) { setError("Quantity is required"); setLoading(false); return; }
-        await onMutate(RMD_MUTATION, {
-          sup: supplierId, it: itemTypeId, wh: warehouseId, q: +singleQty,
-          cp: costPrice ? +costPrice : undefined, cat: categoryId || undefined,
-          col: colorId || undefined, sz: singleSize || undefined,
-          rd: receivedDate || undefined, notes: notes || undefined,
-        });
-      }
-      onClose();
-    } catch (e: unknown) { setError(friendlyError(e)); }
-    finally { setLoading(false); }
-  }
-
-  const totalBatchQty = batchMode ? sizeRows.reduce((s, r) => s + (+r.qty || 0), 0) : 0;
-
-  return (
-    <Modal
-      title={kind === "raw_cloth" ? "Add Raw Cloth Batch" : "Add Readymade Stock"}
-      subtitle={kind === "raw_cloth" ? "Enter existing cloth stock into inventory" : "Enter readymade garment stock into inventory"}
-      onClose={onClose}
-      width={600}
-      footer={
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={submit} disabled={loading}
-            style={{ flex: 1, padding: "11px", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
-            {loading ? "Saving…" : batchMode && kind === "readymade" ? `Add ${sizeRows.length} Size Entr${sizeRows.length === 1 ? "y" : "ies"}` : "Add to Inventory"}
-          </button>
-          <button onClick={onClose}
-            style={{ padding: "11px 22px", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14 }}>
-            Cancel
-          </button>
-        </div>
-      }
-    >
-      {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        <label style={fld}>Supplier *<select value={supplierId} onChange={e => setSupplierId(e.target.value)} style={sel2}>
-          <option value="">Select…</option>
-          {suppliers.filter((s: { active: boolean }) => s.active).map((s: { id: string; name: string }) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select></label>
-        <label style={fld}>Warehouse *<select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} style={sel2}>
-          <option value="">Select…</option>
-          {warehouses.filter((w: { active: boolean }) => w.active).map((w: { id: string; name: string }) => <option key={w.id} value={w.id}>{w.name}</option>)}
-        </select></label>
-
-        {kind === "raw_cloth" ? (<>
-          <CreatableSelect label="Category *" options={categories || []} value={categoryId}
-            onChange={setCategoryId} onCreate={createCategory} placeholder="Select…" required />
-          <CreatableSelect label="Color *" options={colors || []} value={colorId}
-            onChange={setColorId} onCreate={createColor} placeholder="Select color…" required />
-          <label style={fld}>Total Meters *<input type="number" value={meters} onChange={e => setMeters(e.target.value)} style={inp2} placeholder="0" /></label>
-          <label style={fld}>Cost / Meter ₹<input type="number" value={costPerMeter} onChange={e => setCostPerMeter(e.target.value)} style={inp2} placeholder="0" /></label>
-          <label style={fld}>Bin / Shelf<input value={binLocation} onChange={e => setBinLocation(e.target.value)} style={inp2} placeholder="e.g. A-12" /></label>
-        </>) : (<>
-          <CreatableSelect label="Item Type *" options={itemTypes || []} value={itemTypeId}
-            onChange={setItemTypeId} onCreate={createItemType} placeholder="Select type…" required />
-          <CreatableSelect label="Fabric / Category" options={categories || []} value={categoryId}
-            onChange={setCategoryId} onCreate={createCategory} placeholder="e.g. Cotton, Polyester…" />
-          <CreatableSelect label="Color" options={colors || []} value={colorId}
-            onChange={setColorId} onCreate={createColor} placeholder="Any / None" />
-          <label style={fld}>Cost / Piece ₹<input type="number" value={costPrice} onChange={e => setCostPrice(e.target.value)} style={inp2} placeholder="0" /></label>
-        </>)}
-
-        <label style={fld}>Received Date<input type="date" value={receivedDate} onChange={e => setReceivedDate(e.target.value)} style={inp2} /></label>
-        <div style={{ position: "relative", gridColumn: "1/-1" }}>
-          <label style={{ ...fld }}>Notes
-            <input value={notes} onChange={e => setNotes(e.target.value.slice(0, 200))} style={inp2} placeholder="Optional notes" maxLength={200} />
-          </label>
-          <span style={{ position: "absolute", right: 0, bottom: -16, fontSize: 10, color: notes.length > 170 ? "#e07" : "var(--muted)" }}>{notes.length}/200</span>
-        </div>
-      </div>
-
-      {/* ── Size / quantity rows (readymade only) ── */}
-      {kind === "readymade" && (
-        <div style={{ marginTop: 22 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Size &amp; Quantity
-              {batchMode && totalBatchQty > 0 && (
-                <span style={{ marginLeft: 8, color: "var(--primary)", fontWeight: 800 }}>({totalBatchQty} pcs total)</span>
-              )}
-            </div>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
-              <span>Batch mode</span>
-              <div onClick={() => { setBatchMode(b => !b); setSizeRows([{ size: "", qty: "" }]); }}
-                style={{ width: 36, height: 20, borderRadius: 99, background: batchMode ? "var(--primary)" : "var(--line)", position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
-                <div style={{ position: "absolute", top: 3, left: batchMode ? 18 : 3, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
-              </div>
-            </label>
-          </div>
-
-          {sizeRows.map((row, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 110px auto", gap: 10, marginBottom: 8 }}>
-              <SizeSelect value={row.size} onChange={v => updateRow(i, { size: v })} label={i === 0 ? "Size" : ""} />
-              <label style={fld}>{i === 0 ? "Qty (pcs) *" : ""}
-                <input type="number" value={row.qty} onChange={e => updateRow(i, { qty: e.target.value })} style={inp2} placeholder="0" min="1" />
-              </label>
-              {batchMode && (
-                <div style={{ display: "flex", alignItems: i === 0 ? "flex-end" : "center", paddingBottom: i === 0 ? 2 : 0 }}>
-                  <button onClick={() => removeRow(i)} disabled={sizeRows.length === 1}
-                    style={{ width: 32, height: 34, borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: sizeRows.length === 1 ? "not-allowed" : "pointer", fontSize: 16, color: "#e55", opacity: sizeRows.length === 1 ? 0.3 : 1 }}>−</button>
-                </div>
-              )}
-            </div>
-          ))}
-
-          {batchMode && (
-            <button onClick={addRow}
-              style={{ width: "100%", padding: "9px", borderRadius: 8, border: "1px dashed var(--primary)", background: "transparent", color: "var(--primary)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-              + Add Another Size
-            </button>
-          )}
-        </div>
-      )}
-    </Modal>
-  );
-}
 
 function ToastContainer() {
   const toasts = useToasts();
@@ -382,7 +174,6 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [directEntry, setDirectEntry] = useState<"raw_cloth" | "readymade" | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [rawClothSearch, setRawClothSearch] = useState("");
   const [readymadeSearch, setReadymadeSearch] = useState("");
@@ -687,10 +478,10 @@ export default function Home() {
             )}
           </button>
 
-          {/* Controls row */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Controls row — stacks vertically when collapsed so buttons fit in 56px */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexDirection: sidebarOpen ? "row" : "column" }}>
             <button onClick={() => setDarkMode(d => !d)} title={darkMode ? "Light mode" : "Dark mode"}
-              style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffffcc", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}>
+              style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffffcc", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: sidebarOpen ? "auto" : 36 }}>
               {darkMode ? <Sun size={14} /> : <Moon size={14} />}
             </button>
             {sidebarOpen ? (
@@ -700,7 +491,7 @@ export default function Home() {
               </button>
             ) : (
               <button onClick={() => setConfirmLogout(true)} title="Log out"
-                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "#ffffffaa", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "#ffffffaa", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 36 }}>
                 <LogOut size={14} />
               </button>
             )}
@@ -781,34 +572,8 @@ export default function Home() {
                 <kbd style={{ fontSize: 9, background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 3, padding: "1px 4px", marginLeft: 2 }}>/</kbd>
               </button>
             )}
-            {currentTab === "raw_cloth" && canAddStock && (
-              <button onClick={() => setDirectEntry("raw_cloth")}
-                style={{ padding: "7px 16px", borderRadius: 7, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-                + Add Stock
-              </button>
-            )}
-            {currentTab === "readymade_stock" && canAddStock && (
-              <button onClick={() => setDirectEntry("readymade")}
-                style={{ padding: "7px 16px", borderRadius: 7, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-                + Add Stock
-              </button>
-            )}
           </div>
         </div>
-
-        {/* Direct stock entry modal */}
-        {directEntry && (
-          <DirectStockModal
-            kind={directEntry}
-            suppliers={data?.suppliers || []}
-            warehouses={data?.warehouseLocations || []}
-            categories={data?.clothCategories || []}
-            colors={data?.clothColors || []}
-            itemTypes={data?.itemTypes || []}
-            onClose={() => setDirectEntry(null)}
-            onMutate={mutate}
-          />
-        )}
 
         {/* ── Quick Search ── */}
         {showSearch && (
@@ -900,7 +665,7 @@ export default function Home() {
                   ))}
                   {!(data?.rawClothBatches?.length) && (
                     <tr><td colSpan={9} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
-                      No raw cloth batches. Click "+ Add Stock" above to add existing inventory.
+                      No raw cloth batches. Receive a Purchase Order or Purchase Bill to add cloth stock.
                     </td></tr>
                   )}
                 </tbody>
@@ -954,7 +719,7 @@ export default function Home() {
                   ))}
                   {!(data?.readymadeStock?.length) && (
                     <tr><td colSpan={10} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
-                      No readymade stock. Click &quot;+ Add Stock&quot; above to add existing inventory.
+                      No readymade stock. Receive a Purchase Order or Purchase Bill to add readymade items.
                     </td></tr>
                   )}
                 </tbody>
@@ -981,7 +746,7 @@ export default function Home() {
                         );
                         setAddToProducts(null);
                         if (token) loadData(token);
-                      } catch (e: unknown) { alert(friendlyError(e)); }
+                      } catch (e: unknown) { showToast(friendlyError(e), "error"); }
                       finally { setAddingToProducts(false); }
                     }}
                     style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>

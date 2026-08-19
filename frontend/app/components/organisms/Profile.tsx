@@ -1,8 +1,13 @@
 "use client";
 import { useState } from "react";
-import { Eye, EyeOff, User, Mail, Phone, Shield, Warehouse, KeyRound, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, User, Shield, Warehouse, KeyRound, CheckCircle2 } from "lucide-react";
 import { ROLE_LABELS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
+import Input from "@/app/components/atoms/Input";
+import Button from "@/app/components/atoms/Button";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 
 interface EmployeeProfile {
   id: string;
@@ -21,26 +26,9 @@ interface Props {
   onProfileUpdated: () => void;
 }
 
-const FIELD: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", borderRadius: 10,
-  border: "1.5px solid var(--line)", background: "var(--input-bg)",
-  color: "var(--ink)", fontSize: 14, outline: "none", boxSizing: "border-box",
-};
-
-const LBL: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: "var(--muted)",
-  letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6, display: "block",
-};
-
 const CARD: React.CSSProperties = {
   background: "var(--paper)", borderRadius: 14, border: "1px solid var(--line)",
   padding: "24px 28px", marginBottom: 20,
-};
-
-const SAVE_BTN: React.CSSProperties = {
-  padding: "10px 24px", borderRadius: 9, border: "none",
-  background: "var(--primary)", color: "#fff", fontWeight: 700,
-  fontSize: 14, cursor: "pointer",
 };
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -153,7 +141,7 @@ export default function Profile({ profile, onMutate, onProfileUpdated }: Props) 
           </div>
         </div>
 
-        {infoErr && <div style={{ background: "#fff1f0", border: "1px solid #ffc5c2", color: "#8d3e39", borderRadius: 9, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{infoErr}</div>}
+        <ErrorBanner msg={infoErr} />
         {infoMsg && (
           <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", borderRadius: 9, padding: "10px 14px", fontSize: 13, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
             <CheckCircle2 size={16} /> {infoMsg}
@@ -161,31 +149,25 @@ export default function Profile({ profile, onMutate, onProfileUpdated }: Props) 
         )}
 
         <form onSubmit={saveInfo} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Username — read only */}
-          <div>
-            <label style={LBL}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>Username <span style={{ fontWeight: 400, color: "#aaa", textTransform: "none", letterSpacing: 0 }}>(cannot be changed)</span></span>
-            </label>
-            <input value={profile.username} disabled style={{ ...FIELD, opacity: 0.55, cursor: "not-allowed" }} />
-          </div>
+          <Field label="Username" hint="Cannot be changed">
+            <Input value={profile.username} disabled style={{ opacity: 0.55, cursor: "not-allowed" }} />
+          </Field>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div>
-              <label style={LBL}><Mail size={11} style={{ marginRight: 5 }} />Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="your@email.com" style={FIELD} />
-            </div>
-            <div>
-              <label style={LBL}><Phone size={11} style={{ marginRight: 5 }} />Phone</label>
-              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                placeholder="+91 XXXXX XXXXX" style={FIELD} />
-            </div>
-          </div>
+          <FormGrid gap={16}>
+            <Field label="Email">
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="your@email.com" />
+            </Field>
+            <Field label="Phone">
+              <Input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                placeholder="+91 XXXXX XXXXX" />
+            </Field>
+          </FormGrid>
 
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button type="submit" disabled={saving} style={SAVE_BTN}>
+            <Button type="submit" variant="primary" disabled={saving} style={{ padding: "10px 24px", fontSize: 14 }}>
               {saving ? "Saving…" : "Save Changes"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -202,7 +184,7 @@ export default function Profile({ profile, onMutate, onProfileUpdated }: Props) 
           </div>
         </div>
 
-        {pwErr && <div style={{ background: "#fff1f0", border: "1px solid #ffc5c2", color: "#8d3e39", borderRadius: 9, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{pwErr}</div>}
+        <ErrorBanner msg={pwErr} />
         {pwMsg && (
           <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", borderRadius: 9, padding: "10px 14px", fontSize: 13, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
             <CheckCircle2 size={16} /> {pwMsg}
@@ -210,51 +192,50 @@ export default function Profile({ profile, onMutate, onProfileUpdated }: Props) 
         )}
 
         <form onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label style={LBL}>Current Password</label>
+          <Field label="Current Password">
             <div style={{ position: "relative" }}>
-              <input type={showCur ? "text" : "password"} value={curPw}
+              <Input type={showCur ? "text" : "password"} value={curPw}
                 onChange={e => setCurPw(e.target.value)} required
-                placeholder="Enter current password" style={{ ...FIELD, paddingRight: 44 }} />
+                placeholder="Enter current password" style={{ paddingRight: 44 }} />
               <button type="button" onClick={() => setShowCur(p => !p)} style={{
                 position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
                 background: "none", border: "none", cursor: "pointer", color: "var(--muted)",
                 display: "flex", alignItems: "center",
               }}>{showCur ? <EyeOff size={16} /> : <Eye size={16} />}</button>
             </div>
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div>
-              <label style={LBL}>New Password</label>
+          <FormGrid gap={16}>
+            <Field label="New Password">
               <div style={{ position: "relative" }}>
-                <input type={showNew ? "text" : "password"} value={newPw}
+                <Input type={showNew ? "text" : "password"} value={newPw}
                   onChange={e => setNewPw(e.target.value)} required minLength={6}
-                  placeholder="Min. 6 characters" style={{ ...FIELD, paddingRight: 44 }} />
+                  placeholder="Min. 6 characters" style={{ paddingRight: 44 }} />
                 <button type="button" onClick={() => setShowNew(p => !p)} style={{
                   position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
                   background: "none", border: "none", cursor: "pointer", color: "var(--muted)",
                   display: "flex", alignItems: "center",
                 }}>{showNew ? <EyeOff size={16} /> : <Eye size={16} />}</button>
               </div>
-            </div>
-            <div>
-              <label style={LBL}>Confirm New Password</label>
-              <input type="password" value={confirmPw}
-                onChange={e => setConfirmPw(e.target.value)} required
-                placeholder="Repeat new password"
-                style={{ ...FIELD, borderColor: confirmPw && confirmPw !== newPw ? "#ef4444" : undefined }} />
-              {confirmPw && confirmPw !== newPw && (
-                <span style={{ fontSize: 11, color: "#ef4444", marginTop: 4, display: "block" }}>Passwords don't match</span>
-              )}
-            </div>
-          </div>
+            </Field>
+            <Field label="Confirm New Password">
+              <>
+                <Input type="password" value={confirmPw}
+                  onChange={e => setConfirmPw(e.target.value)} required
+                  placeholder="Repeat new password"
+                  style={{ borderColor: confirmPw && confirmPw !== newPw ? "#ef4444" : undefined }} />
+                {confirmPw && confirmPw !== newPw && (
+                  <span style={{ fontSize: 11, color: "#ef4444", marginTop: 4, display: "block" }}>Passwords don&apos;t match</span>
+                )}
+              </>
+            </Field>
+          </FormGrid>
 
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button type="submit" disabled={pwSaving || !curPw || !newPw || newPw !== confirmPw}
-              style={{ ...SAVE_BTN, background: "#ef4444", opacity: (!curPw || !newPw || newPw !== confirmPw) ? 0.5 : 1 }}>
+            <Button type="submit" variant="danger" disabled={pwSaving || !curPw || !newPw || newPw !== confirmPw}
+              style={{ padding: "10px 24px", fontSize: 14 }}>
               {pwSaving ? "Changing…" : "Change Password"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

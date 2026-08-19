@@ -4,16 +4,24 @@ export function formatMoney(value: number | string) {
   }).format(Number(value));
 }
 
+function _parts(value: string) {
+  const d = new Date(value);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const h = d.getHours();
+  const min = String(d.getMinutes()).padStart(2, "0");
+  const hh = String(h % 12 || 12);
+  const ampm = h >= 12 ? "PM" : "AM";
+  return { dd, mm, yyyy, hh, min, ampm };
+}
+
 export function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric", month: "short", year: "numeric",
-    hour: "numeric", minute: "2-digit",
-  }).format(new Date(value));
+  const { dd, mm, yyyy, hh, min, ampm } = _parts(value);
+  return `${dd}/${mm}/${yyyy}, ${hh}:${min} ${ampm}`;
 }
 
 export function formatDateShort(value: string) {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric", month: "short",
-    hour: "numeric", minute: "2-digit",
-  }).format(new Date(value));
+  const { dd, mm, yyyy } = _parts(value);
+  return `${dd}/${mm}/${yyyy}`;
 }

@@ -36,12 +36,15 @@ class CreateSalesOrder(graphene.Mutation):
             user=info.context.user, buyer_id=buyer_id, payment_mode=payment_mode,
             warehouse_id=warehouse_id, items=[dict(i) for i in items], **kwargs,
         )
-        log_action(entity_type="SalesOrder", entity_id=so.pk, action="CREATED",
-                   actor=info.context.user, detail={"order_number": so.order_number, "buyer": so.buyer.name,
-                                                     "total": float(so.total_amount)})
-        notify_managers(title=f"New SO: {so.order_number}",
-                        message=f"{so.order_number} for {so.buyer.name} — ₹{so.total_amount:,.0f}",
-                        link="sales_orders")
+        try:
+            log_action(entity_type="SalesOrder", entity_id=so.pk, action="CREATED",
+                       actor=info.context.user, detail={"order_number": so.order_number, "buyer": so.buyer.name,
+                                                         "total": float(so.total_amount)})
+            notify_managers(title=f"New SO: {so.order_number}",
+                            message=f"{so.order_number} for {so.buyer.name} — ₹{so.total_amount:,.0f}",
+                            link="sales_orders")
+        except Exception:
+            pass
         return CreateSalesOrder(sales_order=so)
 
 

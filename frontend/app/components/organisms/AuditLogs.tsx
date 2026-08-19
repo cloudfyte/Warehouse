@@ -2,6 +2,12 @@
 import { useState } from "react";
 import type { AuditLog } from "@/app/types";
 import { downloadCsv } from "@/app/lib/csv";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Button from "@/app/components/atoms/Button";
+import Badge from "@/app/components/atoms/Badge";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props { logs: AuditLog[] }
 
@@ -37,29 +43,34 @@ export default function AuditLogs({ logs }: Props) {
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Audit Log</h2>
-          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{logs.length} total entries</p>
-        </div>
-        <button onClick={() => downloadCsv(`audit_log_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(l => ({
-          "Entity Type": l.entityType, "Entity ID": l.entityId, "Action": l.action,
-          "Actor": l.actorName, "Detail": JSON.stringify(l.detail), "Time": l.createdAt,
-        })))}
-          style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-          ⬇ Export CSV
-        </button>
-      </div>
+      <PageHeader
+        title="Audit Log"
+        sub={`${logs.length} total entries`}
+        actions={
+          <Button variant="secondary" onClick={() => downloadCsv(
+            `audit_log_${new Date().toISOString().slice(0, 10)}.csv`,
+            filtered.map(l => ({
+              "Entity Type": l.entityType, "Entity ID": l.entityId, "Action": l.action,
+              "Actor": l.actorName, "Detail": JSON.stringify(l.detail), "Time": l.createdAt,
+            }))
+          )}>
+            ⬇ Export CSV
+          </Button>
+        }
+      />
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <input placeholder="Search action, actor or entity…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 220, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14 }} />
-        <select value={entityFilter} onChange={e => setEntityFilter(e.target.value)}
-          style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14 }}>
+      <FilterBar>
+        <Input
+          placeholder="Search action, actor or entity…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 220, width: "auto" }}
+        />
+        <Select value={entityFilter} onChange={e => setEntityFilter(e.target.value)} style={{ width: "auto" }}>
           <option value="">All entities</option>
           {entityTypes.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
 
       <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--line)", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -77,9 +88,7 @@ export default function AuditLogs({ logs }: Props) {
                 <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>{timeAgo(l.createdAt)}</td>
                   <td style={{ padding: "10px 14px" }}>
-                    <span style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: color + "22", color }}>
-                      {l.entityType}
-                    </span>
+                    <Badge label={l.entityType} color={color} bg={color + "22"} />
                   </td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--muted)" }}>#{l.entityId}</td>
                   <td style={{ padding: "10px 14px", fontWeight: 600, fontSize: 13 }}>
@@ -88,10 +97,7 @@ export default function AuditLogs({ logs }: Props) {
                   <td style={{ padding: "10px 14px", fontSize: 13 }}>{l.actorName || "System"}</td>
                   <td style={{ padding: "10px 14px" }}>
                     {Object.keys(l.detail).length > 0 && (
-                      <button onClick={() => setDetail(l)}
-                        style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 12 }}>
-                        Details
-                      </button>
+                      <Button variant="secondary" size="sm" onClick={() => setDetail(l)}>Details</Button>
                     )}
                   </td>
                 </tr>

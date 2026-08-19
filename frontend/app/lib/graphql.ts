@@ -109,10 +109,10 @@ export const DASHBOARD_QUERY = `
       warehouse { id name code }
       createdBy { id username }
       receivedBy { id username }
-      items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes
+      items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes ageGroup size
         clothCategory { id name } clothColor { id name hexCode } itemType { id name } }
       parcelInspection {
-        id parcelCondition quantityCheckPassed discrepancyNotes notes inspectionDate createdAt
+        id parcelCondition quantityCheckPassed discrepancyNotes photos notes inspectionDate createdAt
         inspectedBy { id username }
       }
     }
@@ -128,7 +128,7 @@ export const DASHBOARD_QUERY = `
       warehouse { id name }
       items {
         id itemKind totalMeters costPerMeter binLocation clothCode
-        size quantity unitPrice gstRate totalPrice notes
+        ageGroup size quantity unitPrice gstRate totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name }
       }
       supplierPayments { id paymentNumber amount paymentDate paymentMode reference notes createdAt }
@@ -141,7 +141,7 @@ export const DASHBOARD_QUERY = `
       warehouse { id name code }
     }
     readymadeStock {
-      id size quantityReceived quantityAvailable costPrice receivedDate
+      id ageGroup size quantityReceived quantityAvailable costPrice receivedDate
       itemType { id name }
       clothCategory { id name }
       clothColor { id name hexCode }
@@ -149,7 +149,7 @@ export const DASHBOARD_QUERY = `
       supplier { id name }
     }
     cuttingAssignments(limit: 100) {
-      id assignmentNumber metersAssigned targetPieces size status assignedDate dueDate
+      id assignmentNumber metersAssigned targetPieces ageGroup size status assignedDate dueDate
       piecesCompleted clothUsed clothWasted completedDate notes costPerPiece
       rawClothBatch { id batchNumber clothCategory { name } clothColor { name hexCode } costPerMeter }
       cuttingMaster { id username role }
@@ -161,7 +161,7 @@ export const DASHBOARD_QUERY = `
       tailor { id username role }
     }
     finishedProducts {
-      id sku source quantity costPrice salePrice profitMargin barcode barcodeSvg tagsPrinted size createdAt
+      id sku source quantity costPrice salePrice profitMargin barcode barcodeSvg tagsPrinted ageGroup size createdAt
       itemType { id name }
       clothCategory { id name }
       clothColor { id name hexCode }

@@ -20,6 +20,7 @@ class PurchaseBillItemInput(graphene.InputObjectType):
     cloth_code = graphene.String()
     # Readymade
     item_type_id = graphene.ID()
+    age_group = graphene.String()
     size = graphene.String()
     quantity = graphene.Int()
     unit_price = graphene.Float()
@@ -56,15 +57,21 @@ class CreatePurchaseBill(graphene.Mutation):
             items=[dict(i) for i in items],
             **kwargs,
         )
-        log_action(
-            entity_type="PurchaseBill", entity_id=bill.pk, action="CREATED",
-            actor=info.context.user,
-            detail={"bill_number": bill.bill_number, "supplier": bill.supplier.name,
-                    "total": str(bill.total_amount), "paid": str(bill.amount_paid)},
-        )
-        notify_managers(
-            title=f"Purchase Bill: {bill.bill_number}",
-            message=f"{bill.bill_number} from {bill.supplier.name} — ₹{bill.total_amount} (paid ₹{bill.amount_paid})",
-            link="purchase_bills",
-        )
+        try:
+            log_action(
+                entity_type="PurchaseBill", entity_id=bill.pk, action="CREATED",
+                actor=info.context.user,
+                detail={"bill_number": bill.bill_number, "supplier": bill.supplier.name,
+                        "total": str(bill.total_amount), "paid": str(bill.amount_paid)},
+            )
+        except Exception:
+            pass
+        try:
+            notify_managers(
+                title=f"Purchase Bill: {bill.bill_number}",
+                message=f"{bill.bill_number} from {bill.supplier.name} — ₹{bill.total_amount} (paid ₹{bill.amount_paid})",
+                link="purchase_bills",
+            )
+        except Exception:
+            pass
         return CreatePurchaseBill(purchase_bill=bill)

@@ -5,22 +5,18 @@ import {
 } from "recharts";
 import { PLReport, AgingReport } from "@/app/types";
 import { PL_REPORT_QUERY, AGING_REPORT_QUERY } from "@/app/lib/graphql";
+import Button from "@/app/components/atoms/Button";
+import Select from "@/app/components/atoms/Select";
+import StatCard from "@/app/components/molecules/StatCard";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import Field from "@/app/components/molecules/Field";
 
 interface Props {
   gql: <T>(q: string, v?: Record<string, unknown>) => Promise<T>;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
-
-function KpiCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div className="card p-4 space-y-1">
-      <div className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{label}</div>
-      <div className="text-2xl font-bold" style={{ color: color ?? "var(--text-primary)" }}>{value}</div>
-      {sub && <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{sub}</div>}
-    </div>
-  );
-}
 
 function pct(n: number) { return `${n.toFixed(1)}%`; }
 function fmt(n: number) { return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`.replace(/\.0$/, ""); }
@@ -70,19 +66,14 @@ export default function Reports({ gql }: Props) {
 
   return (
     <div className="space-y-5">
-      <h2 className="text-xl font-bold">Reports</h2>
+      <PageHeader title="Reports" />
 
       {/* Section tabs */}
       <div className="flex gap-2">
         {(["pl", "aging"] as const).map(s => (
-          <button key={s} onClick={() => setSection(s)}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{
-              background: section === s ? "var(--primary)" : "var(--surface-2)",
-              color: section === s ? "#fff" : "var(--text-secondary)",
-            }}>
+          <Button key={s} variant={section === s ? "primary" : "secondary"} size="sm" onClick={() => setSection(s)}>
             {s === "pl" ? "Profit & Loss" : "Receivables Aging"}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -92,42 +83,38 @@ export default function Reports({ gql }: Props) {
           {/* Controls */}
           <div className="card p-4">
             <div className="flex items-end gap-3 flex-wrap">
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Year</label>
-                <select value={year} onChange={e => setYear(Number(e.target.value))} className="input">
+              <Field label="Year">
+                <Select value={year} onChange={e => setYear(Number(e.target.value))}>
                   {Array.from({ length: 4 }, (_, i) => CURRENT_YEAR - i).map(y => (
                     <option key={y} value={y}>{y}</option>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Month (optional)</label>
-                <select value={month} onChange={e => setMonth(e.target.value === "" ? "" : Number(e.target.value))} className="input">
+                </Select>
+              </Field>
+              <Field label="Month (optional)">
+                <Select value={month} onChange={e => setMonth(e.target.value === "" ? "" : Number(e.target.value))}>
                   <option value="">Full Year</option>
                   {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                </select>
-              </div>
-              <button onClick={fetchPL} disabled={plLoading}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white self-end"
-                style={{ background: "var(--primary)" }}>
+                </Select>
+              </Field>
+              <Button variant="primary" onClick={fetchPL} disabled={plLoading} style={{ alignSelf: "flex-end" }}>
                 {plLoading ? "Loading…" : "Generate"}
-              </button>
+              </Button>
             </div>
           </div>
 
-          {plErr && <div className="p-3 rounded text-sm" style={{ background: "#fce4ec", color: "#c62828" }}>{plErr}</div>}
+          <ErrorBanner msg={plErr} />
 
           {plData && (
             <>
               {/* KPI cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <KpiCard label="Revenue" value={fmt(plData.revenue)} />
-                <KpiCard label="COGS" value={fmt(plData.cogs)} />
-                <KpiCard label="Gross Profit" value={fmt(plData.grossProfit)}
+                <StatCard label="Revenue" value={fmt(plData.revenue)} />
+                <StatCard label="COGS" value={fmt(plData.cogs)} />
+                <StatCard label="Gross Profit" value={fmt(plData.grossProfit)}
                   color={plData.grossProfit >= 0 ? "#4caf50" : "#f44336"}
                   sub={`Margin: ${pct(plData.grossMarginPct)}`} />
-                <KpiCard label="Expenses" value={fmt(plData.expenses)} />
-                <KpiCard label="Net Profit" value={fmt(plData.netProfit)}
+                <StatCard label="Expenses" value={fmt(plData.expenses)} />
+                <StatCard label="Net Profit" value={fmt(plData.netProfit)}
                   color={plData.netProfit >= 0 ? "#4caf50" : "#f44336"}
                   sub={`Margin: ${pct(plData.netMarginPct)}`} />
               </div>
@@ -169,20 +156,18 @@ export default function Reports({ gql }: Props) {
       {section === "aging" && (
         <div className="space-y-5">
           <div>
-            <button onClick={fetchAging} disabled={agingLoading}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-              style={{ background: "var(--primary)" }}>
+            <Button variant="primary" onClick={fetchAging} disabled={agingLoading}>
               {agingLoading ? "Loading…" : "Generate Aging Report"}
-            </button>
+            </Button>
           </div>
 
-          {agingErr && <div className="p-3 rounded text-sm" style={{ background: "#fce4ec", color: "#c62828" }}>{agingErr}</div>}
+          <ErrorBanner msg={agingErr} />
 
           {agingData && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <KpiCard label="Total Buyer Outstanding" value={fmt(agingData.totalBuyerOutstanding)} color="#f44336" />
-                <KpiCard label="Total Supplier Outstanding" value={fmt(agingData.totalSupplierOutstanding)} color="#ff9800" />
+                <StatCard label="Total Buyer Outstanding" value={fmt(agingData.totalBuyerOutstanding)} color="#f44336" />
+                <StatCard label="Total Supplier Outstanding" value={fmt(agingData.totalSupplierOutstanding)} color="#ff9800" />
               </div>
 
               {/* Buyer aging */}

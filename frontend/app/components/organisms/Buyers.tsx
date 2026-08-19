@@ -1,6 +1,22 @@
 "use client";
 import { useState } from "react";
 import type { Buyer, SalesOrder, CreditTransaction, BuyerReturn } from "@/app/types";
+import { BUYER_TYPE_LABELS } from "@/app/lib/constants";
+import { formatMoney } from "@/app/lib/formatters";
+import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
+import StateCity from "@/app/components/atoms/StateCity";
+import Modal from "@/app/components/atoms/Modal";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Textarea from "@/app/components/atoms/Textarea";
+import Button from "@/app/components/atoms/Button";
+import Badge from "@/app/components/atoms/Badge";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -11,11 +27,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     </div>
   );
 }
-import { BUYER_TYPE_LABELS } from "@/app/lib/constants";
-import { formatMoney } from "@/app/lib/formatters";
-import { friendlyError } from "@/app/lib/errors";
-import StateCity from "@/app/components/atoms/StateCity";
-import Modal from "@/app/components/atoms/Modal";
 
 interface Props {
   buyers: Buyer[]; isAdmin: boolean; isSuperAdmin: boolean; isManager?: boolean
@@ -26,27 +37,6 @@ interface Props {
 const BUYER_COLORS: Record<string, string> = { WHOLESALE: "#7c3aed", RETAIL: "#2563eb", EXPORT: "#059669" };
 const ORDER_STATUS_COLORS: Record<string, string> = { PENDING: "#f59e0b", PROCESSING: "#2563eb", COMPLETED: "#16a34a", CANCELLED: "#dc2626", DELIVERED: "#16a34a" };
 const CREDIT_STATUS_COLORS: Record<string, string> = { ACTIVE: "#2563eb", OVERDUE: "#dc2626", SETTLED: "#16a34a" };
-
-const I: React.CSSProperties = {
-  padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
-  background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, width: "100%", outline: "none",
-};
-const BTN_PRI: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "none",
-  background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14,
-};
-const BTN_SEC: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)",
-  background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14,
-};
-const LBL: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 5,
-  fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
-};
-
-function Badge({ label, color }: { label: string; color: string }) {
-  return <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: color + "18", color, border: `1px solid ${color}33` }}>{label}</span>;
-}
 
 function MiniCard({ label, value, color = "var(--primary)" }: { label: string; value: string; color?: string }) {
   return (
@@ -206,28 +196,22 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, isManager = fals
       const cl = editing.creditLimit != null ? Number(editing.creditLimit) : undefined;
       await onMutate(m, { id: editing.id, name: editing.name, cp: editing.contactPerson, email: editing.email, phone: editing.phone, wa: editing.whatsapp, addr: editing.address, city: editing.city, state: editing.state, gstin: editing.gstin, bt: editing.buyerType, cl: Number.isFinite(cl as number) ? cl : undefined, notes: editing.notes, active: editing.active });
       setEditing(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Buyer created." : "Buyer updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
-  const inp = (label: string, field: keyof Buyer, type = "text") => (
-    <label style={LBL}>{label}
-      <input type={type} value={editing?.[field] as string ?? ""} onChange={e => setEditing(p => ({ ...p, [field]: e.target.value }))} style={I} />
-    </label>
-  );
-
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Buyers</h2>
-          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{buyers.length} buyers</p>
-        </div>
-        {canEdit && <button onClick={openNew} className="primary-button">+ Add Buyer</button>}
-      </div>
+      <PageHeader
+        title="Buyers"
+        sub={`${buyers.length} buyers`}
+        actions={canEdit && <Button variant="primary" onClick={openNew}>+ Add Buyer</Button>}
+      />
 
-      <input placeholder="Search buyers…" value={search} onChange={e => setSearch(e.target.value)}
-        style={{ ...I, maxWidth: 360, marginBottom: 16 }} />
+      <FilterBar>
+        <Input placeholder="Search buyers…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
+      </FilterBar>
 
       {historyBuyer && (
         <BuyerHistory
@@ -247,19 +231,25 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, isManager = fals
           width={560}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={save} disabled={loading} style={BTN_PRI}>{loading ? "Saving…" : "Save"}</button>
-              <button onClick={() => { setEditing(null); setError(""); }} style={BTN_SEC}>Cancel</button>
+              <Button variant="primary" style={{ flex: 1 }} onClick={save} disabled={loading}>{loading ? "Saving…" : "Save"}</Button>
+              <Button variant="secondary" style={{ flex: 1 }} onClick={() => { setEditing(null); setError(""); }}>Cancel</Button>
             </div>
           }
         >
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            {inp("Company / Name *", "name")}
-            {inp("Contact Person", "contactPerson")}
-            {inp("Email", "email", "email")}
-            <label style={LBL}>Phone
-              <input type="tel" value={editing?.phone ?? ""} onChange={e => handlePhoneChange(e.target.value)} style={I} />
-            </label>
+          {error && <div style={{ marginBottom: 16 }}><ErrorBanner msg={error} /></div>}
+          <FormGrid>
+            <Field label="Company / Name" required>
+              <Input value={editing?.name ?? ""} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} />
+            </Field>
+            <Field label="Contact Person">
+              <Input value={editing?.contactPerson ?? ""} onChange={e => setEditing(p => ({ ...p, contactPerson: e.target.value }))} />
+            </Field>
+            <Field label="Email">
+              <Input type="email" value={editing?.email ?? ""} onChange={e => setEditing(p => ({ ...p, email: e.target.value }))} />
+            </Field>
+            <Field label="Phone">
+              <Input type="tel" value={editing?.phone ?? ""} onChange={e => handlePhoneChange(e.target.value)} />
+            </Field>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 18 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>WhatsApp</span>
@@ -268,42 +258,42 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, isManager = fals
                   <span style={{ fontSize: 11, fontWeight: 600, color: waIsSameAsPhone ? "#25d366" : "var(--muted)" }}>Same as phone</span>
                 </label>
               </div>
-              <input type="tel" value={editing?.whatsapp ?? ""} disabled={waIsSameAsPhone}
+              <Input type="tel" value={editing?.whatsapp ?? ""} disabled={waIsSameAsPhone}
                 onChange={e => setEditing(p => ({ ...p, whatsapp: e.target.value }))}
                 placeholder={waIsSameAsPhone ? editing?.phone ?? "" : "+91 98765 43210"}
-                style={{ ...I, opacity: waIsSameAsPhone ? 0.6 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text",
+                style={{ opacity: waIsSameAsPhone ? 0.6 : 1, cursor: waIsSameAsPhone ? "not-allowed" : "text",
                   borderColor: !waIsSameAsPhone && editing?.whatsapp ? "#25d366" : undefined }} />
             </div>
-            {inp("GSTIN", "gstin")}
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <label style={LBL}>Address
-              <textarea value={editing?.address ?? ""} onChange={e => setEditing(p => ({ ...p, address: e.target.value }))}
-                style={{ ...I, resize: "vertical", minHeight: 60 }} placeholder="Street / building address" />
-            </label>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+            <Field label="GSTIN">
+              <Input value={editing?.gstin ?? ""} onChange={e => setEditing(p => ({ ...p, gstin: e.target.value }))} />
+            </Field>
+          </FormGrid>
+          <Field label="Address" style={{ marginTop: 14 }}>
+            <Textarea value={editing?.address ?? ""} onChange={e => setEditing(p => ({ ...p, address: e.target.value }))}
+              style={{ minHeight: 60 }} placeholder="Street / building address" />
+          </Field>
+          <FormGrid style={{ marginTop: 14 }}>
             <StateCity
               state={editing.state || ""} city={editing.city || ""}
               onStateChange={v => setEditing(p => ({ ...p, state: v }))}
               onCityChange={v => setEditing(p => ({ ...p, city: v }))}
             />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
-            <label style={LBL}>Buyer Type
-              <select value={editing.buyerType ?? "WHOLESALE"} onChange={e => setEditing(p => ({ ...p, buyerType: e.target.value }))} style={I}>
+          </FormGrid>
+          <FormGrid style={{ marginTop: 14 }}>
+            <Field label="Buyer Type">
+              <Select value={editing.buyerType ?? "WHOLESALE"} onChange={e => setEditing(p => ({ ...p, buyerType: e.target.value }))}>
                 {Object.entries(BUYER_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </label>
-            <label style={LBL}>Credit Limit (₹)
-              <input type="number" value={editing.creditLimit ?? 0} onChange={e => setEditing(p => ({ ...p, creditLimit: +e.target.value }))} style={I} />
-            </label>
-          </div>
+              </Select>
+            </Field>
+            <Field label="Credit Limit (₹)">
+              <Input type="number" value={editing.creditLimit ?? 0} onChange={e => setEditing(p => ({ ...p, creditLimit: +e.target.value }))} />
+            </Field>
+          </FormGrid>
           <div style={{ position: "relative", marginTop: 14 }}>
-            <label style={LBL}>Notes
-              <textarea value={editing.notes ?? ""} onChange={e => setEditing(p => ({ ...p, notes: e.target.value.slice(0, 200) }))}
-                style={{ ...I, resize: "vertical", minHeight: 72 }} maxLength={200} placeholder="Internal notes about this buyer" />
-            </label>
+            <Field label="Notes">
+              <Textarea value={editing.notes ?? ""} onChange={e => setEditing(p => ({ ...p, notes: e.target.value.slice(0, 200) }))}
+                style={{ minHeight: 72 }} maxLength={200} placeholder="Internal notes about this buyer" />
+            </Field>
             <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, color: (editing.notes?.length ?? 0) > 170 ? "#e07" : "var(--muted)", pointerEvents: "none" }}>{editing.notes?.length ?? 0}/200</span>
           </div>
           {!isNew && (
@@ -357,10 +347,7 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, isManager = fals
                 </td>
                 <td style={{ padding: "13px 16px", fontSize: 14, fontWeight: 600 }}>{formatMoney(b.creditLimit)}</td>
                 <td style={{ padding: "13px 16px" }}>
-                  {canEdit && (
-                    <button onClick={() => openEdit(b)}
-                      style={{ padding: "5px 14px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Edit</button>
-                  )}
+                  {canEdit && <Button variant="secondary" size="sm" onClick={() => openEdit(b)}>Edit</Button>}
                 </td>
               </tr>
             ))}

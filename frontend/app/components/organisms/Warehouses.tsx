@@ -4,6 +4,14 @@ import type { WarehouseLocation } from "@/app/types";
 import StateCity from "@/app/components/atoms/StateCity";
 import Modal from "@/app/components/atoms/Modal";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Button from "@/app/components/atoms/Button";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
 
 interface Props {
   warehouses: WarehouseLocation[]; isSuperAdmin: boolean; isAdmin: boolean
@@ -16,23 +24,6 @@ const LOCATION_TYPES = [
   { value: "PRODUCTION", label: "Production Floor" },
 ];
 const TYPE_COLORS: Record<string, string> = { WAREHOUSE: "#1d4ed8", STORE: "#15803d", PRODUCTION: "#c2410c" };
-
-const I: React.CSSProperties = {
-  padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
-  background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, width: "100%", outline: "none",
-};
-const BTN_PRI: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "none",
-  background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14,
-};
-const BTN_SEC: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)",
-  background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14,
-};
-const LBL: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 5,
-  fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
-};
 
 export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate }: Props) {
   const [editing, setEditing] = useState<Partial<WarehouseLocation> | null>(null);
@@ -58,29 +49,22 @@ export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate
         );
       }
       setEditing(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Warehouse created." : "Warehouse updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
-  const inp = (label: string, val: string, onChange: (v: string) => void, type = "text") => (
-    <label style={LBL}>{label}
-      <input type={type} value={val} onChange={e => onChange(e.target.value)} style={I} />
-    </label>
-  );
-
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Warehouse Locations</h2>
-          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{warehouses.length} locations</p>
-        </div>
-        {canEdit && (
-          <button onClick={() => { setIsNew(true); setEditing({ name: "", code: "", locationType: "WAREHOUSE", address: "", city: "", phone: "", active: true }); setError(""); }} className="primary-button">
+      <PageHeader
+        title="Warehouse Locations"
+        sub={`${warehouses.length} locations`}
+        actions={canEdit && (
+          <Button variant="primary" onClick={() => { setIsNew(true); setEditing({ name: "", code: "", locationType: "WAREHOUSE", address: "", city: "", phone: "", active: true }); setError(""); }}>
             + Add Location
-          </button>
+          </Button>
         )}
-      </div>
+      />
 
       {editing && (
         <Modal
@@ -90,31 +74,39 @@ export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate
           width={480}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={save} disabled={loading} style={BTN_PRI}>{loading ? "Saving…" : "Save"}</button>
-              <button onClick={() => { setEditing(null); setError(""); }} style={BTN_SEC}>Cancel</button>
+              <Button variant="primary" style={{ flex: 1 }} onClick={save} disabled={loading}>{loading ? "Saving…" : "Save"}</Button>
+              <Button variant="secondary" style={{ flex: 1 }} onClick={() => { setEditing(null); setError(""); }}>Cancel</Button>
             </div>
           }
         >
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            {inp("Name *", editing.name || "", v => setEditing(p => ({ ...p, name: v })))}
-            {isNew && inp("Code *", editing.code || "", v => setEditing(p => ({ ...p, code: v.toUpperCase() })))}
-            <label style={LBL}>Type
-              <select value={editing.locationType || "WAREHOUSE"} onChange={e => setEditing(p => ({ ...p, locationType: e.target.value }))} style={I}>
+          {error && <div style={{ marginBottom: 16 }}><ErrorBanner msg={error} /></div>}
+          <FormGrid>
+            <Field label="Name" required>
+              <Input value={editing.name || ""} onChange={e => setEditing(p => ({ ...p, name: e.target.value }))} />
+            </Field>
+            {isNew && (
+              <Field label="Code" required>
+                <Input value={editing.code || ""} onChange={e => setEditing(p => ({ ...p, code: e.target.value.toUpperCase() }))} />
+              </Field>
+            )}
+            <Field label="Type">
+              <Select value={editing.locationType || "WAREHOUSE"} onChange={e => setEditing(p => ({ ...p, locationType: e.target.value }))}>
                 {LOCATION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </label>
-            {inp("Phone", editing.phone || "", v => setEditing(p => ({ ...p, phone: v })), "tel")}
+              </Select>
+            </Field>
+            <Field label="Phone">
+              <Input type="tel" value={editing.phone || ""} onChange={e => setEditing(p => ({ ...p, phone: e.target.value }))} />
+            </Field>
             <StateCity
               state={(editing as WarehouseLocation & { state?: string }).state || ""}
               city={editing.city || ""}
               onStateChange={v => setEditing(p => ({ ...p, state: v }))}
               onCityChange={v => setEditing(p => ({ ...p, city: v }))}
             />
-          </div>
-          <label style={{ ...LBL, marginTop: 14 }}>Address
-            <input value={editing.address || ""} onChange={e => setEditing(p => ({ ...p, address: e.target.value }))} style={I} />
-          </label>
+          </FormGrid>
+          <Field label="Address" style={{ marginTop: 14 }}>
+            <Input value={editing.address || ""} onChange={e => setEditing(p => ({ ...p, address: e.target.value }))} />
+          </Field>
           {!isNew && (
             <label style={{
               display: "flex", alignItems: "center", gap: 10, marginTop: 16,
@@ -159,10 +151,10 @@ export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate
             {w.address && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2, lineHeight: 1.4 }}>{w.address}</div>}
             {w.phone && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{w.phone}</div>}
             {canEdit && (
-              <button onClick={() => { setIsNew(false); setEditing(w); setError(""); }}
-                style={{ marginTop: 14, width: "100%", padding: "8px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+              <Button variant="secondary" onClick={() => { setIsNew(false); setEditing(w); setError(""); }}
+                style={{ marginTop: 14, width: "100%" }}>
                 Edit Location
-              </button>
+              </Button>
             )}
           </div>
         ))}

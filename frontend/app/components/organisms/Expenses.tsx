@@ -3,7 +3,17 @@ import { useState } from "react";
 import type { Expense, WarehouseLocation } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
+import Badge from "@/app/components/atoms/Badge";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Textarea from "@/app/components/atoms/Textarea";
+import Button from "@/app/components/atoms/Button";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
 import { downloadCsv } from "@/app/lib/csv";
 
 interface Props {
@@ -27,19 +37,6 @@ const CAT_COLORS: Record<string, string> = {
   UTILITIES: "#2563eb", RENT: "#7c3aed", MAINTENANCE: "#f59e0b",
   TRANSPORT: "#059669", PACKAGING: "#6366f1", LABOR: "#dc2626", OTHER: "#64748b",
 };
-
-const I: React.CSSProperties = {
-  padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
-  background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, width: "100%", outline: "none",
-};
-const LBL: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 5,
-  fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
-};
-
-function Badge({ label, color }: { label: string; color: string }) {
-  return <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: color + "18", color, border: `1px solid ${color}33` }}>{label}</span>;
-}
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -89,7 +86,8 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
         );
       }
       setEditing(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Expense recorded." : "Expense updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -98,25 +96,23 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
     try {
       await onMutate(`mutation D($id:ID!){deleteExpense(id:$id){ok}}`, { id });
       setConfirmDelete(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Expense deleted.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Expenses</h2>
-          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{expenses.length} records · Total: {formatMoney(expenses.reduce((s, e) => s + e.amount, 0))}</p>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => downloadCsv(`expenses-${new Date().toISOString().slice(0,10)}.csv`, expenses.map(e => ({ "Expense #": e.expenseNumber, Date: e.expenseDate, Category: CATEGORIES[e.category] || e.category, Description: e.description, Reference: e.reference, Amount: e.amount, Warehouse: e.warehouse?.name })))}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+      <PageHeader
+        title="Expenses"
+        sub={`${expenses.length} records · Total: ${formatMoney(expenses.reduce((s, e) => s + e.amount, 0))}`}
+        actions={<>
+          <Button variant="secondary" size="sm" onClick={() => downloadCsv(`expenses-${new Date().toISOString().slice(0,10)}.csv`, expenses.map(e => ({ "Expense #": e.expenseNumber, Date: e.expenseDate, Category: CATEGORIES[e.category] || e.category, Description: e.description, Reference: e.reference, Amount: e.amount, Warehouse: e.warehouse?.name })))}>
             ↓ Export CSV
-          </button>
-          {canEdit && <button onClick={openNew} className="primary-button">+ Add Expense</button>}
-        </div>
-      </div>
+          </Button>
+          {canEdit && <Button variant="primary" onClick={openNew}>+ Add Expense</Button>}
+        </>}
+      />
 
       {/* Category summary cards */}
       <div style={{ display: "flex", gap: 10, overflowX: "auto", marginBottom: 20, paddingBottom: 4 }}>
@@ -149,46 +145,44 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
           width={500}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={save} disabled={loading}
-                style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
+              <Button variant="primary" onClick={save} disabled={loading} style={{ flex: 1, padding: "11px 0" }}>
                 {loading ? "Saving…" : "Save"}
-              </button>
-              <button onClick={() => { setEditing(null); setError(""); }}
-                style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14 }}>
+              </Button>
+              <Button variant="secondary" onClick={() => { setEditing(null); setError(""); }} style={{ flex: 1, padding: "11px 0" }}>
                 Cancel
-              </button>
+              </Button>
             </div>
           }
         >
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <label style={LBL}>Category
-              <select value={editing.category || "OTHER"} onChange={e => setEditing(p => ({ ...p, category: e.target.value }))} style={I}>
+          <ErrorBanner msg={error} />
+          <FormGrid>
+            <Field label="Category">
+              <Select value={editing.category || "OTHER"} onChange={e => setEditing(p => ({ ...p, category: e.target.value }))}>
                 {Object.entries(CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </label>
-            <label style={LBL}>Amount (₹) *
-              <input type="number" min="0" step="0.01" value={editing.amount || ""} onChange={e => setEditing(p => ({ ...p, amount: +e.target.value }))} style={I} />
-            </label>
-            <label style={LBL}>Date *
-              <input type="date" value={editing.expenseDate || today()} onChange={e => setEditing(p => ({ ...p, expenseDate: e.target.value }))} style={I} />
-            </label>
-            <label style={LBL}>Reference / Bill No
-              <input type="text" value={editing.reference || ""} onChange={e => setEditing(p => ({ ...p, reference: e.target.value }))} style={I} placeholder="Optional receipt / bill ref" />
-            </label>
-          </div>
+              </Select>
+            </Field>
+            <Field label="Amount (₹)" required>
+              <Input type="number" min="0" step="0.01" value={editing.amount || ""} onChange={e => setEditing(p => ({ ...p, amount: +e.target.value }))} />
+            </Field>
+            <Field label="Date" required>
+              <Input type="date" value={editing.expenseDate || today()} onChange={e => setEditing(p => ({ ...p, expenseDate: e.target.value }))} />
+            </Field>
+            <Field label="Reference / Bill No">
+              <Input type="text" value={editing.reference || ""} onChange={e => setEditing(p => ({ ...p, reference: e.target.value }))} placeholder="Optional receipt / bill ref" />
+            </Field>
+          </FormGrid>
           {isNew && (
-            <label style={{ ...LBL, marginTop: 14 }}>Warehouse *
-              <select value={editing.warehouseId || ""} onChange={e => setEditing(p => ({ ...p, warehouseId: e.target.value }))} style={I}>
+            <Field label="Warehouse" required style={{ marginTop: 14 }}>
+              <Select value={editing.warehouseId || ""} onChange={e => setEditing(p => ({ ...p, warehouseId: e.target.value }))}>
                 <option value="">Select warehouse</option>
                 {warehouses.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </label>
+              </Select>
+            </Field>
           )}
-          <label style={{ ...LBL, marginTop: 14 }}>Description *
-            <textarea value={editing.description || ""} onChange={e => setEditing(p => ({ ...p, description: e.target.value }))}
-              style={{ ...I, resize: "vertical", minHeight: 72 }} placeholder="What was this expense for?" />
-          </label>
+          <Field label="Description" required style={{ marginTop: 14 }}>
+            <Textarea value={editing.description || ""} onChange={e => setEditing(p => ({ ...p, description: e.target.value }))}
+              style={{ minHeight: 72 }} placeholder="What was this expense for?" />
+          </Field>
         </Modal>
       )}
 
@@ -197,14 +191,12 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
         <Modal title="Delete Expense" subtitle="This cannot be undone." onClose={() => setConfirmDelete(null)} width={380}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => deleteExpense(confirmDelete)} disabled={loading}
-                style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
+              <Button variant="danger" onClick={() => deleteExpense(confirmDelete)} disabled={loading} style={{ flex: 1, padding: "11px 0" }}>
                 {loading ? "Deleting…" : "Delete"}
-              </button>
-              <button onClick={() => setConfirmDelete(null)}
-                style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14 }}>
+              </Button>
+              <Button variant="secondary" onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "11px 0" }}>
                 Cancel
-              </button>
+              </Button>
             </div>
           }
         >
@@ -237,10 +229,8 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
                 <td style={{ padding: "12px 16px" }}>
                   {canEdit && (
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => openEdit(e)}
-                        style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Edit</button>
-                      <button onClick={() => setConfirmDelete(e.id)}
-                        style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid #fca5a5", background: "#fff5f5", color: "#dc2626", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Del</button>
+                      <Button variant="secondary" size="sm" onClick={() => openEdit(e)}>Edit</Button>
+                      <Button variant="danger" size="sm" onClick={() => setConfirmDelete(e.id)}>Del</Button>
                     </div>
                   )}
                 </td>

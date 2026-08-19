@@ -4,6 +4,15 @@ import type { CustomRole, Employee, WarehouseLocation } from "@/app/types";
 import { ROLE_LABELS } from "@/app/lib/constants";
 import Modal from "@/app/components/atoms/Modal";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Button from "@/app/components/atoms/Button";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props {
   employees: Employee[]; warehouses: WarehouseLocation[]
@@ -16,23 +25,6 @@ const ROLES = Object.keys(ROLE_LABELS);
 const ROLE_COLORS: Record<string, string> = {
   SUPER_ADMIN: "#b91c1c", ADMIN: "#15803d", MANAGER: "#1d4ed8",
   STORE_KEEPER: "#7c3aed", CUTTING_MASTER: "#c2410c", TAILOR: "#0e7490", AUDITOR: "#475569",
-};
-
-const I: React.CSSProperties = {
-  padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
-  background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, width: "100%", outline: "none",
-};
-const BTN_PRI: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "none",
-  background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14,
-};
-const BTN_SEC: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)",
-  background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14,
-};
-const LBL: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 5,
-  fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
 };
 
 function RoleBadge({ role, customRole }: { role: string; customRole?: CustomRole | null }) {
@@ -94,7 +86,8 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
         );
       }
       setEditing(null); setNewPass(""); setEditingCustomRoleId("");
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Employee created." : "Employee updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -105,28 +98,27 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
     try {
       await onMutate(`mutation R($id:ID!,$pw:String!){resetEmployeePassword(id:$id,newPassword:$pw){ok}}`, { id: showResetFor, pw: resetPw });
       setShowResetFor(null); setResetPw(""); setResetPw2("");
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Password reset successfully.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Employees</h2>
-          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{employees.length} team members</p>
-        </div>
-        {canEdit && (
-          <button onClick={() => { setIsNew(true); setEditing({ username: "", email: "", phone: "", role: "STORE_KEEPER", active: true, locations: [] }); setNewPass(""); setEditingCustomRoleId(""); setError(""); }} className="primary-button">
+      <PageHeader
+        title="Employees"
+        sub={`${employees.length} team members`}
+        actions={canEdit && (
+          <Button variant="primary" onClick={() => { setIsNew(true); setEditing({ username: "", email: "", phone: "", role: "STORE_KEEPER", active: true, locations: [] }); setNewPass(""); setEditingCustomRoleId(""); setError(""); }}>
             + Add Employee
-          </button>
+          </Button>
         )}
-      </div>
+      />
 
-      <input placeholder="Search by name or role…" value={search} onChange={e => setSearch(e.target.value)}
-        style={{ ...I, maxWidth: 360, marginBottom: 16 }} />
+      <FilterBar>
+        <Input placeholder="Search by name or role…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
+      </FilterBar>
 
-      {/* Reset password modal */}
       {showResetFor && (
         <Modal
           title="Reset Password"
@@ -136,26 +128,25 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
           zIndex={200}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={resetPassword} disabled={loading} style={BTN_PRI}>
+              <Button variant="primary" style={{ flex: 1 }} onClick={resetPassword} disabled={loading}>
                 {loading ? "Resetting…" : "Reset Password"}
-              </button>
-              <button onClick={() => { setShowResetFor(null); setError(""); }} style={BTN_SEC}>Cancel</button>
+              </Button>
+              <Button variant="secondary" style={{ flex: 1 }} onClick={() => { setShowResetFor(null); setError(""); }}>Cancel</Button>
             </div>
           }
         >
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+          {error && <div style={{ marginBottom: 16 }}><ErrorBanner msg={error} /></div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <label style={LBL}>New Password
-              <input type="password" value={resetPw} onChange={e => setResetPw(e.target.value)} style={I} placeholder="Min. 8 characters" />
-            </label>
-            <label style={LBL}>Confirm Password
-              <input type="password" value={resetPw2} onChange={e => setResetPw2(e.target.value)} style={I} placeholder="Repeat password" />
-            </label>
+            <Field label="New Password">
+              <Input type="password" value={resetPw} onChange={e => setResetPw(e.target.value)} placeholder="Min. 8 characters" />
+            </Field>
+            <Field label="Confirm Password">
+              <Input type="password" value={resetPw2} onChange={e => setResetPw2(e.target.value)} placeholder="Repeat password" />
+            </Field>
           </div>
         </Modal>
       )}
 
-      {/* Edit / Create modal */}
       {editing && (
         <Modal
           title={isNew ? "Add Employee" : "Edit Employee"}
@@ -164,54 +155,53 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
           width={520}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={save} disabled={loading} style={BTN_PRI}>
+              <Button variant="primary" style={{ flex: 1 }} onClick={save} disabled={loading}>
                 {loading ? "Saving…" : "Save"}
-              </button>
-              <button onClick={() => { setEditing(null); setEditingCustomRoleId(""); setError(""); }} style={BTN_SEC}>Cancel</button>
+              </Button>
+              <Button variant="secondary" style={{ flex: 1 }} onClick={() => { setEditing(null); setEditingCustomRoleId(""); setError(""); }}>Cancel</Button>
             </div>
           }
         >
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+          {error && <div style={{ marginBottom: 16 }}><ErrorBanner msg={error} /></div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {isNew && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <label style={LBL}>Username *
-                  <input value={editing.username || ""} onChange={e => setEditing(p => ({ ...p, username: e.target.value }))} style={I} />
-                </label>
-                <label style={LBL}>Password *
-                  <input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} style={I} placeholder="Min. 8 characters" />
-                </label>
-              </div>
+              <FormGrid>
+                <Field label="Username" required>
+                  <Input value={editing.username || ""} onChange={e => setEditing(p => ({ ...p, username: e.target.value }))} />
+                </Field>
+                <Field label="Password" required>
+                  <Input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Min. 8 characters" />
+                </Field>
+              </FormGrid>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <label style={LBL}>Email
-                <input type="email" value={editing.email || ""} onChange={e => setEditing(p => ({ ...p, email: e.target.value }))} style={I} />
-              </label>
-              <label style={LBL}>Phone
-                <input type="tel" value={editing.phone || ""} onChange={e => setEditing(p => ({ ...p, phone: e.target.value }))} style={I} />
-              </label>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <label style={LBL}>System Role *
-                <select value={editing.role || "STORE_KEEPER"} onChange={e => setEditing(p => ({ ...p, role: e.target.value }))} style={I}>
+            <FormGrid>
+              <Field label="Email">
+                <Input type="email" value={editing.email || ""} onChange={e => setEditing(p => ({ ...p, email: e.target.value }))} />
+              </Field>
+              <Field label="Phone">
+                <Input type="tel" value={editing.phone || ""} onChange={e => setEditing(p => ({ ...p, phone: e.target.value }))} />
+              </Field>
+            </FormGrid>
+            <FormGrid>
+              <Field label="System Role" required>
+                <Select value={editing.role || "STORE_KEEPER"} onChange={e => setEditing(p => ({ ...p, role: e.target.value }))}>
                   {ROLES.filter(r => r !== "SUPER_ADMIN" || isSuperAdmin).filter(r => r !== "ADMIN" || isSuperAdmin).map(r => (
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </Field>
               {customRoles.length > 0 && (
-                <label style={LBL}>
-                  Custom Role (overrides tab visibility)
-                  <select value={editingCustomRoleId} onChange={e => setEditingCustomRoleId(e.target.value)} style={I}>
+                <Field label="Custom Role (overrides tab visibility)">
+                  <Select value={editingCustomRoleId} onChange={e => setEditingCustomRoleId(e.target.value)}>
                     <option value="">— None (use system role) —</option>
                     {customRoles.map(cr => (
                       <option key={cr.id} value={cr.id}>{cr.displayName}</option>
                     ))}
-                  </select>
-                </label>
+                  </Select>
+                </Field>
               )}
-            </div>
-            <label style={LBL}>Assigned Warehouses
+            </FormGrid>
+            <Field label="Assigned Warehouses">
               <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "10px 14px", display: "flex", flexWrap: "wrap", gap: 10, background: "var(--input-bg)" }}>
                 {warehouses.map(w => {
                   const checked = editing.locations?.some(l => l.id === w.id) || false;
@@ -230,7 +220,7 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
                 })}
                 {warehouses.length === 0 && <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>No warehouses configured yet</span>}
               </div>
-            </label>
+            </Field>
             {!isNew && (
               <label style={{
                 display: "flex", alignItems: "center", gap: 10, marginTop: 4,
@@ -282,10 +272,8 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
                 <td style={{ padding: "13px 16px" }}>
                   {canEditEmployee(e) && (
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => { setIsNew(false); setEditing(e); setEditingCustomRoleId(e.customRole?.id || ""); setError(""); }}
-                        style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Edit</button>
-                      <button onClick={() => { setShowResetFor(e.id); setError(""); }}
-                        style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Reset PW</button>
+                      <Button variant="secondary" size="sm" onClick={() => { setIsNew(false); setEditing(e); setEditingCustomRoleId(e.customRole?.id || ""); setError(""); }}>Edit</Button>
+                      <Button variant="secondary" size="sm" onClick={() => { setShowResetFor(e.id); setError(""); }}>Reset PW</Button>
                     </div>
                   )}
                 </td>

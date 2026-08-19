@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import type { CustomRole, DashboardStats, Employee, Tab } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
+import StatCard from "@/app/components/molecules/StatCard";
 
 interface RawBatch { id: string; batchNumber: string; availableMeters: number; clothCategory: { name: string }; clothColor: { name: string; hexCode?: string }; warehouse: { name: string } }
 interface ReadymadeItem { id: string; quantityAvailable: number; size: string; itemType: { name: string }; warehouse: { name: string } }
@@ -12,18 +13,6 @@ interface StitchingJob { id: string; status: string; piecesCompleted: number; pi
 const LOW_RAW_THRESHOLD = 50;
 const LOW_RMD_THRESHOLD = 10;
 
-function StatCard({ label, value, sub, color = "var(--primary)" }: { label: string; value: string | number; sub?: string; color?: string }) {
-  return (
-    <div style={{
-      background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 12,
-      padding: "18px 22px", borderLeft: `4px solid ${color}`,
-    }}>
-      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: "var(--fg)" }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{sub}</div>}
-    </div>
-  );
-}
 
 function SectionLabel({ children }: { children: string }) {
   return (

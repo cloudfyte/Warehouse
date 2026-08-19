@@ -3,6 +3,15 @@ import { useState, useRef } from "react";
 import { formatMoney, formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
+import AgeGroupSelect from "@/app/components/atoms/AgeGroupSelect";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Textarea from "@/app/components/atoms/Textarea";
+import Button from "@/app/components/atoms/Button";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
 import { downloadCsv } from "@/app/lib/csv";
 import { showToast } from "@/app/lib/toast";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
@@ -75,6 +84,7 @@ interface DraftItem {
   binLocation: string
   clothCode: string
   itemTypeId: string
+  ageGroup: string
   size: string
   quantity: string
   unitPrice: string
@@ -110,7 +120,7 @@ function blankItem(): DraftItem {
   return {
     itemKind: "RAW_CLOTH", clothCategoryId: "", clothColorId: "",
     totalMeters: "", costPerMeter: "", binLocation: "", clothCode: "",
-    itemTypeId: "", size: "", quantity: "", unitPrice: "", gstRate: "", notes: "",
+    itemTypeId: "", ageGroup: "", size: "", quantity: "", unitPrice: "", gstRate: "", notes: "",
   };
 }
 
@@ -127,16 +137,6 @@ const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }
   PAID:    { bg: "#e8f5e9", color: "#2e7d32", label: "Paid" },
 };
 
-const FIELD: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", borderRadius: 8,
-  border: "1px solid var(--line)", background: "var(--canvas)",
-  color: "var(--ink)", fontSize: 13, outline: "none", boxSizing: "border-box",
-};
-
-const BTN = (bg = "var(--primary)", color = "#fff"): React.CSSProperties => ({
-  padding: "9px 18px", borderRadius: 8, border: "none", background: bg,
-  color, fontWeight: 700, fontSize: 13, cursor: "pointer",
-});
 
 // ─── main component ────────────────────────────────────────────────────────────
 
@@ -170,8 +170,7 @@ export default function PurchaseBills({
   const [invoiceRef, setInvoiceRef] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
   const [notes, setNotes] = useState("");
-  const [billImageB64, setBillImageB64] = useState("");
-  const [billImageName, setBillImageName] = useState("");
+  const [billImages, setBillImages] = useState<{ b64: string; name: string }[]>([]);
   const [items, setItems] = useState<DraftItem[]>([blankItem()]);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -179,21 +178,25 @@ export default function PurchaseBills({
     setSupplierId(""); setWarehouseId(warehouses[0]?.id ?? "");
     setBillDate(new Date().toISOString().slice(0, 10));
     setInvoiceRef(""); setAmountPaid(""); setNotes("");
-    setBillImageB64(""); setBillImageName("");
+    setBillImages([]);
     setItems([blankItem()]); setErr("");
   }
 
   function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setErr("Bill photo must be under 5 MB."); return; }
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) { setErr(`${file.name} must be under 5 MB.`); return; }
+    }
     setErr("");
-    const reader = new FileReader();
-    reader.onload = () => {
-      setBillImageB64(reader.result as string);
-      setBillImageName(file.name);
-    };
-    reader.readAsDataURL(file);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setBillImages(prev => [...prev, { b64: reader.result as string, name: file.name }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
   }
 
   function updateItem(idx: number, patch: Partial<DraftItem>) {
@@ -254,7 +257,7 @@ export default function PurchaseBills({
           supplierId, warehouseId, billDate, invoiceRef, notes,
           totalAmount: grandTotal,
           amountPaid: paid,
-          billImage: billImageB64,
+          billImage: billImages.length ? JSON.stringify(billImages.map(i => i.b64)) : undefined,
           items: items.map(it => ({
             itemKind: it.itemKind,
             clothCategoryId: it.clothCategoryId || null,
@@ -264,6 +267,7 @@ export default function PurchaseBills({
             binLocation: it.binLocation,
             clothCode: it.clothCode,
             itemTypeId: it.itemTypeId || null,
+            ageGroup: it.ageGroup || null,
             size: it.size,
             quantity: it.quantity ? parseInt(it.quantity) : null,
             unitPrice: it.unitPrice ? parseFloat(it.unitPrice) : null,
@@ -274,8 +278,10 @@ export default function PurchaseBills({
       );
       setShowForm(false);
       resetForm();
+      showToast("Purchase bill recorded.", "success");
     } catch (e) {
       setErr(friendlyError(e));
+      showToast(friendlyError(e), "error");
     } finally {
       setSaving(false);
     }
@@ -303,17 +309,28 @@ export default function PurchaseBills({
       );
       setPayBillId(null); setPayAmount(""); setPayMode("CASH"); setPayRef(""); setPayNotes("");
       setPayDate(new Date().toISOString().slice(0, 10));
+      showToast("Payment recorded.", "success");
     } catch (e) {
       setPayErr(friendlyError(e));
+      showToast(friendlyError(e), "error");
     } finally {
       setPayLoading(false);
     }
   }
 
+  const [pendingDeletePay, setPendingDeletePay] = useState<string | null>(null);
+
   async function handleDeletePayment(paymentId: string) {
-    if (!confirm("Delete this payment? The bill's paid amount will be reversed.")) return;
+    if (pendingDeletePay !== paymentId) {
+      setPendingDeletePay(paymentId);
+      showToast("Click delete again to confirm — the paid amount will be reversed.", "warn");
+      setTimeout(() => setPendingDeletePay(prev => prev === paymentId ? null : prev), 4000);
+      return;
+    }
+    setPendingDeletePay(null);
     try {
       await onMutate(`mutation D($id:ID!){deleteSupplierPayment(id:$id){ok}}`, { id: paymentId });
+      showToast("Payment deleted and bill amount reversed.", "success");
     } catch (e) {
       showToast(friendlyError(e), "error");
     }
@@ -393,24 +410,20 @@ export default function PurchaseBills({
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 18 }}>Purchase Bills</div>
-          <div style={{ fontSize: 13, color: "var(--muted)" }}>Direct supplier purchases — items go to stock immediately</div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => downloadCsv(`purchase-bills-${new Date().toISOString().slice(0,10)}.csv`, bills.map(b => ({ "Bill #": b.billNumber, Date: b.billDate?.slice(0,10), Supplier: b.supplier?.name, Warehouse: b.warehouse?.name, "Invoice Ref": b.invoiceRef, Total: b.totalAmount, Paid: b.amountPaid, Pending: b.amountPending, Status: b.paymentStatus })))}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+      <PageHeader
+        title="Purchase Bills"
+        sub="Direct supplier purchases — items go to stock immediately"
+        actions={<>
+          <Button variant="secondary" size="sm" onClick={() => downloadCsv(`purchase-bills-${new Date().toISOString().slice(0,10)}.csv`, bills.map(b => ({ "Bill #": b.billNumber, Date: b.billDate?.slice(0,10), Supplier: b.supplier?.name, Warehouse: b.warehouse?.name, "Invoice Ref": b.invoiceRef, Total: b.totalAmount, Paid: b.amountPaid, Pending: b.amountPending, Status: b.paymentStatus })))}>
             ↓ Export CSV
-          </button>
+          </Button>
           {canCreate && (
-            <button onClick={() => { setShowForm(true); setErr(""); }} style={BTN()}>
+            <Button variant="primary" onClick={() => { setShowForm(true); setErr(""); }}>
               + Record Purchase
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Bills list */}
       {bills.length === 0 ? (
@@ -516,14 +529,23 @@ export default function PurchaseBills({
                       </table>
                     </div>
 
-                    {/* Bill image */}
-                    {bill.billImage && (
-                      <div style={{ marginTop: 14 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>Bill Photo</div>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={bill.billImage} alt="Bill" style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, border: "1px solid var(--line)" }} />
-                      </div>
-                    )}
+                    {/* Bill images */}
+                    {bill.billImage && (() => {
+                      let imgs: string[];
+                      try { imgs = JSON.parse(bill.billImage); if (!Array.isArray(imgs)) imgs = [bill.billImage]; }
+                      catch { imgs = [bill.billImage]; }
+                      return (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>Bill Photo{imgs.length > 1 ? "s" : ""}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            {imgs.map((src, i) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img key={i} src={src} alt={`Bill page ${i + 1}`} style={{ maxWidth: 300, maxHeight: 220, borderRadius: 8, border: "1px solid var(--line)", objectFit: "contain" }} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Supplier payment history */}
                     <div style={{ marginTop: 18 }}>
@@ -537,15 +559,13 @@ export default function PurchaseBills({
                           )}
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => printBill(bill)}
-                            style={{ ...BTN("var(--paper)"), padding: "6px 14px", fontSize: 12, border: "1px solid var(--line)", color: "var(--ink)" }}>
+                          <Button variant="secondary" size="sm" onClick={() => printBill(bill)}>
                             🖨 Print Bill
-                          </button>
+                          </Button>
                           {canCreate && bill.amountPending > 0 && (
-                            <button onClick={() => { setPayBillId(bill.id); setPayErr(""); setPayAmount(""); setPayMode("CASH"); setPayRef(""); setPayNotes(""); setPayDate(new Date().toISOString().slice(0, 10)); }}
-                              style={{ ...BTN("var(--primary)"), padding: "6px 14px", fontSize: 12 }}>
+                            <Button variant="primary" size="sm" onClick={() => { setPayBillId(bill.id); setPayErr(""); setPayAmount(""); setPayMode("CASH"); setPayRef(""); setPayNotes(""); setPayDate(new Date().toISOString().slice(0, 10)); }}>
                               + Record Payment
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -572,8 +592,8 @@ export default function PurchaseBills({
                                 <td style={{ padding: "7px 10px" }}>
                                   {canCreate && (
                                     <button onClick={() => handleDeletePayment(p.id)}
-                                      style={{ padding: "3px 8px", borderRadius: 5, border: "1px solid #fcc", background: "#fff5f5", color: "#c62828", fontSize: 11, cursor: "pointer" }}>
-                                      ×
+                                      style={{ padding: "3px 8px", borderRadius: 5, border: "1px solid #fcc", background: pendingDeletePay === p.id ? "#fcc" : "#fff5f5", color: "#c62828", fontSize: 11, cursor: "pointer" }}>
+                                      {pendingDeletePay === p.id ? "Confirm?" : "×"}
                                     </button>
                                   )}
                                 </td>
@@ -609,46 +629,37 @@ export default function PurchaseBills({
               <button onClick={() => setPayBillId(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--muted)" }}>×</button>
             </div>
             <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Amount ({currency}) *</label>
-                <input type="number" min="0.01" step="0.01" value={payAmount}
+              <Field label={`Amount (${currency})`} required>
+                <Input type="number" min="0.01" step="0.01" value={payAmount}
                   onChange={e => setPayAmount(e.target.value)}
                   placeholder={`Max ${formatMoney(payingBill.amountPending)}`}
-                  style={FIELD} autoFocus />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Payment Date</label>
-                  <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} style={FIELD} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Payment Mode</label>
-                  <select value={payMode} onChange={e => setPayMode(e.target.value)} style={FIELD}>
+                  autoFocus />
+              </Field>
+              <FormGrid cols={2} gap={12}>
+                <Field label="Payment Date">
+                  <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
+                </Field>
+                <Field label="Payment Mode">
+                  <Select value={payMode} onChange={e => setPayMode(e.target.value)}>
                     <option value="CASH">Cash</option>
                     <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
                     <option value="UPI">UPI</option>
                     <option value="CHEQUE">Cheque</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Reference / UTR (optional)</label>
-                <input value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Transaction ID, cheque number…" style={FIELD} />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Notes (optional)</label>
-                <input value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="Any remarks…" style={FIELD} />
-              </div>
-              {payErr && (
-                <div style={{ background: "#fff1f0", border: "1px solid #ffc5c2", color: "#8d3e39", borderRadius: 9, padding: "10px 14px", fontSize: 13 }}>
-                  {payErr}
-                </div>
-              )}
+                  </Select>
+                </Field>
+              </FormGrid>
+              <Field label="Reference / UTR (optional)">
+                <Input value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="Transaction ID, cheque number…" />
+              </Field>
+              <Field label="Notes (optional)">
+                <Input value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="Any remarks…" />
+              </Field>
+              <ErrorBanner msg={payErr} />
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <button onClick={() => setPayBillId(null)} style={BTN("var(--canvas)", "var(--ink)")}>Cancel</button>
-                <button onClick={handlePayment} disabled={payLoading} style={{ ...BTN(), opacity: payLoading ? 0.6 : 1 }}>
+                <Button variant="secondary" onClick={() => setPayBillId(null)}>Cancel</Button>
+                <Button variant="primary" onClick={handlePayment} disabled={payLoading}>
                   {payLoading ? "Saving…" : "Record Payment"}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -668,37 +679,33 @@ export default function PurchaseBills({
 
             <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
               {/* Header fields */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Supplier *</label>
-                  <select value={supplierId} onChange={e => setSupplierId(e.target.value)} style={FIELD}>
+              <FormGrid>
+                <Field label="Supplier" required>
+                  <Select value={supplierId} onChange={e => setSupplierId(e.target.value)}>
                     <option value="">Select supplier…</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Warehouse *</label>
-                  <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} style={FIELD}>
+                  </Select>
+                </Field>
+                <Field label="Warehouse" required>
+                  <Select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Purchase Date</label>
-                  <input type="date" value={billDate} onChange={e => setBillDate(e.target.value)} style={FIELD} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Supplier Invoice # (optional)</label>
-                  <input value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} placeholder="e.g. INV-2024-001" style={FIELD} />
-                </div>
-              </div>
+                  </Select>
+                </Field>
+                <Field label="Purchase Date">
+                  <Input type="date" value={billDate} onChange={e => setBillDate(e.target.value)} />
+                </Field>
+                <Field label="Supplier Invoice # (optional)">
+                  <Input value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} placeholder="e.g. INV-2024-001" />
+                </Field>
+              </FormGrid>
 
               {/* Items */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <span style={{ fontWeight: 700, fontSize: 15 }}>Items</span>
-                  <button onClick={() => setItems(p => [...p, blankItem()])} style={BTN("var(--canvas)", "var(--ink)")}>
+                  <Button variant="secondary" onClick={() => setItems(p => [...p, blankItem()])}>
                     + Add Item
-                  </button>
+                  </Button>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -738,13 +745,14 @@ export default function PurchaseBills({
                   </div>
                 )}
                 <div style={{ flex: 1, minWidth: 160 }}>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Amount Paid ({currency})</label>
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={amountPaid} onChange={e => setAmountPaid(e.target.value)}
-                    placeholder={`0 – ${grandTotal.toFixed(2)}`}
-                    style={{ ...FIELD, width: "auto", minWidth: 150 }}
-                  />
+                  <Field label={`Amount Paid (${currency})`}>
+                    <Input
+                      type="number" min="0" step="0.01"
+                      value={amountPaid} onChange={e => setAmountPaid(e.target.value)}
+                      placeholder={`0 – ${grandTotal.toFixed(2)}`}
+                      style={{ minWidth: 150 }}
+                    />
+                  </Field>
                 </div>
                 {(() => {
                   const paid = parseFloat(amountPaid) || 0;
@@ -760,47 +768,43 @@ export default function PurchaseBills({
                 })()}
               </div>
 
-              {/* Bill photo */}
+              {/* Bill photos */}
               <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Bill Photo (optional)</label>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <button onClick={() => fileRef.current?.click()} style={BTN("var(--canvas)", "var(--ink)")}>
-                    📷 {billImageName ? "Change Photo" : "Upload Bill"}
-                  </button>
-                  {billImageName && <span style={{ fontSize: 12, color: "var(--muted)" }}>{billImageName}</span>}
-                  {billImageB64 && (
-                    <button onClick={() => { setBillImageB64(""); setBillImageName(""); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--muted)" }}>×</button>
-                  )}
-                </div>
-                <input ref={fileRef} type="file" accept="image/*" onChange={handleImagePick} style={{ display: "none" }} />
-                {billImageB64 && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={billImageB64} alt="Preview" style={{ marginTop: 8, maxWidth: 220, maxHeight: 160, borderRadius: 8, border: "1px solid var(--line)" }} />
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Bill Photos (optional — upload multiple pages)</label>
+                <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
+                  📷 Add Photo{billImages.length > 0 ? ` (${billImages.length} added)` : ""}
+                </Button>
+                <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleImagePick} style={{ display: "none" }} />
+                {billImages.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                    {billImages.map((img, i) => (
+                      <div key={i} style={{ position: "relative", display: "inline-block" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.b64} alt={img.name} style={{ width: 100, height: 80, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)" }} />
+                        <Button variant="danger" size="sm" onClick={() => setBillImages(prev => prev.filter((_, j) => j !== i))}
+                          style={{ position: "absolute", top: 2, right: 2, borderRadius: "50%", width: 18, height: 18, padding: 0, fontSize: 11, justifyContent: "center", minWidth: "unset" }}>×</Button>
+                        <div style={{ fontSize: 10, color: "var(--muted)", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{img.name}</div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
               {/* Notes */}
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Notes (optional)</label>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-                  placeholder="Any remarks about this purchase…"
-                  style={{ ...FIELD, resize: "vertical" }} />
-              </div>
+              <Field label="Notes (optional)">
+                <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+                  placeholder="Any remarks about this purchase…" />
+              </Field>
 
-              {err && (
-                <div style={{ background: "#fff1f0", border: "1px solid #ffc5c2", color: "#8d3e39", borderRadius: 9, padding: "10px 14px", fontSize: 13 }}>
-                  {err}
-                </div>
-              )}
+              <ErrorBanner msg={err} />
 
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <button onClick={() => { setShowForm(false); resetForm(); }} style={BTN("var(--canvas)", "var(--ink)")}>
+                <Button variant="secondary" onClick={() => { setShowForm(false); resetForm(); }}>
                   Cancel
-                </button>
-                <button onClick={handleSubmit} disabled={saving} style={{ ...BTN(), opacity: saving ? 0.6 : 1 }}>
+                </Button>
+                <Button variant="primary" onClick={handleSubmit} disabled={saving}>
                   {saving ? "Saving…" : "Record Purchase & Stock"}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -853,41 +857,35 @@ function ItemEditor({
       </div>
 
       {item.itemKind === "RAW_CLOTH" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Category *</label>
-            <select value={item.clothCategoryId} onChange={e => onChange({ clothCategoryId: e.target.value })} style={FIELD}>
+        <FormGrid gap={10}>
+          <Field label="Category" required>
+            <Select value={item.clothCategoryId} onChange={e => onChange({ clothCategoryId: e.target.value })}>
               <option value="">Select…</option>
               {clothCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Color *</label>
-            <select value={item.clothColorId} onChange={e => onChange({ clothColorId: e.target.value })} style={FIELD}>
+            </Select>
+          </Field>
+          <Field label="Color" required>
+            <Select value={item.clothColorId} onChange={e => onChange({ clothColorId: e.target.value })}>
               <option value="">Select…</option>
               {clothColors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Total Meters *</label>
-            <input type="number" min="0" step="0.1" value={item.totalMeters} onChange={e => onChange({ totalMeters: e.target.value })} placeholder="e.g. 50" style={FIELD} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Cost per Meter (₹) *</label>
-            <input type="number" min="0" step="0.01" value={item.costPerMeter}
+            </Select>
+          </Field>
+          <Field label="Total Meters" required>
+            <Input type="number" min="0" step="0.1" value={item.totalMeters} onChange={e => onChange({ totalMeters: e.target.value })} placeholder="e.g. 50" />
+          </Field>
+          <Field label="Cost per Meter (₹)" required>
+            <Input type="number" min="0" step="0.01" value={item.costPerMeter}
               onChange={e => handleCostPerMeterChange(e.target.value)}
               onBlur={e => handleCostPerMeterBlur(e.target.value)}
-              placeholder="e.g. 200" style={FIELD} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Bin / Shelf Location</label>
-            <input value={item.binLocation} onChange={e => onChange({ binLocation: e.target.value })} placeholder="e.g. A-12" style={FIELD} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Cloth Code</label>
+              placeholder="e.g. 200" />
+          </Field>
+          <Field label="Bin / Shelf Location">
+            <Input value={item.binLocation} onChange={e => onChange({ binLocation: e.target.value })} placeholder="e.g. A-12" />
+          </Field>
+          <Field label="Cloth Code">
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input value={item.clothCode} onChange={e => onChange({ clothCode: e.target.value })}
-                placeholder="Auto-generated" style={{ ...FIELD, fontFamily: "monospace", flex: 1 }} />
+              <Input value={item.clothCode} onChange={e => onChange({ clothCode: e.target.value })}
+                placeholder="Auto-generated" style={{ fontFamily: "monospace", flex: 1 }} />
               {item.costPerMeter && (
                 <button onClick={() => onChange({ clothCode: genClothCode(item.costPerMeter) })}
                   title="Regenerate code" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 14 }}>
@@ -900,63 +898,60 @@ function ItemEditor({
                 Code <strong style={{ fontFamily: "monospace" }}>{item.clothCode}</strong> → price embedded
               </div>
             )}
-          </div>
-        </div>
+          </Field>
+        </FormGrid>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Item Type *</label>
-            <select value={item.itemTypeId} onChange={e => onChange({ itemTypeId: e.target.value })} style={FIELD}>
+        <FormGrid gap={10}>
+          <Field label="Item Type" required>
+            <Select value={item.itemTypeId} onChange={e => onChange({ itemTypeId: e.target.value })}>
               <option value="">Select…</option>
               {itemTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Color (optional)</label>
-            <select value={item.clothColorId} onChange={e => onChange({ clothColorId: e.target.value })} style={FIELD}>
+            </Select>
+          </Field>
+          <Field label="Color (optional)">
+            <Select value={item.clothColorId} onChange={e => onChange({ clothColorId: e.target.value })}>
               <option value="">Select…</option>
               {clothColors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
+            </Select>
+          </Field>
+          <Field label="Age Group">
+            <AgeGroupSelect value={item.ageGroup} onChange={v => onChange({ ageGroup: v, size: "" })} />
+          </Field>
           <div>
-            <SizeSelect value={item.size} onChange={v => onChange({ size: v })} label="Size" />
+            <SizeSelect value={item.size} onChange={v => onChange({ size: v })} label="Size" ageGroup={item.ageGroup || undefined} />
           </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Quantity *</label>
-            <input type="number" min="0" step="1" value={item.quantity} onChange={e => onChange({ quantity: e.target.value })} placeholder="e.g. 24" style={FIELD} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Unit Price (₹)</label>
-            <input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => onChange({ unitPrice: e.target.value })} placeholder="e.g. 450" style={FIELD} />
-          </div>
-        </div>
+          <Field label="Quantity" required>
+            <Input type="number" min="0" step="1" value={item.quantity} onChange={e => onChange({ quantity: e.target.value })} placeholder="e.g. 24" />
+          </Field>
+          <Field label="Unit Price (₹)">
+            <Input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e => onChange({ unitPrice: e.target.value })} placeholder="e.g. 450" />
+          </Field>
+        </FormGrid>
       )}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           {gstEnabled && (
-            <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>GST %</label>
-              <select value={item.gstRate} onChange={e => onChange({ gstRate: e.target.value })} style={{ ...FIELD, width: 100 }}>
+            <Field label="GST %">
+              <Select value={item.gstRate} onChange={e => onChange({ gstRate: e.target.value })} style={{ width: 100 }}>
                 <option value="">0%</option>
                 <option value="5">5%</option>
                 <option value="12">12%</option>
                 <option value="18">18%</option>
                 <option value="28">28%</option>
-              </select>
-            </div>
+              </Select>
+            </Field>
           )}
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Item Notes</label>
-            <input value={item.notes} onChange={e => onChange({ notes: e.target.value })} placeholder="Any remarks for this item…" style={{ ...FIELD, width: 240 }} />
-          </div>
+          <Field label="Item Notes">
+            <Input value={item.notes} onChange={e => onChange({ notes: e.target.value })} placeholder="Any remarks for this item…" style={{ width: 240 }} />
+          </Field>
         </div>
         {lineTotal > 0 && (
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>LINE TOTAL</div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>₹{formatMoney(lineTotal)}</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>{formatMoney(lineTotal)}</div>
             {gstEnabled && (parseFloat(item.gstRate) || 0) > 0 && (
-              <div style={{ fontSize: 11, color: "var(--muted)" }}>+ {item.gstRate}% GST = ₹{formatMoney(lineTotal * (parseFloat(item.gstRate) || 0) / 100)}</div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>+ {item.gstRate}% GST = {formatMoney(lineTotal * (parseFloat(item.gstRate) || 0) / 100)}</div>
             )}
           </div>
         )}

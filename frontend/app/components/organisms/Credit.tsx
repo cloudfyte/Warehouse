@@ -4,30 +4,22 @@ import type { CreditTransaction } from "@/app/types";
 import { CREDIT_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Badge from "@/app/components/atoms/Badge";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import { downloadCsv } from "@/app/lib/csv";
 
 interface Props {
   credits: CreditTransaction[]; isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
-}
-
-const I: React.CSSProperties = {
-  padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
-  background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, width: "100%", outline: "none",
-};
-const LBL: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 5,
-  fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
-};
-
-function Badge({ s }: { s: string }) {
-  const color = STATUS_BADGE_COLORS[s] || "#888";
-  return (
-    <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: color + "22", color, border: `1px solid ${color}33` }}>
-      {CREDIT_STATUS_LABELS[s] || s}
-    </span>
-  );
 }
 
 export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMutate }: Props) {
@@ -62,53 +54,48 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
       );
       setDetail(null);
       setPayForm({ amount: "", method: "CASH", reference: "", notes: "" });
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Credit payment recorded.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Credit Tracking</h2>
-          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{credits.length} credit transactions</p>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {totalOutstanding > 0 && (
-            <div style={{ background: "#b95c5618", border: "1px solid #b95c5633", color: "#8d3e39", padding: "8px 16px", borderRadius: 9, fontWeight: 700, fontSize: 14 }}>
-              ₹ {formatMoney(totalOutstanding)} outstanding
-            </div>
-          )}
-          <button onClick={() => downloadCsv(`credit_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(c => ({
-            "Order #": c.salesOrder.orderNumber, "Buyer": c.buyer.name,
-            "Total (₹)": c.totalAmount, "Paid (₹)": c.amountPaid, "Due (₹)": c.amountDue,
-            "Due Date": c.dueDate || "", "Status": CREDIT_STATUS_LABELS[c.status] || c.status,
-            "Created": c.createdAt?.slice(0, 10) || "",
-          })))}
-            style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            ⬇ Export CSV
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Credit Tracking"
+        sub={`${credits.length} credit transactions`}
+        actions={
+          <>
+            {totalOutstanding > 0 && (
+              <div style={{ background: "#b95c5618", border: "1px solid #b95c5633", color: "#8d3e39", padding: "8px 16px", borderRadius: 9, fontWeight: 700, fontSize: 14 }}>
+                ₹ {formatMoney(totalOutstanding)} outstanding
+              </div>
+            )}
+            <Button variant="secondary" onClick={() => downloadCsv(`credit_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(c => ({
+              "Order #": c.salesOrder.orderNumber, "Buyer": c.buyer.name,
+              "Total (₹)": c.totalAmount, "Paid (₹)": c.amountPaid, "Due (₹)": c.amountDue,
+              "Due Date": c.dueDate || "", "Status": CREDIT_STATUS_LABELS[c.status] || c.status,
+              "Created": c.createdAt?.slice(0, 10) || "",
+            })))}>
+              ⬇ Export CSV
+            </Button>
+          </>
+        }
+      />
 
-      <div style={{ marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <input placeholder="Search buyer or order number…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ ...I, flex: 1, minWidth: 200, width: "auto" }} />
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...I, width: "auto", minWidth: 180 }}>
+      <FilterBar style={{ gap: 12 }}>
+        <Input placeholder="Search buyer or order number…" value={search} onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 200, width: "auto" }} />
+        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: "auto", minWidth: 180 }}>
           <option value="">All statuses</option>
           {Object.entries(CREDIT_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From date"
-          style={{ ...I, width: "auto" }} />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To date"
-          style={{ ...I, width: "auto" }} />
+        </Select>
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From date" style={{ width: "auto" }} />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} title="To date" style={{ width: "auto" }} />
         {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(""); setDateTo(""); }}
-            style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--muted)", fontSize: 13, cursor: "pointer" }}>
-            Clear
-          </button>
+          <Button variant="secondary" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>Clear</Button>
         )}
-      </div>
+      </FilterBar>
 
       {detail && (
         <Modal
@@ -149,30 +136,29 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
             </div>
           )}
 
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+          <ErrorBanner msg={error} />
 
           {canEdit && detail.status !== "SETTLED" && (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Record Payment</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12, marginTop: error ? 16 : 0 }}>Record Payment</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <label style={LBL}>Amount (₹) *
-                    <input type="number" step="0.01" value={payForm.amount} placeholder="0.00"
-                      onChange={e => setPayForm(p => ({ ...p, amount: e.target.value }))} style={I} />
-                  </label>
-                  <label style={LBL}>Payment Method
-                    <select value={payForm.method} onChange={e => setPayForm(p => ({ ...p, method: e.target.value }))} style={I}>
+                <FormGrid>
+                  <Field label="Amount (₹)" required>
+                    <Input type="number" step="0.01" value={payForm.amount} placeholder="0.00"
+                      onChange={e => setPayForm(p => ({ ...p, amount: e.target.value }))} />
+                  </Field>
+                  <Field label="Payment Method">
+                    <Select value={payForm.method} onChange={e => setPayForm(p => ({ ...p, method: e.target.value }))}>
                       {["CASH", "UPI", "NEFT", "CHEQUE", "OTHER"].map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </label>
-                </div>
-                <label style={LBL}>Reference (UTR / Cheque No.)
-                  <input value={payForm.reference} onChange={e => setPayForm(p => ({ ...p, reference: e.target.value }))} style={I} placeholder="Optional" />
-                </label>
-                <button onClick={recordPayment} disabled={loading || !(parseFloat(payForm.amount) > 0)}
-                  style={{ padding: "12px", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
+                    </Select>
+                  </Field>
+                </FormGrid>
+                <Field label="Reference (UTR / Cheque No.)">
+                  <Input value={payForm.reference} onChange={e => setPayForm(p => ({ ...p, reference: e.target.value }))} placeholder="Optional" />
+                </Field>
+                <Button variant="primary" onClick={recordPayment} disabled={loading || !(parseFloat(payForm.amount) > 0)} style={{ width: "100%", padding: "12px" }}>
                   {loading ? "Recording…" : "Record Payment"}
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -202,12 +188,17 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
                 <td style={{ padding: "13px 16px", fontSize: 13, color: "#347050", fontWeight: 600 }}>{formatMoney(c.amountPaid)}</td>
                 <td style={{ padding: "13px 16px", fontSize: 13, fontWeight: 800, color: c.amountDue > 0 ? "#b95c56" : "var(--muted)" }}>{formatMoney(c.amountDue)}</td>
                 <td style={{ padding: "13px 16px", fontSize: 12, color: "var(--muted)" }}>{c.dueDate ? formatDateShort(c.dueDate) : "—"}</td>
-                <td style={{ padding: "13px 16px" }}><Badge s={c.status} /></td>
                 <td style={{ padding: "13px 16px" }}>
-                  <button onClick={() => { setDetail(c); setError(""); setPayForm({ amount: "", method: "CASH", reference: "", notes: "" }); }}
-                    style={{ padding: "5px 14px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                  <Badge
+                    label={CREDIT_STATUS_LABELS[c.status] || c.status}
+                    color={STATUS_BADGE_COLORS[c.status] || "#888"}
+                    style={{ border: `1px solid ${(STATUS_BADGE_COLORS[c.status] || "#888")}33` }}
+                  />
+                </td>
+                <td style={{ padding: "13px 16px" }}>
+                  <Button variant="secondary" size="sm" onClick={() => { setDetail(c); setError(""); setPayForm({ amount: "", method: "CASH", reference: "", notes: "" }); }}>
                     {canEdit && c.status !== "SETTLED" ? "Pay" : "View"}
-                  </button>
+                  </Button>
                 </td>
               </tr>
             ))}
