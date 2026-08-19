@@ -115,7 +115,7 @@ def receive_stock_transfer(*, transfer_id, user):
     """Receive at destination warehouse — creates new batch or updates/creates finished product record."""
     with transaction.atomic():
         try:
-            transfer = StockTransfer.objects.select_for_update().select_related(
+            transfer = StockTransfer.objects.select_for_update(of=("self",)).select_related(
                 "raw_cloth_batch__cloth_category", "raw_cloth_batch__cloth_color",
                 "raw_cloth_batch__supplier",
                 "finished_product__item_type", "finished_product__cloth_color",
