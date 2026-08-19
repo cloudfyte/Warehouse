@@ -52,6 +52,48 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Receive Goods modal state
+  interface ReceiveRow { poItemId: string; label: string; kind: string; receivedMeters: string; receivedQuantity: string; binLocation: string; }
+  const [showReceive, setShowReceive] = useState(false);
+  const [receiveRows, setReceiveRows] = useState<ReceiveRow[]>([]);
+  const [receiveSaving, setReceiveSaving] = useState(false);
+  const [receiveErr, setReceiveErr] = useState("");
+
+  function openReceive(po: PurchaseOrder) {
+    setReceiveRows(po.items.map(it => ({
+      poItemId: it.id,
+      label: it.itemKind === "RAW_CLOTH"
+        ? `${it.clothCategory?.name || "Cloth"} — ${it.clothColor?.name || "any color"}`
+        : (it.itemType?.name || it.itemName || "Readymade"),
+      kind: it.itemKind,
+      receivedMeters: String(it.orderedMeters ?? ""),
+      receivedQuantity: String(it.orderedQuantity ?? ""),
+      binLocation: "",
+    })));
+    setReceiveErr(""); setShowReceive(true);
+  }
+
+  async function submitReceive() {
+    if (!detail) return;
+    setReceiveSaving(true); setReceiveErr("");
+    try {
+      const items = receiveRows.map(r => ({
+        poItemId: r.poItemId,
+        ...(r.kind === "RAW_CLOTH"
+          ? { receivedMeters: r.receivedMeters ? +r.receivedMeters : undefined }
+          : { receivedQuantity: r.receivedQuantity ? +r.receivedQuantity : undefined }),
+        binLocation: r.binLocation || undefined,
+      }));
+      await onMutate(
+        `mutation R($poId:ID!,$items:[ReceiptItemInput!]!){receivePurchaseOrder(poId:$poId,receiptItems:$items){purchaseOrder{id status actualDelivery receivedBy{id username}}}}`,
+        { poId: detail.id, items }
+      );
+      setDetail(d => d ? { ...d, status: "RECEIVED" } : null);
+      setShowReceive(false);
+    } catch (e: unknown) { setReceiveErr(e instanceof Error ? e.message : "Failed to receive"); }
+    finally { setReceiveSaving(false); }
+  }
+
   // Parcel inspection state
   const [showInspection, setShowInspection] = useState(false);
   const [inspection, setInspection] = useState<ParcelInspection | null>(null);
@@ -475,8 +517,12 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
             </div>
 
             {canEdit && PO_NEXT[detail.status] && (
-              <Button onClick={() => updateStatus(detail.id, PO_NEXT[detail.status])} disabled={loading} style={{ width: "100%", marginBottom: 8 }}>
-                {loading ? "Updating…" : `Mark as ${PO_STATUS_LABELS[PO_NEXT[detail.status]]}`}
+              <Button
+                onClick={() => PO_NEXT[detail.status] === "RECEIVED" ? openReceive(detail) : updateStatus(detail.id, PO_NEXT[detail.status])}
+                disabled={loading}
+                style={{ width: "100%", marginBottom: 8 }}
+              >
+                {loading ? "Updating…" : PO_NEXT[detail.status] === "RECEIVED" ? "Receive Goods" : `Mark as ${PO_STATUS_LABELS[PO_NEXT[detail.status]]}`}
               </Button>
             )}
             {canEdit && !["CANCELLED", "VERIFIED"].includes(detail.status) && (
@@ -514,6 +560,51 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               ) : (
                 <div style={{ fontSize: 13, color: "var(--muted)", fontStyle: "italic" }}>No inspection recorded yet.</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receive Goods Modal */}
+      {showReceive && detail && (
+        <div onClick={e => { if (e.target === e.currentTarget) setShowReceive(false); }}
+          style={{ position: "fixed", inset: 0, background: "#0009", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
+          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 520, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontSize: 17, fontWeight: 700 }}>Receive Goods</div>
+              <Button variant="ghost" onClick={() => setShowReceive(false)} style={{ fontSize: 20, padding: "0 6px" }}>×</Button>
+            </div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
+              Confirm quantities received for {detail.poNumber}. Stock will be added to inventory.
+            </div>
+            {receiveRows.map((row, i) => (
+              <div key={row.poItemId} style={{ background: "var(--bg)", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{row.label}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {row.kind === "RAW_CLOTH" ? (
+                    <Field label="Received Meters *">
+                      <Input type="number" value={row.receivedMeters} min="0" step="0.01"
+                        onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, receivedMeters: e.target.value } : x))} />
+                    </Field>
+                  ) : (
+                    <Field label="Received Qty (pcs) *">
+                      <Input type="number" value={row.receivedQuantity} min="0" step="1"
+                        onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, receivedQuantity: e.target.value } : x))} />
+                    </Field>
+                  )}
+                  <Field label="Bin / Shelf Location">
+                    <Input placeholder="e.g. A-12" value={row.binLocation}
+                      onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, binLocation: e.target.value } : x))} />
+                  </Field>
+                </div>
+              </div>
+            ))}
+            {receiveErr && <ErrorBanner msg={receiveErr} />}
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <Button variant="primary" onClick={submitReceive} disabled={receiveSaving} style={{ flex: 1 }}>
+                {receiveSaving ? "Receiving…" : "Confirm Receipt & Add to Stock"}
+              </Button>
+              <Button variant="secondary" onClick={() => setShowReceive(false)}>Cancel</Button>
             </div>
           </div>
         </div>
