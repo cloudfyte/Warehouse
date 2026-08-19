@@ -41,7 +41,7 @@ const STITCHING_STEPS = [
 ];
 
 const STEP_COLORS: Record<string, string> = {
-  RECEIVED: "#94a3b8", PROCESSING: "#f59e0b", QC_CHECK: "#6366f1", READY: "#10b981", REJECTED: "#ef4444",
+  RECEIVED: "#94a3b8", PROCESSING: "#f59e0b", QC_CHECK: "#6366f1", READY: "#10b981", REJECTED: "#ef4444", MOVED: "#10b981",
 };
 
 function StepTrail({ status }: { status: string }) {
@@ -288,7 +288,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <label style={LBL}>Status
               <select value={upd.status || selected.status} onChange={e => setUpd(p => ({ ...p, status: e.target.value }))} style={I}>
-                {Object.entries(STITCHING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                {Object.entries(STITCHING_STATUS_LABELS).filter(([k]) => k !== "MOVED").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -384,6 +384,11 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                           style={{ padding: "4px 12px", borderRadius: 7, border: "none", background: "#10b981", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
                           → Finished Goods
                         </button>
+                      )}
+                      {j.status === "MOVED" && (
+                        <span style={{ padding: "4px 10px", borderRadius: 7, background: "color-mix(in srgb, #10b981 15%, transparent)", color: "#10b981", fontSize: 11, fontWeight: 700 }}>
+                          ✓ Moved to Finished Goods
+                        </span>
                       )}
                     </div>
                   </div>

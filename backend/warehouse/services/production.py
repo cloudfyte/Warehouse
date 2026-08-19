@@ -180,4 +180,9 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
         )
         fp.barcode_svg = generate_barcode_svg(fp.barcode)
         fp.save(update_fields=["barcode_svg"])
+
+        if sj:
+            sj.status = StitchingJob.Status.MOVED
+            sj.save(update_fields=["status"])
+
         return fp

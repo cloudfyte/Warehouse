@@ -27,7 +27,7 @@ export const CUTTING_STATUS_LABELS: Record<string, string> = {
 
 export const STITCHING_STATUS_LABELS: Record<string, string> = {
   RECEIVED: "Received", PROCESSING: "Processing", QC_CHECK: "QC Check",
-  READY: "Ready", REJECTED: "Rejected / Rework",
+  READY: "Ready", REJECTED: "Rejected / Rework", MOVED: "Moved to Finished Goods",
 };
 
 export const CREDIT_STATUS_LABELS: Record<string, string> = {

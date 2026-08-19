@@ -482,6 +482,7 @@ class StitchingJob(models.Model):
         QC_CHECK = "QC_CHECK", "Quality Check"
         READY = "READY", "Ready"
         REJECTED = "REJECTED", "Rejected / Rework"
+        MOVED = "MOVED", "Moved to Finished Goods"
 
     job_number = models.CharField(max_length=40, unique=True, editable=False)
     cutting_assignment = models.ForeignKey(CuttingAssignment, on_delete=models.PROTECT, related_name="stitching_jobs")
