@@ -131,7 +131,7 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
 
 
 def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=None,
-                              item_type_id, cloth_category_id=None, cloth_color_id=None,
+                              item_type_id=None, cloth_category_id=None, cloth_color_id=None,
                               size="", quantity, warehouse_id, cost_price, sale_price):
     from warehouse.permissions import get_warehouse
     from warehouse.models import ReadymadeStock
