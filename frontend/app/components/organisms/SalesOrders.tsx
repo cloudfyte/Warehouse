@@ -4,6 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { SalesOrder, Buyer, WarehouseLocation, FinishedProduct } from "@/app/types";
 import { SO_STATUS_LABELS, STATUS_BADGE_COLORS, PAYMENT_MODE_LABELS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import { downloadCsv } from "@/app/lib/csv";
@@ -124,7 +125,8 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
         }
       );
       resetForm(); setShowNew(false);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Sales order created.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -133,7 +135,8 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
     try {
       await onMutate(`mutation U($id:ID!,$s:String!){updateSalesOrderStatus(id:$id,status:$s){salesOrder{id status}}}`, { id, s: status });
       setDetail(d => d ? { ...d, status } : null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(`Order marked as ${SO_STATUS_LABELS[status] || status}.`, "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

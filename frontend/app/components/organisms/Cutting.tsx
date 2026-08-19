@@ -4,6 +4,7 @@ import type { CuttingAssignment, Employee, RawClothBatch, ItemType } from "@/app
 import { CUTTING_STATUS_LABELS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
 import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
@@ -163,7 +164,8 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       );
       setShowForm(false);
       setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Cutting assignment created.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -179,7 +181,8 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
         { id: selected.id, status: update.status || undefined, pc: Number.isFinite(pc) ? pc : undefined, cu: Number.isFinite(cu) ? cu : undefined, cw: Number.isFinite(cw) ? cw : undefined }
       );
       setSelected(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Cutting assignment updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

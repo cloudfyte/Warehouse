@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useToasts, type ToastItem } from "@/app/lib/toast";
+import { useToasts, showToast, type ToastItem } from "@/app/lib/toast";
 import { graphql, refreshAccessToken, DASHBOARD_QUERY, SETTINGS_QUERY } from "@/app/lib/graphql";
 import { nameToColorHex } from "@/app/lib/colorUtils";
 import { friendlyError } from "@/app/lib/errors";
@@ -746,7 +746,7 @@ export default function Home() {
                         );
                         setAddToProducts(null);
                         if (token) loadData(token);
-                      } catch (e: unknown) { alert(friendlyError(e)); }
+                      } catch (e: unknown) { showToast(friendlyError(e), "error"); }
                       finally { setAddingToProducts(false); }
                     }}
                     style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>

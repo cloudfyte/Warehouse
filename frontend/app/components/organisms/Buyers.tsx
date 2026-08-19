@@ -4,6 +4,7 @@ import type { Buyer, SalesOrder, CreditTransaction, BuyerReturn } from "@/app/ty
 import { BUYER_TYPE_LABELS } from "@/app/lib/constants";
 import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import StateCity from "@/app/components/atoms/StateCity";
 import Modal from "@/app/components/atoms/Modal";
 import Input from "@/app/components/atoms/Input";
@@ -195,7 +196,8 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, isManager = fals
       const cl = editing.creditLimit != null ? Number(editing.creditLimit) : undefined;
       await onMutate(m, { id: editing.id, name: editing.name, cp: editing.contactPerson, email: editing.email, phone: editing.phone, wa: editing.whatsapp, addr: editing.address, city: editing.city, state: editing.state, gstin: editing.gstin, bt: editing.buyerType, cl: Number.isFinite(cl as number) ? cl : undefined, notes: editing.notes, active: editing.active });
       setEditing(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Buyer created." : "Buyer updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

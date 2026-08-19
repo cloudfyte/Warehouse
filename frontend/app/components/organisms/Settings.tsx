@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import { applyBrandColors } from "@/app/lib/theme";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Input from "@/app/components/atoms/Input";
 import AtomTextarea from "@/app/components/atoms/Textarea";
 import Button from "@/app/components/atoms/Button";
@@ -89,7 +90,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
       setResetDone(true);
       setResetModal(false);
       setResetPhrase("");
-    } catch (e: unknown) { setResetError(friendlyError(e)); }
+      showToast("All data has been reset.", "success");
+    } catch (e: unknown) { setResetError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setResetLoading(false); }
   }
 
@@ -146,7 +148,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
       setSaved(true);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Settings saved.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

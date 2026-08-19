@@ -121,21 +121,29 @@ export default function StockAdjustments({
       );
       setShowForm(false);
       resetForm();
+      showToast("Stock adjustment recorded.", "success");
     } catch (e) {
       setErr(friendlyError(e));
+      showToast(friendlyError(e), "error");
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this adjustment? The stock change will be reversed.")) return;
+    if (deleting !== id + "_confirm") {
+      setDeleting(id + "_confirm");
+      showToast("Click delete again to confirm — the stock change will be reversed.", "warn");
+      setTimeout(() => setDeleting(prev => prev === id + "_confirm" ? null : prev), 4000);
+      return;
+    }
     setDeleting(id);
     try {
       await onMutate(
         `mutation D($id:ID!){deleteStockAdjustment(id:$id){ok}}`,
         { id }
       );
+      showToast("Adjustment deleted and stock reversed.", "success");
     } catch (e) {
       showToast(friendlyError(e), "error");
     } finally {
@@ -259,7 +267,7 @@ export default function StockAdjustments({
                     {canDelete && (
                       <td style={{ padding: "10px 14px" }}>
                         <Button variant="danger" size="sm" onClick={() => handleDelete(adj.id)} disabled={deleting === adj.id}>
-                          {deleting === adj.id ? "…" : "Delete"}
+                          {deleting === adj.id ? "…" : deleting === adj.id + "_confirm" ? "Confirm?" : "Delete"}
                         </Button>
                       </td>
                     )}

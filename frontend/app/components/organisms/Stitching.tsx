@@ -4,6 +4,7 @@ import type { StitchingJob, CuttingAssignment, Employee } from "@/app/types";
 import { STITCHING_STATUS_LABELS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
 import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
@@ -131,7 +132,8 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
         { sjId: fgJob.id, qty: +fgForm.qty, wh: fgForm.warehouseId, cp: +(fgForm.costPrice || 0), sp: +fgForm.salePrice }
       );
       setFgJob(null);
-    } catch (e: unknown) { setFgError(friendlyError(e)); }
+      showToast("Finished products added to inventory.", "success");
+    } catch (e: unknown) { setFgError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setFgLoading(false); }
   }
 
@@ -180,7 +182,8 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
         { a: form.assignmentId, t: form.tailorId, p: +form.pieces, notes: form.notes }
       );
       setShowForm(false); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" });
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Stitching job created.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -193,7 +196,8 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
         { id: selected.id, status: upd.status || undefined, pc: Number.isFinite(Number(upd.piecesCompleted)) ? Number(upd.piecesCompleted) : undefined, pr: Number.isFinite(Number(upd.piecesRejected)) ? Number(upd.piecesRejected) : undefined }
       );
       setSelected(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Stitching job updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

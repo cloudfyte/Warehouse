@@ -11,6 +11,7 @@ import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import { downloadCsv } from "@/app/lib/csv";
 import { nameToColorHex } from "@/app/lib/colorUtils";
 import Button from "@/app/components/atoms/Button";
+import { showToast } from "@/app/lib/toast";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Textarea from "@/app/components/atoms/Textarea";
@@ -90,7 +91,11 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       );
       setDetail(d => d ? { ...d, status: "RECEIVED" } : null);
       setShowReceive(false);
-    } catch (e: unknown) { setReceiveErr(e instanceof Error ? e.message : "Failed to receive"); }
+      showToast("Goods received and stock updated.", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to receive";
+      setReceiveErr(msg); showToast(msg, "error");
+    }
     finally { setReceiveSaving(false); }
   }
 
@@ -173,7 +178,8 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         { sup: supplierId, wh: warehouseId, type: orderType, del: expectedDelivery || undefined, notes: poNotes || undefined, items: gqlItems }
       );
       setShowNew(false); resetForm();
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Purchase order created.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -182,7 +188,8 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     try {
       await onMutate(`mutation U($id:ID!,$s:String!){updatePurchaseOrderStatus(id:$id,status:$s){purchaseOrder{id status}}}`, { id, s: status });
       setDetail(d => d ? { ...d, status } : null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(`Order marked as ${PO_STATUS_LABELS[status] || status}.`, "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -234,7 +241,11 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       setDetail(d => d ? { ...d, parcelInspection: updated } : null);
       setInspection(updated);
       setShowInspection(false);
-    } catch (e: unknown) { setInspErr(e instanceof Error ? e.message : "Failed"); }
+      showToast("Inspection recorded.", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed";
+      setInspErr(msg); showToast(msg, "error");
+    }
     finally { setInspSaving(false); }
   }
 

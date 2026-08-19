@@ -7,6 +7,7 @@ import BarcodeScanner from "@/app/components/atoms/BarcodeScanner";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Button from "@/app/components/atoms/Button";
+import { showToast } from "@/app/lib/toast";
 import Badge from "@/app/components/atoms/Badge";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
@@ -95,7 +96,8 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
         `mutation M($id:ID!,$p:Boolean!){updateFinishedProduct(id:$id,tagsPrinted:$p){finishedProduct{id tagsPrinted}}}`,
         { id, p: true }
       );
-    } catch { /* ignore */ }
+      showToast("Tag printed and marked.", "success");
+    } catch { /* silent — don't block the print flow */ }
     finally { setMarkingPrinted(false); }
   }
 

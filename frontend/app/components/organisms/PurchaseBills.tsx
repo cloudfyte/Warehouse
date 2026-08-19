@@ -278,8 +278,10 @@ export default function PurchaseBills({
       );
       setShowForm(false);
       resetForm();
+      showToast("Purchase bill recorded.", "success");
     } catch (e) {
       setErr(friendlyError(e));
+      showToast(friendlyError(e), "error");
     } finally {
       setSaving(false);
     }
@@ -307,17 +309,28 @@ export default function PurchaseBills({
       );
       setPayBillId(null); setPayAmount(""); setPayMode("CASH"); setPayRef(""); setPayNotes("");
       setPayDate(new Date().toISOString().slice(0, 10));
+      showToast("Payment recorded.", "success");
     } catch (e) {
       setPayErr(friendlyError(e));
+      showToast(friendlyError(e), "error");
     } finally {
       setPayLoading(false);
     }
   }
 
+  const [pendingDeletePay, setPendingDeletePay] = useState<string | null>(null);
+
   async function handleDeletePayment(paymentId: string) {
-    if (!confirm("Delete this payment? The bill's paid amount will be reversed.")) return;
+    if (pendingDeletePay !== paymentId) {
+      setPendingDeletePay(paymentId);
+      showToast("Click delete again to confirm — the paid amount will be reversed.", "warn");
+      setTimeout(() => setPendingDeletePay(prev => prev === paymentId ? null : prev), 4000);
+      return;
+    }
+    setPendingDeletePay(null);
     try {
       await onMutate(`mutation D($id:ID!){deleteSupplierPayment(id:$id){ok}}`, { id: paymentId });
+      showToast("Payment deleted and bill amount reversed.", "success");
     } catch (e) {
       showToast(friendlyError(e), "error");
     }
@@ -579,8 +592,8 @@ export default function PurchaseBills({
                                 <td style={{ padding: "7px 10px" }}>
                                   {canCreate && (
                                     <button onClick={() => handleDeletePayment(p.id)}
-                                      style={{ padding: "3px 8px", borderRadius: 5, border: "1px solid #fcc", background: "#fff5f5", color: "#c62828", fontSize: 11, cursor: "pointer" }}>
-                                      ×
+                                      style={{ padding: "3px 8px", borderRadius: 5, border: "1px solid #fcc", background: pendingDeletePay === p.id ? "#fcc" : "#fff5f5", color: "#c62828", fontSize: 11, cursor: "pointer" }}>
+                                      {pendingDeletePay === p.id ? "Confirm?" : "×"}
                                     </button>
                                   )}
                                 </td>

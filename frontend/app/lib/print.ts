@@ -5,7 +5,8 @@
 export function printDoc(html: string, title: string): void {
   const w = window.open("", "_blank", "width=860,height=920");
   if (!w) {
-    alert("Pop-up blocked. Please allow pop-ups for this site to print.");
+    // Dynamically import to avoid circular deps — print.ts is a plain util
+    import("@/app/lib/toast").then(({ showToast }) => showToast("Pop-up blocked. Allow pop-ups for this site to print.", "warn"));
     return;
   }
 

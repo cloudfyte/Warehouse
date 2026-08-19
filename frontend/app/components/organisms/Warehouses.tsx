@@ -4,6 +4,7 @@ import type { WarehouseLocation } from "@/app/types";
 import StateCity from "@/app/components/atoms/StateCity";
 import Modal from "@/app/components/atoms/Modal";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Button from "@/app/components/atoms/Button";
@@ -48,7 +49,8 @@ export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate
         );
       }
       setEditing(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Warehouse created." : "Warehouse updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

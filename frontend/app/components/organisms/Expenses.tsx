@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { Expense, WarehouseLocation } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
 import Badge from "@/app/components/atoms/Badge";
 import Input from "@/app/components/atoms/Input";
@@ -85,7 +86,8 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
         );
       }
       setEditing(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Expense recorded." : "Expense updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -94,7 +96,8 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
     try {
       await onMutate(`mutation D($id:ID!){deleteExpense(id:$id){ok}}`, { id });
       setConfirmDelete(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Expense deleted.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

@@ -4,6 +4,7 @@ import type { CustomRole, Employee, WarehouseLocation } from "@/app/types";
 import { ROLE_LABELS } from "@/app/lib/constants";
 import Modal from "@/app/components/atoms/Modal";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Button from "@/app/components/atoms/Button";
@@ -85,7 +86,8 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
         );
       }
       setEditing(null); setNewPass(""); setEditingCustomRoleId("");
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Employee created." : "Employee updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
@@ -96,7 +98,8 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
     try {
       await onMutate(`mutation R($id:ID!,$pw:String!){resetEmployeePassword(id:$id,newPassword:$pw){ok}}`, { id: showResetFor, pw: resetPw });
       setShowResetFor(null); setResetPw(""); setResetPw2("");
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Password reset successfully.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

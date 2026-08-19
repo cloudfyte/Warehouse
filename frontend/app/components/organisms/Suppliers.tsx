@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { Supplier, PurchaseBill, PurchaseOrder, SupplierReturn } from "@/app/types";
 import { SUPPLY_TYPE_LABELS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import { formatMoney } from "@/app/lib/formatters";
 import StateCity from "@/app/components/atoms/StateCity";
 import Modal from "@/app/components/atoms/Modal";
@@ -179,7 +180,8 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
       const cd = editing.creditDays != null ? parseInt(String(editing.creditDays), 10) : undefined;
       await onMutate(m, { id: editing.id, name: editing.name, cp: editing.contactPerson, email: editing.email, phone: editing.phone, wa: editing.whatsapp, addr: editing.address, city: editing.city, state: editing.state, gstin: editing.gstin, st: editing.supplyType, cd: Number.isFinite(cd as number) ? cd : undefined, notes: editing.notes, active: editing.active });
       setEditing(null);
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast(isNew ? "Supplier created." : "Supplier updated.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

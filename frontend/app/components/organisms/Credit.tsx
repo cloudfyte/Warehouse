@@ -4,6 +4,7 @@ import type { CreditTransaction } from "@/app/types";
 import { CREDIT_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
 import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
@@ -53,7 +54,8 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
       );
       setDetail(null);
       setPayForm({ amount: "", method: "CASH", reference: "", notes: "" });
-    } catch (e: unknown) { setError(friendlyError(e)); }
+      showToast("Credit payment recorded.", "success");
+    } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 

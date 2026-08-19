@@ -40,6 +40,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
   const [form, setForm] = useState<Form>(empty());
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [pendingDel, setPendingDel] = useState<string | null>(null);
 
   const canEdit = isAdmin || isManager;
 
@@ -83,14 +84,25 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
         });
       }
       setShowForm(false); onRefresh();
-    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Failed"); }
+      showToast(editing ? "Threshold updated." : "Threshold created.", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed";
+      setErr(msg); showToast(msg, "error");
+    }
     finally { setSaving(false); }
   }
 
   async function del(id: string) {
-    if (!confirm("Delete this reorder threshold?")) return;
+    if (pendingDel !== id) {
+      setPendingDel(id);
+      showToast("Click delete again to confirm.", "warn");
+      setTimeout(() => setPendingDel(prev => prev === id ? null : prev), 4000);
+      return;
+    }
+    setPendingDel(null);
     try {
       await gql(`mutation D($id:ID!){deleteReorderPoint(id:$id){ok}}`, { id });
+      showToast("Reorder threshold deleted.", "success");
       onRefresh();
     } catch (e: unknown) { showToast(e instanceof Error ? e.message : "Failed", "error"); }
   }
@@ -161,7 +173,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
                     {canEdit && (
                       <div style={{ display: "flex", gap: 6 }}>
                         <Button variant="secondary" size="sm" onClick={() => openEdit(rp)}>Edit</Button>
-                        <Button variant="danger" size="sm" onClick={() => del(rp.id)}>Delete</Button>
+                        <Button variant="danger" size="sm" onClick={() => del(rp.id)}>{pendingDel === rp.id ? "Confirm?" : "Delete"}</Button>
                       </div>
                     )}
                   </div>
