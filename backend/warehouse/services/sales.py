@@ -98,6 +98,7 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
         else:
             cgst = sgst = igst = Decimal("0.00")
 
+        taxable = subtotal - discount_amt
         total = taxable + tax_amount
         if payment_mode.upper() == SalesOrder.PaymentMode.PAID:
             amount_paid_dec = total
