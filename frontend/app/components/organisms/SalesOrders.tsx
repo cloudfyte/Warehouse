@@ -7,6 +7,14 @@ import { friendlyError } from "@/app/lib/errors";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import { downloadCsv } from "@/app/lib/csv";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Textarea from "@/app/components/atoms/Textarea";
+import Field from "@/app/components/molecules/Field";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props {
   orders: SalesOrder[]
@@ -30,10 +38,6 @@ interface SOItem { productId: string; qty: number; unitPrice: number }
 const emptyItem = (): SOItem => ({ productId: "", qty: 1, unitPrice: 0 });
 
 const SO_NEXT: Record<string, string> = { REQUESTED: "PROCESSING", PROCESSING: "READY", READY: "DISPATCHED", DISPATCHED: "DELIVERED" };
-
-const inp: React.CSSProperties = { padding: "9px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, width: "100%", boxSizing: "border-box" };
-const sel: React.CSSProperties = { ...inp };
-const lbl: React.CSSProperties = { fontSize: 12, color: "var(--muted)", display: "flex", flexDirection: "column", gap: 4 };
 
 export default function SalesOrders({ orders, buyers, warehouses, finishedProducts, isAdmin, isSuperAdmin, isManager, onMutate }: Props) {
   const [detail, setDetail] = useState<SalesOrder | null>(null);
@@ -176,58 +180,51 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
     `, so.orderNumber);
   }
 
+  function exportCsv() {
+    downloadCsv(`sales_orders_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(o => ({
+      "Order #": o.orderNumber, "Buyer": o.buyer.name, "Order Date": o.orderDate,
+      "Total (INR)": o.totalAmount, "Paid (INR)": o.amountPaid, "Due (INR)": o.amountDue,
+      "Payment": PAYMENT_MODE_LABELS[o.paymentMode] || o.paymentMode,
+      "Status": SO_STATUS_LABELS[o.status] || o.status,
+    })));
+  }
+
   return (
     <div style={{ padding: 24 }}>
-      {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>Sales Orders <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({orders.length})</span></h2>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => downloadCsv(`sales_orders_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(o => ({
-            "Order #": o.orderNumber, "Buyer": o.buyer.name, "Order Date": o.orderDate,
-            "Total (₹)": o.totalAmount, "Paid (₹)": o.amountPaid, "Due (₹)": o.amountDue,
-            "Payment": PAYMENT_MODE_LABELS[o.paymentMode] || o.paymentMode,
-            "Status": SO_STATUS_LABELS[o.status] || o.status,
-          })))}
-            style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--line)", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            ⬇ Export CSV
-          </button>
+      <PageHeader
+        title="Sales Orders"
+        sub={`${orders.length} orders`}
+        actions={<>
+          <Button variant="secondary" onClick={exportCsv}>⬇ Export CSV</Button>
           {canEdit && (
-            <button onClick={() => { setShowNew(true); setError(""); }}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            <Button onClick={() => { setShowNew(true); setError(""); }}>
               <Plus size={16} /> New Sales Order
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── Filters ── */}
-      <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        <input placeholder="Search order or buyer…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ width: "100%", padding: "9px 14px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, boxSizing: "border-box", outline: "none" }} />
+      <FilterBar style={{ marginBottom: 16, flexDirection: "column", alignItems: "stretch" }}>
+        <Input placeholder="Search order or buyer…" value={search} onChange={e => setSearch(e.target.value)} />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, minWidth: 160, width: "auto" }}>
+          <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ minWidth: 160, width: "auto" }}>
             <option value="">All statuses</option>
             {Object.entries(SO_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          </Select>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>
             From
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              style={{ padding: "7px 10px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 13 }} />
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: "auto" }} />
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>
             To
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              style={{ padding: "7px 10px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 13 }} />
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: "auto" }} />
           </label>
           {(dateFrom || dateTo) && (
-            <button onClick={() => { setDateFrom(""); setDateTo(""); }}
-              style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--muted)", fontSize: 13, cursor: "pointer" }}>
-              ✕ Clear
-            </button>
+            <Button variant="secondary" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>✕ Clear</Button>
           )}
         </div>
-      </div>
+      </FilterBar>
 
       {/* ── Create Sales Order drawer ── */}
       {showNew && (
@@ -238,46 +235,39 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
               <button onClick={() => { setShowNew(false); resetForm(); }} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)" }}>×</button>
             </div>
 
-            {error && <div style={{ background: "#fff1f0", border: "1px solid #ffc5c2", color: "#8d3e39", borderRadius: 9, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+            <ErrorBanner msg={error} />
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-              <label style={lbl}>
-                Buyer *
-                <select value={buyerId} onChange={e => setBuyerId(e.target.value)} style={sel}>
+              <Field label="Buyer" required>
+                <Select value={buyerId} onChange={e => setBuyerId(e.target.value)}>
                   <option value="">Select buyer</option>
                   {buyers.filter(b => b.active).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </label>
-              <label style={lbl}>
-                Warehouse *
-                <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} style={sel}>
+                </Select>
+              </Field>
+              <Field label="Warehouse" required>
+                <Select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
                   <option value="">Select warehouse</option>
                   {activeWarehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-              </label>
-              <label style={lbl}>
-                Order Date
-                <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} style={inp} />
-              </label>
-              <label style={lbl}>
-                Expected Delivery
-                <input type="date" value={expectedDelivery} onChange={e => setExpectedDelivery(e.target.value)} style={inp} />
-              </label>
-              <label style={lbl}>
-                Payment Mode *
-                <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} style={sel}>
+                </Select>
+              </Field>
+              <Field label="Order Date">
+                <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
+              </Field>
+              <Field label="Expected Delivery">
+                <Input type="date" value={expectedDelivery} onChange={e => setExpectedDelivery(e.target.value)} />
+              </Field>
+              <Field label="Payment Mode" required>
+                <Select value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
                   <option value="PAID">Fully Paid</option>
                   <option value="CREDIT">Credit</option>
                   <option value="PARTIAL">Partial Payment</option>
-                </select>
-              </label>
+                </Select>
+              </Field>
               {paymentMode === "PARTIAL" && (
-                <label style={lbl}>
-                  Amount Paid Upfront (₹) *
-                  <input type="number" min="0" step="0.01" value={amountPaid}
-                    onChange={e => setAmountPaid(e.target.value)}
-                    placeholder="0.00" style={inp} />
-                </label>
+                <Field label="Amount Paid Upfront (₹)" required>
+                  <Input type="number" min="0" step="0.01" value={amountPaid}
+                    onChange={e => setAmountPaid(e.target.value)} placeholder="0.00" />
+                </Field>
               )}
             </div>
 
@@ -294,27 +284,24 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                 const fp = finishedProducts.find(p => p.id === it.productId);
                 return (
                   <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 80px 120px 32px", gap: 8, marginBottom: 8, alignItems: "end" }}>
-                    <label style={lbl}>
-                      {i === 0 && <span>Product</span>}
-                      <select value={it.productId} onChange={e => setItem(i, { productId: e.target.value })} style={sel}>
+                    <Field label={i === 0 ? "Product" : ""}>
+                      <Select value={it.productId} onChange={e => setItem(i, { productId: e.target.value })}>
                         <option value="">Select product</option>
                         {activeProducts.map(p => (
                           <option key={p.id} value={p.id}>
                             {p.itemType.name}{p.size ? ` (${p.size})` : ""} — {p.sku} · {p.quantity} avail
                           </option>
                         ))}
-                      </select>
-                    </label>
-                    <label style={lbl}>
-                      {i === 0 && <span>Qty</span>}
-                      <input type="number" min="1" max={fp?.quantity || 9999} value={it.qty}
-                        onChange={e => setItem(i, { qty: parseInt(e.target.value) || 1 })} style={inp} />
-                    </label>
-                    <label style={lbl}>
-                      {i === 0 && <span>Unit Price (₹)</span>}
-                      <input type="number" min="0" step="0.01" value={it.unitPrice}
-                        onChange={e => setItem(i, { unitPrice: parseFloat(e.target.value) || 0 })} style={inp} />
-                    </label>
+                      </Select>
+                    </Field>
+                    <Field label={i === 0 ? "Qty" : ""}>
+                      <Input type="number" min="1" max={fp?.quantity || 9999} value={it.qty}
+                        onChange={e => setItem(i, { qty: parseInt(e.target.value) || 1 })} />
+                    </Field>
+                    <Field label={i === 0 ? "Unit Price (₹)" : ""}>
+                      <Input type="number" min="0" step="0.01" value={it.unitPrice}
+                        onChange={e => setItem(i, { unitPrice: parseFloat(e.target.value) || 0 })} />
+                    </Field>
                     <div style={{ paddingBottom: 2 }}>
                       {i === 0 && <div style={{ fontSize: 12, marginBottom: 4, color: "transparent" }}>×</div>}
                       <button onClick={() => setItems(p => p.filter((_, idx) => idx !== i))} disabled={items.length === 1}
@@ -328,16 +315,12 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-              <label style={lbl}>
-                Discount (₹)
-                <input type="number" min="0" step="0.01" value={discount}
-                  onChange={e => setDiscount(e.target.value)} style={inp} />
-              </label>
-              <label style={{ ...lbl, gridColumn: "1 / -1" }}>
-                Notes
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-                  style={{ ...inp, resize: "vertical", fontFamily: "inherit" }} />
-              </label>
+              <Field label="Discount (₹)">
+                <Input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(e.target.value)} />
+              </Field>
+              <Field label="Notes" style={{ gridColumn: "1 / -1" }}>
+                <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ minHeight: "unset" }} />
+              </Field>
             </div>
 
             {/* Totals summary */}
@@ -361,10 +344,9 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
               )}
             </div>
 
-            <button onClick={createSO} disabled={loading}
-              style={{ width: "100%", padding: 12, borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
+            <Button onClick={createSO} disabled={loading} style={{ width: "100%", fontSize: 15 }}>
               {loading ? "Creating…" : "Create Sales Order"}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -379,15 +361,12 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                 <div style={{ color: "var(--muted)", fontSize: 14 }}>{detail.buyer.name}</div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button onClick={() => printSO(detail)}
-                  style={{ padding: "5px 14px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-                  🖨 Print
-                </button>
+                <Button variant="secondary" size="sm" onClick={() => printSO(detail)}>🖨 Print</Button>
                 <button onClick={() => { setDetail(null); setError(""); }}
                   style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}>×</button>
               </div>
             </div>
-            {error && <div style={{ color: "#f44", marginBottom: 12, fontSize: 13 }}>{error}</div>}
+            <ErrorBanner msg={error} />
             <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
               <Badge s={detail.status} />
               <Badge s={detail.paymentMode} label={PAYMENT_MODE_LABELS[detail.paymentMode]} />
@@ -432,16 +411,14 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
               ))}
             </div>
             {canEdit && SO_NEXT[detail.status] && (
-              <button onClick={() => updateStatus(detail.id, SO_NEXT[detail.status])} disabled={loading}
-                style={{ width: "100%", padding: 11, borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+              <Button onClick={() => updateStatus(detail.id, SO_NEXT[detail.status])} disabled={loading} style={{ width: "100%", marginBottom: 8 }}>
                 {loading ? "Updating…" : `Mark as ${SO_STATUS_LABELS[SO_NEXT[detail.status]]}`}
-              </button>
+              </Button>
             )}
             {canEdit && !["DELIVERED", "CANCELLED"].includes(detail.status) && (
-              <button onClick={() => updateStatus(detail.id, "CANCELLED")} disabled={loading}
-                style={{ width: "100%", padding: 9, borderRadius: 8, border: "1px solid #f44336", background: "none", color: "#f44336", cursor: "pointer", fontSize: 13 }}>
+              <Button variant="danger" onClick={() => updateStatus(detail.id, "CANCELLED")} disabled={loading} style={{ width: "100%" }}>
                 Cancel Order
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -469,10 +446,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                 <td style={{ padding: "12px 14px" }}><Badge s={o.paymentMode} label={PAYMENT_MODE_LABELS[o.paymentMode]} /></td>
                 <td style={{ padding: "12px 14px" }}><Badge s={o.status} /></td>
                 <td style={{ padding: "12px 14px" }}>
-                  <button onClick={() => { setDetail(o); setError(""); }}
-                    style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 13 }}>
-                    View
-                  </button>
+                  <Button variant="secondary" size="sm" onClick={() => { setDetail(o); setError(""); }}>View</Button>
                 </td>
               </tr>
             ))}

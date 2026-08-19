@@ -5,6 +5,14 @@ import { CUTTING_STATUS_LABELS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import Modal from "@/app/components/atoms/Modal";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props {
   assignments: CuttingAssignment[]; batches: RawClothBatch[]
@@ -13,23 +21,6 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
 }
-
-const I: React.CSSProperties = {
-  padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
-  background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, width: "100%", outline: "none",
-};
-const BTN_PRI: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "none",
-  background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14,
-};
-const BTN_SEC: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)",
-  background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14,
-};
-const LBL: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 5,
-  fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
-};
 
 // ── Status step trail ──────────────────────────────────────────────────────────
 
@@ -99,13 +90,11 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Local item type list (grows when user creates new ones inline)
   const [localItemTypes, setLocalItemTypes] = useState<ItemType[]>(itemTypes);
   const [newItemTypeName, setNewItemTypeName] = useState("");
   const [addingItemType, setAddingItemType] = useState(false);
   const [itemTypeCreating, setItemTypeCreating] = useState(false);
 
-  // Local cutting master list (grows when user creates new ones inline)
   const [localMasters, setLocalMasters] = useState<Employee[]>(cuttingMasters);
   const [newMasterName, setNewMasterName] = useState("");
   const [newMasterPass, setNewMasterPass] = useState("");
@@ -192,109 +181,96 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
     finally { setLoading(false); }
   }
 
-  function selField(label: string, val: string, onChange: (v: string) => void, opts: { value: string; label: string }[]) {
-    return (
-      <label style={LBL}>{label}
-        <select value={val} onChange={e => onChange(e.target.value)} style={I}>
-          <option value="">Select…</option>
-          {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </label>
-    );
-  }
-
   return (
     <div style={{ padding: 24 }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Cutting Assignments</h2>
-          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{assignments.length} total · {assignments.filter(a => a.status === "IN_PROGRESS" || a.status === "PARTIAL").length} active</p>
-        </div>
-        {canAssign && (
-          <button onClick={() => { setShowForm(true); setError(""); }} className="primary-button">
-            + New Assignment
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Cutting Assignments"
+        sub={`${assignments.length} total · ${assignments.filter(a => a.status === "IN_PROGRESS" || a.status === "PARTIAL").length} active`}
+        actions={canAssign && <Button onClick={() => { setShowForm(true); setError(""); }}>+ New Assignment</Button>}
+      />
 
-      {/* Filters */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <input placeholder="Search master, cloth or item…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ ...I, flex: 1, minWidth: 200, width: "auto" }} />
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...I, width: "auto", minWidth: 180 }}>
+      <FilterBar style={{ marginBottom: 20 }}>
+        <Input placeholder="Search master, cloth or item…" value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: "auto", minWidth: 180 }}>
           <option value="">All statuses</option>
           {Object.entries(CUTTING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
 
       {/* New Assignment modal */}
       {showForm && (
         <Modal title="New Cutting Assignment" subtitle="Assign cloth from a batch to a cutting master"
           onClose={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" }); }} width={520}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId || !form.meters || !form.targetPieces} style={BTN_PRI}>{loading ? "Assigning…" : "Create Assignment"}</button>
-            <button onClick={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" }); }} style={BTN_SEC}>Cancel</button>
+            <Button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId || !form.meters || !form.targetPieces} style={{ flex: 1 }}>{loading ? "Assigning…" : "Create Assignment"}</Button>
+            <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", size: "", notes: "" }); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+          <ErrorBanner msg={error} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {selField("Raw Cloth Batch *", form.batchId, v => setForm(p => ({ ...p, batchId: v })),
-              batches.map(b => ({ value: b.id, label: `${b.batchNumber} — ${b.clothCategory.name} ${b.clothColor.name} (${b.availableMeters}m available)` })))}
+            <Field label="Raw Cloth Batch" required>
+              <Select value={form.batchId} onChange={e => setForm(p => ({ ...p, batchId: e.target.value }))}>
+                <option value="">Select…</option>
+                {batches.map(b => <option key={b.id} value={b.id}>{b.batchNumber} — {b.clothCategory.name} {b.clothColor.name} ({b.availableMeters}m available)</option>)}
+              </Select>
+            </Field>
 
             {/* Cutting Master with inline create */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>Cutting Master *</span>
-              <select value={form.masterId} onChange={e => setForm(p => ({ ...p, masterId: e.target.value }))} style={I}>
+            <Field label="Cutting Master" required>
+              <Select value={form.masterId} onChange={e => setForm(p => ({ ...p, masterId: e.target.value }))}>
                 <option value="">Select…</option>
                 {localMasters.map(m => <option key={m.id} value={m.id}>{m.username}</option>)}
-              </select>
+              </Select>
               {!addingMaster
                 ? <button type="button" onClick={() => setAddingMaster(true)} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}>+ Create new cutting master</button>
                 : <div style={{ background: "var(--canvas)", borderRadius: 8, padding: 12, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
-                    <input placeholder="Username" value={newMasterName} onChange={e => setNewMasterName(e.target.value)} style={I} />
-                    <input placeholder="Password" type="password" value={newMasterPass} onChange={e => setNewMasterPass(e.target.value)} style={I} />
+                    <Input placeholder="Username" value={newMasterName} onChange={e => setNewMasterName(e.target.value)} />
+                    <Input placeholder="Password" type="password" value={newMasterPass} onChange={e => setNewMasterPass(e.target.value)} />
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button type="button" onClick={createMasterInline} disabled={masterCreating || !newMasterName.trim() || !newMasterPass.trim()} style={{ ...BTN_PRI, flex: "none", padding: "8px 16px", fontSize: 13 }}>{masterCreating ? "Creating…" : "Create"}</button>
-                      <button type="button" onClick={() => { setAddingMaster(false); setNewMasterName(""); setNewMasterPass(""); }} style={{ ...BTN_SEC, flex: "none", padding: "8px 16px", fontSize: 13 }}>Cancel</button>
+                      <Button type="button" onClick={createMasterInline} disabled={masterCreating || !newMasterName.trim() || !newMasterPass.trim()} size="sm">{masterCreating ? "Creating…" : "Create"}</Button>
+                      <Button type="button" variant="secondary" onClick={() => { setAddingMaster(false); setNewMasterName(""); setNewMasterPass(""); }} size="sm">Cancel</Button>
                     </div>
                   </div>
               }
-            </div>
+            </Field>
 
             {/* Item Type with inline create */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>Item Type *</span>
-              <select value={form.itemTypeId} onChange={e => setForm(p => ({ ...p, itemTypeId: e.target.value }))} style={I}>
+            <Field label="Item Type" required>
+              <Select value={form.itemTypeId} onChange={e => setForm(p => ({ ...p, itemTypeId: e.target.value }))}>
                 <option value="">Select…</option>
                 {localItemTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+              </Select>
               {!addingItemType
                 ? <button type="button" onClick={() => setAddingItemType(true)} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}>+ Create new item type</button>
                 : <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input placeholder="Item type name (e.g. Shirt, Kurti…)" value={newItemTypeName} onChange={e => setNewItemTypeName(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && createItemTypeInline()} style={{ ...I, flex: 1 }} autoFocus />
-                    <button type="button" onClick={createItemTypeInline} disabled={itemTypeCreating || !newItemTypeName.trim()} style={{ ...BTN_PRI, flex: "none", padding: "10px 14px", fontSize: 13 }}>{itemTypeCreating ? "…" : "Create"}</button>
-                    <button type="button" onClick={() => { setAddingItemType(false); setNewItemTypeName(""); }} style={{ ...BTN_SEC, flex: "none", padding: "10px 14px", fontSize: 13 }}>✕</button>
+                    <Input placeholder="Item type name (e.g. Shirt, Kurti…)" value={newItemTypeName} onChange={e => setNewItemTypeName(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && createItemTypeInline()} style={{ flex: 1 }} autoFocus />
+                    <Button type="button" onClick={createItemTypeInline} disabled={itemTypeCreating || !newItemTypeName.trim()} size="sm">{itemTypeCreating ? "…" : "Create"}</Button>
+                    <Button type="button" variant="secondary" onClick={() => { setAddingItemType(false); setNewItemTypeName(""); }} size="sm">✕</Button>
                   </div>
               }
-            </div>
+            </Field>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <label style={LBL}>Meters Assigned *<input type="number" step="0.01" value={form.meters} placeholder="0.00" onChange={e => setForm(p => ({ ...p, meters: e.target.value }))} style={I} /></label>
-              <label style={LBL}>Target Pieces *<input type="number" value={form.targetPieces} placeholder="0" onChange={e => setForm(p => ({ ...p, targetPieces: e.target.value }))} style={I} /></label>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <label style={LBL}>
-                Size (optional)
-                <select value={form.size} onChange={e => setForm(p => ({ ...p, size: e.target.value }))} style={I}>
+            <FormGrid>
+              <Field label="Meters Assigned" required>
+                <Input type="number" step="0.01" value={form.meters} placeholder="0.00" onChange={e => setForm(p => ({ ...p, meters: e.target.value }))} />
+              </Field>
+              <Field label="Target Pieces" required>
+                <Input type="number" value={form.targetPieces} placeholder="0" onChange={e => setForm(p => ({ ...p, targetPieces: e.target.value }))} />
+              </Field>
+            </FormGrid>
+            <FormGrid>
+              <Field label="Size (optional)">
+                <Select value={form.size} onChange={e => setForm(p => ({ ...p, size: e.target.value }))}>
                   <option value="">Free Size / Not specified</option>
                   {["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40", "42", "44"].map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
-                </select>
-              </label>
-              <label style={LBL}>Notes<input value={form.notes} placeholder="Optional notes…" onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} style={I} /></label>
-            </div>
+                </Select>
+              </Field>
+              <Field label="Notes">
+                <Input value={form.notes} placeholder="Optional notes…" onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
+              </Field>
+            </FormGrid>
           </div>
         </Modal>
       )}
@@ -305,24 +281,24 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
           subtitle={`${selected.itemType.name} · ${selected.metersAssigned}m · ${selected.targetPieces} target pieces`}
           onClose={() => { setSelected(null); setError(""); }} width={460}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <button onClick={saveUpdate} disabled={loading} style={BTN_PRI}>{loading ? "Saving…" : "Save Update"}</button>
-            <button onClick={() => { setSelected(null); setError(""); }} style={BTN_SEC}>Cancel</button>
+            <Button onClick={saveUpdate} disabled={loading} style={{ flex: 1 }}>{loading ? "Saving…" : "Save Update"}</Button>
+            <Button variant="secondary" onClick={() => { setSelected(null); setError(""); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+          <ErrorBanner msg={error} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <label style={LBL}>Status
-              <select value={update.status || selected.status} onChange={e => setUpdate(p => ({ ...p, status: e.target.value }))} style={I}>
+            <Field label="Status">
+              <Select value={update.status || selected.status} onChange={e => setUpdate(p => ({ ...p, status: e.target.value }))}>
                 {Object.entries(CUTTING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+              </Select>
+            </Field>
+            <FormGrid cols={3}>
               {([["Pieces Done", "piecesCompleted"], ["Cloth Used (m)", "clothUsed"], ["Wasted (m)", "clothWasted"]] as [string, string][]).map(([label, field]) => (
-                <label key={field} style={LBL}>{label}
-                  <input type="number" step="0.01" value={(update as unknown as Record<string, number>)[field] || 0}
-                    onChange={e => setUpdate(p => ({ ...p, [field]: +e.target.value }))} style={I} />
-                </label>
+                <Field key={field} label={label}>
+                  <Input type="number" step="0.01" value={(update as unknown as Record<string, number>)[field] || 0}
+                    onChange={e => setUpdate(p => ({ ...p, [field]: +e.target.value }))} />
+                </Field>
               ))}
-            </div>
+            </FormGrid>
           </div>
         </Modal>
       )}
@@ -355,11 +331,11 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                     <span style={{ fontSize: 11, color: "var(--muted)" }}>{formatDateShort(a.assignedDate)}</span>
                     {canUpdate && (
-                      <button
+                      <Button size="sm" variant="secondary"
                         onClick={() => { setSelected(a); setUpdate({ piecesCompleted: Number(a.piecesCompleted) || 0, clothUsed: Number(a.clothUsed) || 0, clothWasted: Number(a.clothWasted) || 0, status: a.status }); setError(""); }}
-                        style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "var(--primary)" }}>
+                        style={{ background: "var(--canvas)", color: "var(--primary)" }}>
                         Update
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

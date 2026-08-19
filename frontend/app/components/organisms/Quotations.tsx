@@ -3,6 +3,15 @@ import React, { useState } from "react";
 import { Quotation, Buyer, WarehouseLocation, FinishedProduct, SystemSettings } from "@/app/types";
 import { QUOTATION_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { showToast } from "@/app/lib/toast";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Textarea from "@/app/components/atoms/Textarea";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props {
   quotations: Quotation[];
@@ -215,18 +224,13 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-xl font-bold">Quotations</h2>
-        <button onClick={() => setShowCreate(true)}
-          className="px-4 py-2 rounded-lg text-sm font-medium"
-          style={{ background: "var(--accent)", color: "#fff" }}>
-          + New Quotation
-        </button>
-      </div>
+      <PageHeader
+        title="Quotations"
+        actions={<Button variant="primary" onClick={() => setShowCreate(true)}>+ New Quotation</Button>}
+      />
 
       {/* Filter chips */}
-      <div className="flex gap-2 flex-wrap">
+      <FilterBar>
         {["ALL", ...STATUS_OPTIONS].map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
@@ -238,7 +242,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
             {s === "ALL" ? "All" : (QUOTATION_STATUS_LABELS[s] ?? s)}
           </button>
         ))}
-      </div>
+      </FilterBar>
 
       {/* Table */}
       <div className="card overflow-hidden">
@@ -308,12 +312,9 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => printQuotation(selected)}
-                  className="px-3 py-1.5 rounded text-xs font-semibold border"
-                  style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "transparent" }}
-                  title="Print / Save as PDF">
+                <Button variant="secondary" size="sm" onClick={() => printQuotation(selected)} title="Print / Save as PDF">
                   🖨 Print
-                </button>
+                </Button>
                 <button onClick={() => { setSelected(null); setConvertMode(null); }} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
             </div>
@@ -375,33 +376,21 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                 {/* Status transitions */}
                 <div className="flex gap-2 flex-wrap">
                   {selected.status === "DRAFT" && (
-                    <button disabled={statusUpdating}
-                      onClick={() => updateStatus(selected, "SENT")}
-                      className="px-3 py-1.5 rounded text-sm font-medium text-white"
-                      style={{ background: "#2196f3" }}>
+                    <Button size="sm" disabled={statusUpdating} onClick={() => updateStatus(selected, "SENT")} style={{ background: "#2196f3" }}>
                       Mark Sent
-                    </button>
+                    </Button>
                   )}
                   {(selected.status === "DRAFT" || selected.status === "SENT") && (
                     <>
-                      <button disabled={statusUpdating}
-                        onClick={() => updateStatus(selected, "ACCEPTED")}
-                        className="px-3 py-1.5 rounded text-sm font-medium text-white"
-                        style={{ background: "#4caf50" }}>
+                      <Button size="sm" disabled={statusUpdating} onClick={() => updateStatus(selected, "ACCEPTED")} style={{ background: "#4caf50" }}>
                         Accept
-                      </button>
-                      <button disabled={statusUpdating}
-                        onClick={() => updateStatus(selected, "REJECTED")}
-                        className="px-3 py-1.5 rounded text-sm font-medium text-white"
-                        style={{ background: "#f44336" }}>
+                      </Button>
+                      <Button variant="danger" size="sm" disabled={statusUpdating} onClick={() => updateStatus(selected, "REJECTED")}>
                         Reject
-                      </button>
-                      <button disabled={statusUpdating}
-                        onClick={() => updateStatus(selected, "EXPIRED")}
-                        className="px-3 py-1.5 rounded text-sm font-medium"
-                        style={{ background: "var(--surface-2)", color: "var(--text-secondary)" }}>
+                      </Button>
+                      <Button variant="secondary" size="sm" disabled={statusUpdating} onClick={() => updateStatus(selected, "EXPIRED")}>
                         Mark Expired
-                      </button>
+                      </Button>
                     </>
                   )}
                 </div>
@@ -412,29 +401,16 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                     <p className="text-xs mb-2 font-semibold" style={{ color: "var(--text-secondary)" }}>CONVERT TO SALES ORDER</p>
                     {convertMode === null ? (
                       <div className="flex gap-2">
-                        <button onClick={() => setConvertMode("CREDIT")}
-                          className="px-3 py-1.5 rounded text-sm font-medium text-white"
-                          style={{ background: "var(--accent)" }}>
-                          On Credit
-                        </button>
-                        <button onClick={() => setConvertMode("PAID")}
-                          className="px-3 py-1.5 rounded text-sm font-medium text-white"
-                          style={{ background: "#4caf50" }}>
-                          Mark as Paid
-                        </button>
+                        <Button variant="primary" size="sm" onClick={() => setConvertMode("CREDIT")}>On Credit</Button>
+                        <Button size="sm" onClick={() => setConvertMode("PAID")} style={{ background: "#4caf50" }}>Mark as Paid</Button>
                       </div>
                     ) : (
                       <div className="flex gap-2 items-center">
                         <span className="text-sm">Confirm convert as <strong>{convertMode}</strong>?</span>
-                        <button disabled={converting}
-                          onClick={() => convertToSO(selected, convertMode)}
-                          className="px-3 py-1.5 rounded text-sm font-medium text-white"
-                          style={{ background: "var(--accent)" }}>
+                        <Button variant="primary" size="sm" disabled={converting} onClick={() => convertToSO(selected, convertMode)}>
                           {converting ? "…" : "Confirm"}
-                        </button>
-                        <button onClick={() => setConvertMode(null)}
-                          className="px-3 py-1.5 rounded text-sm"
-                          style={{ color: "var(--text-secondary)" }}>Cancel</button>
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setConvertMode(null)}>Cancel</Button>
                       </div>
                     )}
                   </div>
@@ -456,65 +432,55 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
               <button onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setErr(""); }} className="text-2xl" style={{ color: "var(--text-secondary)" }}>×</button>
             </div>
 
-            {err && <div className="p-3 rounded text-sm" style={{ background: "#fce4ec", color: "#c62828" }}>{err}</div>}
+            <ErrorBanner msg={err} />
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Buyer *</label>
-                <select value={form.buyerId} onChange={e => setForm(f => ({ ...f, buyerId: e.target.value }))}
-                  className="input w-full">
+            <FormGrid cols={2}>
+              <Field label="Buyer" required>
+                <Select value={form.buyerId} onChange={e => setForm(f => ({ ...f, buyerId: e.target.value }))}>
                   <option value="">Select buyer</option>
                   {buyers.filter(b => b.active).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Warehouse *</label>
-                <select value={form.warehouseId} onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))}
-                  className="input w-full">
+                </Select>
+              </Field>
+              <Field label="Warehouse" required>
+                <Select value={form.warehouseId} onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))}>
                   <option value="">Select warehouse</option>
                   {warehouses.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Validity Date</label>
-                <input type="date" value={form.validityDate} onChange={e => setForm(f => ({ ...f, validityDate: e.target.value }))}
-                  className="input w-full" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Discount (₹)</label>
-                <input type="number" value={form.discount} onChange={e => setForm(f => ({ ...f, discount: e.target.value }))}
-                  className="input w-full" min="0" />
-              </div>
-            </div>
+                </Select>
+              </Field>
+              <Field label="Validity Date">
+                <Input type="date" value={form.validityDate} onChange={e => setForm(f => ({ ...f, validityDate: e.target.value }))} />
+              </Field>
+              <Field label="Discount (₹)">
+                <Input type="number" value={form.discount} onChange={e => setForm(f => ({ ...f, discount: e.target.value }))} min="0" />
+              </Field>
+            </FormGrid>
 
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Notes</label>
-              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                className="input w-full" rows={2} />
-            </div>
+            <Field label="Notes">
+              <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+            </Field>
 
             {/* Items */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold">Items</h4>
-                <button onClick={addItem} className="text-xs px-2 py-1 rounded" style={{ background: "var(--surface-2)" }}>+ Add Item</button>
+                <Button variant="secondary" size="sm" onClick={addItem}>+ Add Item</Button>
               </div>
               {form.items.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-[1fr_80px_100px_32px] gap-2 mb-2">
-                  <select value={item.finishedProductId}
+                  <Select value={item.finishedProductId}
                     onChange={e => setItemField(idx, "finishedProductId", e.target.value)}
-                    className="input text-xs">
+                    style={{ fontSize: 11 }}>
                     <option value="">Select product</option>
                     {finishedProducts.filter(p => p.quantity > 0).map(p => (
                       <option key={p.id} value={p.id}>{p.sku} — {p.itemType.name} ({p.quantity} in stock)</option>
                     ))}
-                  </select>
-                  <input type="number" placeholder="Qty" value={item.quantity}
+                  </Select>
+                  <Input type="number" placeholder="Qty" value={item.quantity}
                     onChange={e => setItemField(idx, "quantity", e.target.value)}
-                    className="input text-xs" min="1" />
-                  <input type="number" placeholder="Price" value={item.unitPrice}
+                    style={{ fontSize: 11 }} min="1" />
+                  <Input type="number" placeholder="Price" value={item.unitPrice}
                     onChange={e => setItemField(idx, "unitPrice", e.target.value)}
-                    className="input text-xs" min="0" />
+                    style={{ fontSize: 11 }} min="0" />
                   {form.items.length > 1 && (
                     <button onClick={() => removeItem(idx)}
                       className="text-red-500 font-bold text-lg leading-none self-center">×</button>
@@ -524,13 +490,10 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
             </div>
 
             <div className="flex gap-3 pt-2 justify-end">
-              <button onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setErr(""); }}
-                className="px-4 py-2 rounded text-sm" style={{ color: "var(--text-secondary)" }}>Cancel</button>
-              <button onClick={saveQuotation} disabled={saving}
-                className="px-4 py-2 rounded text-sm font-medium text-white"
-                style={{ background: "var(--accent)" }}>
+              <Button variant="secondary" onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setErr(""); }}>Cancel</Button>
+              <Button variant="primary" onClick={saveQuotation} disabled={saving}>
                 {saving ? "Saving…" : "Create Quotation"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

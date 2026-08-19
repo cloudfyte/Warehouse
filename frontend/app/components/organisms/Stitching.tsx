@@ -5,6 +5,14 @@ import { STITCHING_STATUS_LABELS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import Modal from "@/app/components/atoms/Modal";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props {
   jobs: StitchingJob[]; assignments: CuttingAssignment[]; tailors: Employee[]
@@ -13,23 +21,6 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
 }
-
-const I: React.CSSProperties = {
-  padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
-  background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, width: "100%", outline: "none",
-};
-const BTN_PRI: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "none",
-  background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14,
-};
-const BTN_SEC: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)",
-  background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14,
-};
-const LBL: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 5,
-  fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
-};
 
 // ── Status step trail ──────────────────────────────────────────────────────────
 
@@ -208,69 +199,59 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Stitching Jobs</h2>
-          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{jobs.length} total · {jobs.filter(j => j.status === "PROCESSING" || j.status === "QC_CHECK").length} active</p>
-        </div>
-        {canAssign && (
-          <button onClick={() => { setShowForm(true); setError(""); }} className="primary-button">
-            + New Job
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Stitching Jobs"
+        sub={`${jobs.length} total · ${jobs.filter(j => j.status === "PROCESSING" || j.status === "QC_CHECK").length} active`}
+        actions={canAssign && <Button onClick={() => { setShowForm(true); setError(""); }}>+ New Job</Button>}
+      />
 
-      {/* Filters */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <input placeholder="Search tailor or item type…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ ...I, flex: 1, minWidth: 200, width: "auto" }} />
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...I, width: "auto", minWidth: 180 }}>
+      <FilterBar style={{ marginBottom: 20 }}>
+        <Input placeholder="Search tailor or item type…" value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+        <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: "auto", minWidth: 180 }}>
           <option value="">All statuses</option>
           {Object.entries(STITCHING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
 
       {/* New Job modal */}
       {showForm && (
         <Modal title="New Stitching Job" subtitle="Assign cut pieces to a tailor for stitching"
           onClose={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" }); }} width={480}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <button onClick={createJob} disabled={loading || !form.assignmentId || !form.tailorId || !form.pieces} style={BTN_PRI}>{loading ? "Creating…" : "Create Job"}</button>
-            <button onClick={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" }); }} style={BTN_SEC}>Cancel</button>
+            <Button onClick={createJob} disabled={loading || !form.assignmentId || !form.tailorId || !form.pieces} style={{ flex: 1 }}>{loading ? "Creating…" : "Create Job"}</Button>
+            <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" }); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+          <ErrorBanner msg={error} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <label style={LBL}>Cutting Assignment *
-              <select value={form.assignmentId} onChange={e => setForm(p => ({ ...p, assignmentId: e.target.value }))} style={I}>
+            <Field label="Cutting Assignment" required>
+              <Select value={form.assignmentId} onChange={e => setForm(p => ({ ...p, assignmentId: e.target.value }))}>
                 <option value="">Select…</option>
                 {readyAssignments.map(a => <option key={a.id} value={a.id}>{a.assignmentNumber} — {a.itemType.name} ({a.piecesCompleted} pieces ready)</option>)}
-              </select>
-            </label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>Tailor *</span>
-              <select value={form.tailorId} onChange={e => setForm(p => ({ ...p, tailorId: e.target.value }))} style={I}>
+              </Select>
+            </Field>
+            <Field label="Tailor" required>
+              <Select value={form.tailorId} onChange={e => setForm(p => ({ ...p, tailorId: e.target.value }))}>
                 <option value="">Select…</option>
                 {localTailors.map(t => <option key={t.id} value={t.id}>{t.username}</option>)}
-              </select>
+              </Select>
               {!addingTailor
                 ? <button type="button" onClick={() => setAddingTailor(true)} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}>+ Create new tailor</button>
                 : <div style={{ background: "var(--canvas)", borderRadius: 8, padding: 12, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
-                    <input placeholder="Username" value={newTailorName} onChange={e => setNewTailorName(e.target.value)} style={I} autoFocus />
-                    <input placeholder="Password" type="password" value={newTailorPass} onChange={e => setNewTailorPass(e.target.value)} style={I} />
+                    <Input placeholder="Username" value={newTailorName} onChange={e => setNewTailorName(e.target.value)} autoFocus />
+                    <Input placeholder="Password" type="password" value={newTailorPass} onChange={e => setNewTailorPass(e.target.value)} />
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button type="button" onClick={createTailorInline} disabled={tailorCreating || !newTailorName.trim() || !newTailorPass.trim()} style={{ ...BTN_PRI, flex: "none", padding: "8px 16px", fontSize: 13 }}>{tailorCreating ? "Creating…" : "Create"}</button>
-                      <button type="button" onClick={() => { setAddingTailor(false); setNewTailorName(""); setNewTailorPass(""); }} style={{ ...BTN_SEC, flex: "none", padding: "8px 16px", fontSize: 13 }}>Cancel</button>
+                      <Button type="button" onClick={createTailorInline} disabled={tailorCreating || !newTailorName.trim() || !newTailorPass.trim()} size="sm">{tailorCreating ? "Creating…" : "Create"}</Button>
+                      <Button type="button" variant="secondary" onClick={() => { setAddingTailor(false); setNewTailorName(""); setNewTailorPass(""); }} size="sm">Cancel</Button>
                     </div>
                   </div>
               }
-            </div>
-            <label style={LBL}>Pieces Assigned *
-              <input type="number" value={form.pieces} placeholder="0" onChange={e => setForm(p => ({ ...p, pieces: e.target.value }))} style={I} />
-            </label>
-            <label style={LBL}>Notes
-              <input value={form.notes} placeholder="Optional notes…" onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} style={I} />
-            </label>
+            </Field>
+            <Field label="Pieces Assigned" required>
+              <Input type="number" value={form.pieces} placeholder="0" onChange={e => setForm(p => ({ ...p, pieces: e.target.value }))} />
+            </Field>
+            <Field label="Notes">
+              <Input value={form.notes} placeholder="Optional notes…" onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
+            </Field>
           </div>
         </Modal>
       )}
@@ -281,24 +262,24 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
           subtitle={`${selected.cuttingAssignment.itemType.name} · ${selected.piecesAssigned} pieces → ${selected.tailor.username}`}
           onClose={() => { setSelected(null); setError(""); }} width={440}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <button onClick={saveUpdate} disabled={loading} style={BTN_PRI}>{loading ? "Saving…" : "Save Update"}</button>
-            <button onClick={() => { setSelected(null); setError(""); }} style={BTN_SEC}>Cancel</button>
+            <Button onClick={saveUpdate} disabled={loading} style={{ flex: 1 }}>{loading ? "Saving…" : "Save Update"}</Button>
+            <Button variant="secondary" onClick={() => { setSelected(null); setError(""); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
-          {error && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+          <ErrorBanner msg={error} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <label style={LBL}>Status
-              <select value={upd.status || selected.status} onChange={e => setUpd(p => ({ ...p, status: e.target.value }))} style={I}>
+            <Field label="Status">
+              <Select value={upd.status || selected.status} onChange={e => setUpd(p => ({ ...p, status: e.target.value }))}>
                 {Object.entries(STITCHING_STATUS_LABELS).filter(([k]) => k !== "MOVED").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              </Select>
+            </Field>
+            <FormGrid>
               {([["Pieces Completed", "piecesCompleted"], ["Pieces Rejected", "piecesRejected"]] as [string, string][]).map(([label, field]) => (
-                <label key={field} style={LBL}>{label}
-                  <input type="number" value={(upd as unknown as Record<string, number>)[field] || 0}
-                    onChange={e => setUpd(p => ({ ...p, [field]: +e.target.value }))} style={I} />
-                </label>
+                <Field key={field} label={label}>
+                  <Input type="number" value={(upd as unknown as Record<string, number>)[field] || 0}
+                    onChange={e => setUpd(p => ({ ...p, [field]: +e.target.value }))} />
+                </Field>
               ))}
-            </div>
+            </FormGrid>
           </div>
         </Modal>
       )}
@@ -309,33 +290,33 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
           subtitle={`${fgJob.cuttingAssignment.itemType.name} · ${fgJob.jobNumber}`}
           onClose={() => setFgJob(null)} width={420}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <button onClick={saveToFinishedGoods} disabled={fgLoading} style={BTN_PRI}>{fgLoading ? "Moving…" : "Add to Finished Goods"}</button>
-            <button onClick={() => setFgJob(null)} style={BTN_SEC}>Cancel</button>
+            <Button onClick={saveToFinishedGoods} disabled={fgLoading} style={{ flex: 1 }}>{fgLoading ? "Moving…" : "Add to Finished Goods"}</Button>
+            <Button variant="secondary" onClick={() => setFgJob(null)} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
-          {fgError && <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>{fgError}</div>}
+          <ErrorBanner msg={fgError} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "var(--muted)" }}>
               Completed: <strong style={{ color: "var(--ink)" }}>{fgJob.piecesCompleted}</strong> pcs &nbsp;·&nbsp;
               Rejected: <strong style={{ color: "#ef4444" }}>{fgJob.piecesRejected || 0}</strong> pcs &nbsp;·&nbsp;
               Net: <strong style={{ color: "#10b981" }}>{(fgJob.piecesCompleted || 0) - (fgJob.piecesRejected || 0)}</strong> pcs
             </div>
-            <label style={LBL}>Quantity to add to Finished Goods *
-              <input type="number" min="1" value={fgForm.qty} onChange={e => setFgForm(p => ({ ...p, qty: e.target.value }))} style={I} placeholder="0" autoFocus />
-            </label>
-            <label style={LBL}>Warehouse *
-              <select value={fgForm.warehouseId} onChange={e => setFgForm(p => ({ ...p, warehouseId: e.target.value }))} style={I}>
+            <Field label="Quantity to add to Finished Goods" required>
+              <Input type="number" min="1" value={fgForm.qty} onChange={e => setFgForm(p => ({ ...p, qty: e.target.value }))} placeholder="0" autoFocus />
+            </Field>
+            <Field label="Warehouse" required>
+              <Select value={fgForm.warehouseId} onChange={e => setFgForm(p => ({ ...p, warehouseId: e.target.value }))}>
                 <option value="">Select warehouse…</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <label style={LBL}>Cost / pc ₹
-                <input type="number" min="0" value={fgForm.costPrice} onChange={e => setFgForm(p => ({ ...p, costPrice: e.target.value }))} style={I} placeholder="0" />
-              </label>
-              <label style={LBL}>Sale Price / pc ₹ *
-                <input type="number" min="0" value={fgForm.salePrice} onChange={e => setFgForm(p => ({ ...p, salePrice: e.target.value }))} style={I} placeholder="0" />
-              </label>
-            </div>
+              </Select>
+            </Field>
+            <FormGrid>
+              <Field label="Cost / pc ₹">
+                <Input type="number" min="0" value={fgForm.costPrice} onChange={e => setFgForm(p => ({ ...p, costPrice: e.target.value }))} placeholder="0" />
+              </Field>
+              <Field label="Sale Price / pc ₹" required>
+                <Input type="number" min="0" value={fgForm.salePrice} onChange={e => setFgForm(p => ({ ...p, salePrice: e.target.value }))} placeholder="0" />
+              </Field>
+            </FormGrid>
           </div>
         </Modal>
       )}
@@ -372,18 +353,16 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                     <span style={{ fontSize: 11, color: "var(--muted)" }}>{formatDateShort(j.assignedDate)}</span>
                     <div style={{ display: "flex", gap: 6 }}>
                       {canUpdate && j.status !== "MOVED" && (
-                        <button
+                        <Button size="sm" variant="secondary"
                           onClick={() => { setSelected(j); setUpd({ status: j.status, piecesCompleted: Number(j.piecesCompleted) || 0, piecesRejected: Number(j.piecesRejected) || 0 }); setError(""); }}
-                          style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "var(--primary)" }}>
+                          style={{ background: "var(--canvas)", color: "var(--primary)" }}>
                           Update
-                        </button>
+                        </Button>
                       )}
                       {j.status === "READY" && canAssign && (j.piecesCompleted || 0) > (j.piecesRejected || 0) && (
-                        <button
-                          onClick={() => openFG(j)}
-                          style={{ padding: "4px 12px", borderRadius: 7, border: "none", background: "#10b981", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
+                        <Button size="sm" onClick={() => openFG(j)} style={{ background: "#10b981", border: "none" }}>
                           → Finished Goods
-                        </button>
+                        </Button>
                       )}
                       {j.status === "MOVED" && (
                         <span style={{ padding: "4px 10px", borderRadius: 7, background: "color-mix(in srgb, #10b981 15%, transparent)", color: "#10b981", fontSize: 11, fontWeight: 700 }}>

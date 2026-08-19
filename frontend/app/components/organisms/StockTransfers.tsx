@@ -1,6 +1,14 @@
 "use client";
 import { useState } from "react";
 import type { StockTransfer, WarehouseLocation, RawClothBatch, FinishedProduct } from "@/app/types";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Textarea from "@/app/components/atoms/Textarea";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import { showToast } from "@/app/lib/toast";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -68,21 +76,13 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
     } catch (e: unknown) { showToast(e instanceof Error ? e.message : "Failed", "error"); }
   }
 
-  const inp: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 13 };
-  const sel: React.CSSProperties = { ...inp, cursor: "pointer" };
-
   return (
     <div style={{ padding: "0 0 40px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Stock Transfers</div>
-          <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>Move cloth or finished products between warehouse locations</div>
-        </div>
-        <button onClick={() => setCreating(true)} style={{ padding: "9px 18px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-          + New Transfer
-        </button>
-      </div>
+      <PageHeader
+        title="Stock Transfers"
+        sub="Move cloth or finished products between warehouse locations"
+        actions={<Button variant="primary" onClick={() => setCreating(true)}>+ New Transfer</Button>}
+      />
 
       {/* Filter tabs */}
       <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
@@ -147,12 +147,12 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
               <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                 {t.status === "PENDING" && (
                   <>
-                    <button onClick={() => action("dispatchStockTransfer", t.id)} style={{ padding: "7px 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Dispatch</button>
-                    <button onClick={() => action("cancelStockTransfer", t.id)} style={{ padding: "7px 14px", background: "transparent", color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 7, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                    <Button size="sm" variant="primary" style={{ background: "#6366f1" }} onClick={() => action("dispatchStockTransfer", t.id)}>Dispatch</Button>
+                    <Button size="sm" variant="secondary" onClick={() => action("cancelStockTransfer", t.id)}>Cancel</Button>
                   </>
                 )}
                 {t.status === "IN_TRANSIT" && (
-                  <button onClick={() => action("receiveStockTransfer", t.id)} style={{ padding: "7px 14px", background: "#10b981", color: "#fff", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Mark Received</button>
+                  <Button size="sm" variant="primary" style={{ background: "#10b981" }} onClick={() => action("receiveStockTransfer", t.id)}>Mark Received</Button>
                 )}
               </div>
             </div>
@@ -169,73 +169,65 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
               <button onClick={() => { setCreating(false); setErr(""); }} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)", lineHeight: 1 }}>×</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {err && <div style={{ background: "#fef2f2", color: "#b91c1c", borderRadius: 7, padding: "10px 14px", fontSize: 13 }}>{err}</div>}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Transfer Kind</label>
-                <select value={form.transferKind} onChange={e => setForm(f => ({ ...f, transferKind: e.target.value, rawClothBatchId: "", finishedProductId: "", metersToTransfer: "", quantityToTransfer: "" }))} style={sel}>
+              <ErrorBanner msg={err} />
+              <Field label="Transfer Kind">
+                <Select value={form.transferKind} onChange={e => setForm(f => ({ ...f, transferKind: e.target.value, rawClothBatchId: "", finishedProductId: "", metersToTransfer: "", quantityToTransfer: "" }))}>
                   <option value="RAW_CLOTH">Raw Cloth</option>
                   <option value="FINISHED">Finished Products</option>
-                </select>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>From Warehouse</label>
-                  <select value={form.fromWarehouseId} onChange={e => setForm(f => ({ ...f, fromWarehouseId: e.target.value }))} style={sel}>
+                </Select>
+              </Field>
+              <FormGrid gap={10}>
+                <Field label="From Warehouse">
+                  <Select value={form.fromWarehouseId} onChange={e => setForm(f => ({ ...f, fromWarehouseId: e.target.value }))}>
                     <option value="">Select…</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>To Warehouse</label>
-                  <select value={form.toWarehouseId} onChange={e => setForm(f => ({ ...f, toWarehouseId: e.target.value }))} style={sel}>
+                  </Select>
+                </Field>
+                <Field label="To Warehouse">
+                  <Select value={form.toWarehouseId} onChange={e => setForm(f => ({ ...f, toWarehouseId: e.target.value }))}>
                     <option value="">Select…</option>
                     {warehouses.filter(w => w.id !== form.fromWarehouseId).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
-                </div>
-              </div>
+                  </Select>
+                </Field>
+              </FormGrid>
               {form.transferKind === "RAW_CLOTH" ? (
                 <>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Cloth Batch</label>
-                    <select value={form.rawClothBatchId} onChange={e => setForm(f => ({ ...f, rawClothBatchId: e.target.value }))} style={sel}>
+                  <Field label="Cloth Batch">
+                    <Select value={form.rawClothBatchId} onChange={e => setForm(f => ({ ...f, rawClothBatchId: e.target.value }))}>
                       <option value="">Select batch…</option>
                       {rawClothBatches.filter(b => !form.fromWarehouseId || b.warehouse.id === form.fromWarehouseId).map(b => (
                         <option key={b.id} value={b.id}>{b.batchNumber} — {b.clothCategory.name} {b.clothColor.name} ({b.availableMeters}m available)</option>
                       ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Meters to Transfer</label>
-                    <input type="number" min="0.01" step="0.01" value={form.metersToTransfer} onChange={e => setForm(f => ({ ...f, metersToTransfer: e.target.value }))} style={inp} placeholder="e.g. 50" />
-                  </div>
+                    </Select>
+                  </Field>
+                  <Field label="Meters to Transfer">
+                    <Input type="number" min="0.01" step="0.01" value={form.metersToTransfer} onChange={e => setForm(f => ({ ...f, metersToTransfer: e.target.value }))} placeholder="e.g. 50" />
+                  </Field>
                 </>
               ) : (
                 <>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Finished Product</label>
-                    <select value={form.finishedProductId} onChange={e => setForm(f => ({ ...f, finishedProductId: e.target.value }))} style={sel}>
+                  <Field label="Finished Product">
+                    <Select value={form.finishedProductId} onChange={e => setForm(f => ({ ...f, finishedProductId: e.target.value }))}>
                       <option value="">Select product…</option>
                       {finishedProducts.filter(p => !form.fromWarehouseId || p.warehouse?.id === form.fromWarehouseId).map(p => (
                         <option key={p.id} value={p.id}>{p.sku} — {p.itemType.name} {p.size} ({p.quantity} pcs available)</option>
                       ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Quantity to Transfer</label>
-                    <input type="number" min="1" value={form.quantityToTransfer} onChange={e => setForm(f => ({ ...f, quantityToTransfer: e.target.value }))} style={inp} placeholder="e.g. 20" />
-                  </div>
+                    </Select>
+                  </Field>
+                  <Field label="Quantity to Transfer">
+                    <Input type="number" min="1" value={form.quantityToTransfer} onChange={e => setForm(f => ({ ...f, quantityToTransfer: e.target.value }))} placeholder="e.g. 20" />
+                  </Field>
                 </>
               )}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 4 }}>Notes (optional)</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ ...inp, height: 70, resize: "vertical" }} placeholder="Reason for transfer…" />
-              </div>
+              <Field label="Notes (optional)">
+                <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ minHeight: 70, height: 70 }} placeholder="Reason for transfer…" />
+              </Field>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-              <button onClick={() => { setCreating(false); setErr(""); }} style={{ padding: "9px 20px", border: "1px solid var(--line)", borderRadius: 8, background: "transparent", color: "var(--ink)", cursor: "pointer" }}>Cancel</button>
-              <button onClick={handleCreate} disabled={saving} style={{ padding: "9px 20px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+              <Button variant="secondary" onClick={() => { setCreating(false); setErr(""); }}>Cancel</Button>
+              <Button variant="primary" onClick={handleCreate} disabled={saving}>
                 {saving ? "Creating…" : "Create Transfer"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

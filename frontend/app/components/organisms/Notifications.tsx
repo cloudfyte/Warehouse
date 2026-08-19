@@ -4,6 +4,8 @@ import { X, ExternalLink } from "lucide-react";
 import type { Notification } from "@/app/types";
 import { formatDateShort } from "@/app/lib/formatters";
 import { TAB_TITLES } from "@/app/lib/constants";
+import Button from "@/app/components/atoms/Button";
+import PageHeader from "@/app/components/molecules/PageHeader";
 
 interface Props {
   notifications: Notification[]
@@ -56,10 +58,8 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
   async function handleClick(n: Notification) {
     if (!n.read) await markOne(n.id);
     if (n.link && onNavigate) {
-      // navigate to the linked tab
       onNavigate(n.link);
     } else {
-      // open detail panel
       setDetail(n);
     }
   }
@@ -67,14 +67,17 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
   const tabBtn = (f: Filter, label: string, count: number) => {
     const active = filter === f;
     return (
-      <button key={f} onClick={() => setFilter(f)} style={{
-        padding: "7px 18px", borderRadius: 8, border: "none", cursor: "pointer",
-        fontWeight: active ? 700 : 500, fontSize: 13,
-        background: active ? "var(--primary)" : "var(--canvas)",
-        color: active ? "#fff" : "var(--muted)",
-        display: "flex", alignItems: "center", gap: 6,
-        transition: "background 0.15s, color 0.15s",
-      }}>
+      <Button
+        key={f}
+        onClick={() => setFilter(f)}
+        style={{
+          background: active ? "var(--primary)" : "var(--canvas)",
+          color: active ? "#fff" : "var(--muted)",
+          border: "none",
+          fontWeight: active ? 700 : 500,
+          padding: "7px 18px",
+        }}
+      >
         {label}
         {count > 0 && (
           <span style={{
@@ -84,25 +87,20 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
             padding: "1px 7px",
           }}>{count}</span>
         )}
-      </button>
+      </Button>
     );
   };
 
   return (
     <div style={{ padding: 24 }}>
 
-      {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Notifications</h2>
-        {unread.length > 0 && (
-          <button onClick={markAll} style={{
-            padding: "7px 16px", borderRadius: 8, border: "1px solid var(--line)",
-            background: "var(--paper)", cursor: "pointer", fontSize: 13, color: "var(--ink)",
-          }}>
-            Mark all read
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Notifications"
+        style={{ marginBottom: 18 }}
+        actions={unread.length > 0 ? (
+          <Button variant="secondary" onClick={markAll}>Mark all read</Button>
+        ) : undefined}
+      />
 
       {/* ── Filter tabs ── */}
       <div style={{ display: "flex", gap: 6, marginBottom: 20, background: "var(--canvas)", padding: 4, borderRadius: 10, width: "fit-content" }}>
@@ -137,11 +135,14 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
                   <div style={{ fontWeight: n.read ? 500 : 700, fontSize: 14, color: "var(--ink)" }}>{n.title}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                     {!n.read && (
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={async e => { e.stopPropagation(); await markOne(n.id); }}
-                        style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99, border: "1px solid var(--line)", background: "transparent", cursor: "pointer", color: "var(--muted)" }}>
+                        style={{ fontSize: 10, padding: "2px 8px", borderRadius: 99 }}
+                      >
                         Mark read
-                      </button>
+                      </Button>
                     )}
                     <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>{formatDateShort(n.createdAt)}</span>
                   </div>
@@ -235,13 +236,9 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
             </div>
 
             <div style={{ padding: "0 24px 20px", display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={() => setDetail(null)} style={{
-                padding: "9px 24px", borderRadius: 9, border: "none",
-                background: "var(--primary)", color: "#fff", fontWeight: 700,
-                fontSize: 14, cursor: "pointer",
-              }}>
+              <Button variant="primary" onClick={() => setDetail(null)} style={{ padding: "9px 24px", fontSize: 14 }}>
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>

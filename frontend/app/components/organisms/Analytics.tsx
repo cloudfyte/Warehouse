@@ -1,5 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import Button from "@/app/components/atoms/Button";
+import StatCard from "@/app/components/molecules/StatCard";
+import PageHeader from "@/app/components/molecules/PageHeader";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -47,15 +50,6 @@ function fmtK(n: number) {
   return `₹${n.toFixed(0)}`;
 }
 
-function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div style={{ background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 12, padding: "16px 20px" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--muted)" }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: color ?? "var(--ink)" }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>{sub}</div>}
-    </div>
-  );
-}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -123,20 +117,21 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
 
   return (
     <div style={{ padding: 28 }}>
-      {/* Header + period selector */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Analytics</h2>
-        <div style={{ display: "flex", gap: 6 }}>
-          {PERIODS.map(p => (
-            <button key={p.months} onClick={() => setPeriod(p.months)}
-              style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                background: period === p.months ? "var(--primary)" : "transparent",
-                color: period === p.months ? "#fff" : "var(--ink)" }}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Analytics"
+        style={{ marginBottom: 24 }}
+        actions={
+          <div style={{ display: "flex", gap: 6 }}>
+            {PERIODS.map(p => (
+              <Button key={p.months} size="sm"
+                variant={period === p.months ? "primary" : "secondary"}
+                onClick={() => setPeriod(p.months)}>
+                {p.label}
+              </Button>
+            ))}
+          </div>
+        }
+      />
 
       {/* Summary stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>

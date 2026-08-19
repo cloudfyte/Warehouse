@@ -2,6 +2,15 @@
 import { useState } from "react";
 import { formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Textarea from "@/app/components/atoms/Textarea";
+import Button from "@/app/components/atoms/Button";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import FilterBar from "@/app/components/molecules/FilterBar";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
 import { downloadCsv } from "@/app/lib/csv";
 import { showToast } from "@/app/lib/toast";
 
@@ -44,14 +53,6 @@ const ADJ_TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   FOUND: { bg: "#e8f5e9", color: "#2e7d32" },
 };
 
-const FIELD: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--line)",
-  background: "var(--canvas)", color: "var(--ink)", fontSize: 13, outline: "none", boxSizing: "border-box",
-};
-const BTN = (bg = "var(--primary)", color = "#fff"): React.CSSProperties => ({
-  padding: "9px 18px", borderRadius: 8, border: "none", background: bg,
-  color, fontWeight: 700, fontSize: 13, cursor: "pointer",
-});
 
 export default function StockAdjustments({
   adjustments, rawClothBatches, finishedProducts, warehouses,
@@ -156,40 +157,34 @@ export default function StockAdjustments({
 
   return (
     <div style={{ padding: 28 }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 18 }}>Stock Adjustments</div>
-          <div style={{ fontSize: 13, color: "var(--muted)" }}>Record damage, loss, corrections or surplus for raw cloth and finished goods</div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => downloadCsv(`stock-adj-${new Date().toISOString().slice(0,10)}.csv`, adjustments.map(a => ({
+      <PageHeader
+        title="Stock Adjustments"
+        sub="Record damage, loss, corrections or surplus for raw cloth and finished goods"
+        actions={<>
+          <Button variant="secondary" size="sm" onClick={() => downloadCsv(`stock-adj-${new Date().toISOString().slice(0,10)}.csv`, adjustments.map(a => ({
             "Adj #": a.adjustmentNumber, Kind: a.itemKind, Type: ADJ_TYPE_LABELS[a.adjustmentType] || a.adjustmentType,
             Batch: a.rawClothBatch?.batchNumber || "", Product: a.finishedProduct?.sku || "",
             "Qty Change": a.quantityChange, Reason: a.reason, Warehouse: a.warehouse.name,
             Date: a.createdAt?.slice(0,10),
-          })))}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+          })))}>
             ↓ Export CSV
-          </button>
+          </Button>
           {canCreate && (
-            <button onClick={() => { setShowForm(true); setErr(""); }} style={BTN()}>
+            <Button variant="primary" onClick={() => { setShowForm(true); setErr(""); }}>
               + Record Adjustment
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <input placeholder="Search batch, SKU, reason…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ ...FIELD, flex: 1, minWidth: 200, width: "auto" }} />
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-          style={{ ...FIELD, width: "auto", minWidth: 180 }}>
+      <FilterBar style={{ marginBottom: 20 }}>
+        <Input placeholder="Search batch, SKU, reason…" value={search} onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 200 }} />
+        <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ minWidth: 180 }}>
           <option value="">All types</option>
           {Object.entries(ADJ_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
 
       {/* Summary chips */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
@@ -263,10 +258,9 @@ export default function StockAdjustments({
                     <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--muted)" }}>{formatDate(adj.createdAt)}</td>
                     {canDelete && (
                       <td style={{ padding: "10px 14px" }}>
-                        <button onClick={() => handleDelete(adj.id)} disabled={deleting === adj.id}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #fcc", background: "#fff5f5", color: "#c62828", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+                        <Button variant="danger" size="sm" onClick={() => handleDelete(adj.id)} disabled={deleting === adj.id}>
                           {deleting === adj.id ? "…" : "Delete"}
-                        </button>
+                        </Button>
                       </td>
                     )}
                   </tr>
@@ -305,76 +299,68 @@ export default function StockAdjustments({
 
               {/* Select item */}
               {itemKind === "RAW_CLOTH" ? (
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Raw Cloth Batch *</label>
-                  <select value={batchId} onChange={e => handleBatchSelect(e.target.value)} style={FIELD}>
-                    <option value="">Select batch…</option>
-                    {rawClothBatches.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.batchNumber} — {b.clothCategory.name} {b.clothColor.name} ({b.availableMeters}m available)
-                      </option>
-                    ))}
-                  </select>
-                  {selectedBatch && (
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                      Available: <strong>{selectedBatch.availableMeters}m</strong>
-                    </div>
-                  )}
-                </div>
+                <Field label="Raw Cloth Batch" required>
+                  <>
+                    <Select value={batchId} onChange={e => handleBatchSelect(e.target.value)}>
+                      <option value="">Select batch…</option>
+                      {rawClothBatches.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.batchNumber} — {b.clothCategory.name} {b.clothColor.name} ({b.availableMeters}m available)
+                        </option>
+                      ))}
+                    </Select>
+                    {selectedBatch && (
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                        Available: <strong>{selectedBatch.availableMeters}m</strong>
+                      </div>
+                    )}
+                  </>
+                </Field>
               ) : (
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Finished Product *</label>
-                  <select value={productId} onChange={e => setProductId(e.target.value)} style={FIELD}>
-                    <option value="">Select product…</option>
-                    {finishedProducts.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.sku} — {p.itemType.name}{p.size ? ` (${p.size})` : ""} ({p.quantity} pcs available)
-                      </option>
-                    ))}
-                  </select>
-                  {selectedProduct && (
-                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                      Available: <strong>{selectedProduct.quantity} pcs</strong>
-                    </div>
-                  )}
-                </div>
+                <Field label="Finished Product" required>
+                  <>
+                    <Select value={productId} onChange={e => setProductId(e.target.value)}>
+                      <option value="">Select product…</option>
+                      {finishedProducts.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.sku} — {p.itemType.name}{p.size ? ` (${p.size})` : ""} ({p.quantity} pcs available)
+                        </option>
+                      ))}
+                    </Select>
+                    {selectedProduct && (
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                        Available: <strong>{selectedProduct.quantity} pcs</strong>
+                      </div>
+                    )}
+                  </>
+                </Field>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Adjustment Type *</label>
-                  <select value={adjustmentType} onChange={e => setAdjustmentType(e.target.value)} style={FIELD}>
+              <FormGrid>
+                <Field label="Adjustment Type" required>
+                  <Select value={adjustmentType} onChange={e => setAdjustmentType(e.target.value)}>
                     {Object.entries(ADJ_TYPE_LABELS).map(([k, v]) => (
                       <option key={k} value={k}>{v}</option>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>
-                    Quantity Change *
-                    <span style={{ fontWeight: 400, color: "var(--muted)", marginLeft: 4 }}>
-                      (negative = reduce, positive = add)
-                    </span>
-                  </label>
-                  <input type="number" step={itemKind === "RAW_CLOTH" ? "0.1" : "1"}
+                  </Select>
+                </Field>
+                <Field label="Quantity Change" required hint="negative = reduce, positive = add">
+                  <Input type="number" step={itemKind === "RAW_CLOTH" ? "0.1" : "1"}
                     placeholder={itemKind === "RAW_CLOTH" ? "e.g. -5.5 (meters)" : "e.g. -3 (pieces)"}
-                    value={quantityChange} onChange={e => setQuantityChange(e.target.value)} style={FIELD} />
-                </div>
-              </div>
+                    value={quantityChange} onChange={e => setQuantityChange(e.target.value)} />
+                </Field>
+              </FormGrid>
 
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Warehouse *</label>
-                <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} style={FIELD}>
+              <Field label="Warehouse" required>
+                <Select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
                   {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-              </div>
+                </Select>
+              </Field>
 
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Reason *</label>
-                <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
-                  placeholder="Describe what happened — e.g. 'Machine oil stain on 3 meters', 'QC rejected 2 pieces with stitching defect'…"
-                  style={{ ...FIELD, resize: "vertical" }} />
-              </div>
+              <Field label="Reason" required>
+                <Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
+                  placeholder="Describe what happened — e.g. 'Machine oil stain on 3 meters', 'QC rejected 2 pieces with stitching defect'…" />
+              </Field>
 
               {/* Preview */}
               {quantityChange && Number(quantityChange) !== 0 && (
@@ -390,19 +376,15 @@ export default function StockAdjustments({
                 </div>
               )}
 
-              {err && (
-                <div style={{ background: "#fff1f0", border: "1px solid #ffc5c2", color: "#8d3e39", borderRadius: 9, padding: "10px 14px", fontSize: 13 }}>
-                  {err}
-                </div>
-              )}
+              <ErrorBanner msg={err} />
 
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <button onClick={() => { setShowForm(false); resetForm(); }} style={BTN("var(--canvas)", "var(--ink)")}>
+                <Button variant="secondary" onClick={() => { setShowForm(false); resetForm(); }}>
                   Cancel
-                </button>
-                <button onClick={handleSubmit} disabled={saving} style={{ ...BTN(), opacity: saving ? 0.6 : 1 }}>
+                </Button>
+                <Button variant="primary" onClick={handleSubmit} disabled={saving}>
                   {saving ? "Saving…" : "Record Adjustment"}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

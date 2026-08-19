@@ -2,6 +2,11 @@
 import { useState, useRef } from "react";
 import { applyBrandColors } from "@/app/lib/theme";
 import { friendlyError } from "@/app/lib/errors";
+import Input from "@/app/components/atoms/Input";
+import AtomTextarea from "@/app/components/atoms/Textarea";
+import Button from "@/app/components/atoms/Button";
+import Field from "@/app/components/molecules/Field";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 
 interface SettingsData {
   id?: string
@@ -32,16 +37,6 @@ function SettingsSection({ title, badge, children }: { title: string; badge?: st
   );
 }
 
-function Field({ label, value, onChange, type = "text", placeholder = "", wide = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; wide?: boolean }) {
-  return (
-    <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 6, gridColumn: wide ? "1 / -1" : undefined }}>
-      <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, outline: "none" }} />
-    </label>
-  );
-}
-
 function Toggle({ label, description, checked, onChange }: { label: string; description?: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", gridColumn: "1 / -1" }}>
@@ -52,16 +47,6 @@ function Toggle({ label, description, checked, onChange }: { label: string; desc
         <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{label}</div>
         {description && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>{description}</div>}
       </div>
-    </label>
-  );
-}
-
-function Textarea({ label, value, onChange, placeholder = "", rows = 4 }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
-  return (
-    <label style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
-      <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span>
-      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
-        style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 12, fontFamily: "monospace", outline: "none", resize: "vertical", lineHeight: 1.5 }} />
     </label>
   );
 }
@@ -172,10 +157,9 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>System Settings</h2>
           <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>Changes take effect immediately after saving</div>
         </div>
-        <button onClick={save} disabled={loading}
-          style={{ padding: "11px 28px", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+        <Button onClick={save} disabled={loading} style={{ padding: "11px 28px" }}>
           {loading ? "Saving…" : "Save Changes"}
-        </button>
+        </Button>
       </div>
 
       {saved && (
@@ -183,27 +167,39 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           ✓ Settings saved successfully.
         </div>
       )}
-      {error && (
-        <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", padding: "12px 16px", borderRadius: 10, marginBottom: 20, fontSize: 14 }}>
-          {error}
-        </div>
-      )}
+      <ErrorBanner msg={error} />
 
       <SettingsSection title="App & Company">
-        <Field label="App Name" value={form.appName || ""} onChange={set("appName")} />
-        <Field label="App Subtitle" value={form.appSubtitle || ""} onChange={set("appSubtitle")} />
-        <Field label="Company Name" value={form.companyName || ""} onChange={set("companyName")} />
-        <Field label="Company State" value={form.companyState || ""} onChange={set("companyState")} placeholder="e.g. Tamil Nadu (for CGST/SGST vs IGST)" />
-        <Field label="Currency Symbol" value={form.currencySymbol || ""} onChange={set("currencySymbol")} />
-        <Field label="Default GST / Tax %" value={String(form.taxPercent ?? "")} onChange={set("taxPercent")} type="number" />
-        <Field label="Company GSTIN" value={form.gstin || ""} onChange={set("gstin")} placeholder="e.g. 33AABCU9603R1ZX" />
+        <Field label="App Name">
+          <Input value={form.appName || ""} onChange={e => set("appName")(e.target.value)} />
+        </Field>
+        <Field label="App Subtitle">
+          <Input value={form.appSubtitle || ""} onChange={e => set("appSubtitle")(e.target.value)} />
+        </Field>
+        <Field label="Company Name">
+          <Input value={form.companyName || ""} onChange={e => set("companyName")(e.target.value)} />
+        </Field>
+        <Field label="Company State">
+          <Input value={form.companyState || ""} onChange={e => set("companyState")(e.target.value)} placeholder="e.g. Tamil Nadu (for CGST/SGST vs IGST)" />
+        </Field>
+        <Field label="Currency Symbol">
+          <Input value={form.currencySymbol || ""} onChange={e => set("currencySymbol")(e.target.value)} />
+        </Field>
+        <Field label="Default GST / Tax %">
+          <Input type="number" value={String(form.taxPercent ?? "")} onChange={e => set("taxPercent")(e.target.value)} />
+        </Field>
+        <Field label="Company GSTIN">
+          <Input value={form.gstin || ""} onChange={e => set("gstin")(e.target.value)} placeholder="e.g. 33AABCU9603R1ZX" />
+        </Field>
         <Toggle
           label="Apply GST on Purchase Bills (Input Tax Credit)"
           description="When ON, each bill item shows a GST % field. Tax is split as CGST+SGST (intra-state) or IGST (inter-state) based on supplier state vs company state."
           checked={!!form.gstOnPurchases}
           onChange={tog("gstOnPurchases")}
         />
-        <Field label="OTP Expiry (minutes)" value={String(form.otpExpiryMinutes ?? "")} onChange={set("otpExpiryMinutes")} type="number" />
+        <Field label="OTP Expiry (minutes)">
+          <Input type="number" value={String(form.otpExpiryMinutes ?? "")} onChange={e => set("otpExpiryMinutes")(e.target.value)} />
+        </Field>
         <Toggle label="Allow OTP Login" description="Users can log in via Email, SMS, or WhatsApp one-time password" checked={!!form.allowOtpLogin} onChange={tog("allowOtpLogin")} />
       </SettingsSection>
 
@@ -272,18 +268,34 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
       </div>
 
       <SettingsSection title="Email — SMTP">
-        <Field label="SMTP Host" value={form.smtpHost || ""} onChange={set("smtpHost")} placeholder="smtp.gmail.com" />
-        <Field label="SMTP Port" value={String(form.smtpPort ?? "")} onChange={set("smtpPort")} type="number" placeholder="587" />
-        <Field label="SMTP Username" value={form.smtpUser || ""} onChange={set("smtpUser")} placeholder="you@gmail.com" />
-        <Field label="SMTP Password" value={form.smtpPassword || ""} onChange={set("smtpPassword")} type="password" placeholder="App password" />
-        <Field label="From Email" value={form.smtpFromEmail || ""} onChange={set("smtpFromEmail")} type="email" placeholder="noreply@yourcompany.com" />
+        <Field label="SMTP Host">
+          <Input value={form.smtpHost || ""} onChange={e => set("smtpHost")(e.target.value)} placeholder="smtp.gmail.com" />
+        </Field>
+        <Field label="SMTP Port">
+          <Input type="number" value={String(form.smtpPort ?? "")} onChange={e => set("smtpPort")(e.target.value)} placeholder="587" />
+        </Field>
+        <Field label="SMTP Username">
+          <Input value={form.smtpUser || ""} onChange={e => set("smtpUser")(e.target.value)} placeholder="you@gmail.com" />
+        </Field>
+        <Field label="SMTP Password">
+          <Input type="password" value={form.smtpPassword || ""} onChange={e => set("smtpPassword")(e.target.value)} placeholder="App password" />
+        </Field>
+        <Field label="From Email">
+          <Input type="email" value={form.smtpFromEmail || ""} onChange={e => set("smtpFromEmail")(e.target.value)} placeholder="noreply@yourcompany.com" />
+        </Field>
         <Toggle label="Enable Email Notifications" description="Send OTP codes and alerts via email" checked={!!form.emailEnabled} onChange={tog("emailEnabled")} />
       </SettingsSection>
 
       <SettingsSection title="SMS — Twilio">
-        <Field label="Account SID" value={form.twilioAccountSid || ""} onChange={set("twilioAccountSid")} placeholder="ACxxxxxxxx" />
-        <Field label="Auth Token" value={form.twilioAuthToken || ""} onChange={set("twilioAuthToken")} type="password" placeholder="Leave blank to keep unchanged" />
-        <Field label="From Number" value={form.twilioFromNumber || ""} onChange={set("twilioFromNumber")} placeholder="+91..." />
+        <Field label="Account SID">
+          <Input value={form.twilioAccountSid || ""} onChange={e => set("twilioAccountSid")(e.target.value)} placeholder="ACxxxxxxxx" />
+        </Field>
+        <Field label="Auth Token">
+          <Input type="password" value={form.twilioAuthToken || ""} onChange={e => set("twilioAuthToken")(e.target.value)} placeholder="Leave blank to keep unchanged" />
+        </Field>
+        <Field label="From Number">
+          <Input value={form.twilioFromNumber || ""} onChange={e => set("twilioFromNumber")(e.target.value)} placeholder="+91..." />
+        </Field>
         <Toggle label="Enable SMS OTP" description="Send one-time passwords via SMS" checked={!!form.smsEnabled} onChange={tog("smsEnabled")} />
       </SettingsSection>
 
@@ -292,8 +304,12 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           Get your credentials from <strong>Meta Business Manager → WhatsApp → API Setup</strong>.
           The access token and Phone Number ID are shown on the app dashboard.
         </div>
-        <Field label="Access Token" value={form.waToken || ""} onChange={set("waToken")} type="password" placeholder="Leave blank to keep unchanged" />
-        <Field label="Phone Number ID" value={form.waPhoneNumberId || ""} onChange={set("waPhoneNumberId")} placeholder="123456789012345" />
+        <Field label="Access Token">
+          <Input type="password" value={form.waToken || ""} onChange={e => set("waToken")(e.target.value)} placeholder="Leave blank to keep unchanged" />
+        </Field>
+        <Field label="Phone Number ID">
+          <Input value={form.waPhoneNumberId || ""} onChange={e => set("waPhoneNumberId")(e.target.value)} placeholder="123456789012345" />
+        </Field>
         <Toggle label="Enable WhatsApp Notifications" description="Send OTP codes and business alerts via WhatsApp" checked={!!form.waEnabled} onChange={tog("waEnabled")} />
       </SettingsSection>
 
@@ -302,7 +318,15 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           Generate a service account key from <strong>Firebase Console → Project Settings → Service Accounts → Generate new private key</strong>.
           Paste the full JSON content below. Also set the NEXT_PUBLIC_FIREBASE_* variables in the frontend .env.
         </div>
-        <Textarea label="Service Account JSON" value={form.firebaseServiceAccountJson || ""} onChange={set("firebaseServiceAccountJson")} placeholder='Leave blank to keep unchanged. Paste full JSON: {"type":"service_account","project_id":"..."}' rows={5} />
+        <Field label="Service Account JSON" style={{ gridColumn: "1 / -1" }}>
+          <AtomTextarea
+            value={form.firebaseServiceAccountJson || ""}
+            onChange={e => set("firebaseServiceAccountJson")(e.target.value)}
+            placeholder='Leave blank to keep unchanged. Paste full JSON: {"type":"service_account","project_id":"..."}'
+            rows={5}
+            style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
+          />
+        </Field>
         <Toggle label="Enable Firebase Push Notifications" description="Send real-time push notifications to browsers" checked={!!form.fcmEnabled} onChange={tog("fcmEnabled")} />
       </SettingsSection>
 
@@ -310,28 +334,33 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
         <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", lineHeight: 1.6 }}>
           These details appear on all printed documents — quotations, invoices, delivery challans, and purchase orders.
         </div>
-        <Textarea
-          label="Company Address (printed header)"
-          value={form.printCompanyAddress || ""}
-          onChange={set("printCompanyAddress")}
-          placeholder={"123, Industrial Area, Phase II\nCoimbatore - 641 003, Tamil Nadu\nPhone: +91 98765 43210"}
-          rows={3}
-        />
-        <Textarea
-          label="Bank Details (printed footer)"
-          value={form.printBankDetails || ""}
-          onChange={set("printBankDetails")}
-          placeholder={"Bank: State Bank of India\nA/C No: 12345678901\nIFSC: SBIN0001234\nBranch: Main Branch, Coimbatore"}
-          rows={3}
-        />
-        <Textarea
-          label="Terms & Conditions"
-          value={form.printTerms || ""}
-          onChange={set("printTerms")}
-          placeholder={"1. Goods once sold will not be taken back.\n2. All disputes subject to local jurisdiction.\n3. Payment due within 30 days of invoice date."}
-          rows={3}
-        />
-        <Field label="Signature Line Label" value={form.printSignatureLabel || ""} onChange={set("printSignatureLabel")} placeholder="Authorised Signatory" />
+        <Field label="Company Address (printed header)" style={{ gridColumn: "1 / -1" }}>
+          <AtomTextarea
+            value={form.printCompanyAddress || ""}
+            onChange={e => set("printCompanyAddress")(e.target.value)}
+            placeholder={"123, Industrial Area, Phase II\nCoimbatore - 641 003, Tamil Nadu\nPhone: +91 98765 43210"}
+            rows={3}
+          />
+        </Field>
+        <Field label="Bank Details (printed footer)" style={{ gridColumn: "1 / -1" }}>
+          <AtomTextarea
+            value={form.printBankDetails || ""}
+            onChange={e => set("printBankDetails")(e.target.value)}
+            placeholder={"Bank: State Bank of India\nA/C No: 12345678901\nIFSC: SBIN0001234\nBranch: Main Branch, Coimbatore"}
+            rows={3}
+          />
+        </Field>
+        <Field label="Terms & Conditions" style={{ gridColumn: "1 / -1" }}>
+          <AtomTextarea
+            value={form.printTerms || ""}
+            onChange={e => set("printTerms")(e.target.value)}
+            placeholder={"1. Goods once sold will not be taken back.\n2. All disputes subject to local jurisdiction.\n3. Payment due within 30 days of invoice date."}
+            rows={3}
+          />
+        </Field>
+        <Field label="Signature Line Label">
+          <Input value={form.printSignatureLabel || ""} onChange={e => set("printSignatureLabel")(e.target.value)} placeholder="Authorised Signatory" />
+        </Field>
         <Toggle label="Show Company Logo on Printed Documents" description="Display the logo URL image in the header of all print outputs" checked={form.printShowLogo !== false} onChange={tog("printShowLogo")} />
       </SettingsSection>
 
@@ -352,11 +381,13 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
               Permanently deletes all warehouses, suppliers, buyers, purchase orders, purchase bills, raw cloth, production records, sales orders, employees (except your account), and all inventory. System settings and your admin account are preserved. This cannot be undone.
             </div>
           </div>
-          <button
+          <Button
+            variant="danger"
             onClick={() => { setResetModal(true); setResetPhrase(""); setResetError(""); setTimeout(() => resetInputRef.current?.focus(), 50); }}
-            style={{ flexShrink: 0, padding: "10px 20px", borderRadius: 9, border: "1.5px solid #dc2626", background: "transparent", color: "#dc2626", fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>
+            style={{ flexShrink: 0, whiteSpace: "nowrap", background: "transparent", color: "#dc2626", border: "1.5px solid #dc2626" }}
+          >
             Reset All Data
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -389,24 +420,26 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
               />
             </label>
 
-            {resetError && (
-              <div style={{ background: "#fff0ef", border: "1px solid #f1cbc8", color: "#8d3e39", padding: "10px 14px", borderRadius: 9, marginBottom: 16, fontSize: 13 }}>
-                {resetError}
-              </div>
-            )}
+            <div style={{ marginBottom: 16 }}>
+              <ErrorBanner msg={resetError} />
+            </div>
 
             <div style={{ display: "flex", gap: 12 }}>
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => { setResetModal(false); setResetPhrase(""); setResetError(""); }}
-                style={{ flex: 1, padding: "11px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+                style={{ flex: 1, padding: "11px" }}
+              >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant={resetPhrase === RESET_PHRASE ? "danger" : "secondary"}
                 onClick={handleReset}
                 disabled={resetPhrase !== RESET_PHRASE || resetLoading}
-                style={{ flex: 1, padding: "11px", borderRadius: 9, border: "none", background: resetPhrase === RESET_PHRASE ? "#dc2626" : "#e5e7eb", color: resetPhrase === RESET_PHRASE ? "#fff" : "#9ca3af", fontWeight: 700, fontSize: 14, cursor: resetPhrase === RESET_PHRASE ? "pointer" : "not-allowed", transition: "all 0.15s" }}>
+                style={{ flex: 1, padding: "11px" }}
+              >
                 {resetLoading ? "Deleting…" : "Confirm Reset"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

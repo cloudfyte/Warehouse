@@ -4,6 +4,12 @@ import type { FinishedProduct } from "@/app/types";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { downloadCsv } from "@/app/lib/csv";
 import BarcodeScanner from "@/app/components/atoms/BarcodeScanner";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Button from "@/app/components/atoms/Button";
+import Badge from "@/app/components/atoms/Badge";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props {
   products: FinishedProduct[]
@@ -95,10 +101,8 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
 
   async function handleBarcode(code: string) {
     setShowScanner(false);
-    // Try local list first (fast path)
     const local = products.find(p => p.barcode === code || p.sku === code);
     if (local) { setSelected(local); return; }
-    // Fall back to server lookup
     if (gql) {
       const res = await gql(
         `query L($b:String!){productByBarcode(barcode:$b){id sku quantity salePrice costPrice size source barcode barcodeSvg tagsPrinted createdAt itemType{id name} clothColor{id name hexCode} clothCategory{id name} warehouse{id name}}}`,
@@ -120,34 +124,42 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>Finished Goods <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({products.length} SKUs)</span></h2>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => setShowScanner(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            📷 Scan Barcode
-          </button>
-          <button onClick={() => downloadCsv(`finished_goods_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(p => ({
-            "SKU": p.sku, "Item Type": p.itemType.name, "Size": p.size || "", "Color": p.clothColor?.name || "",
-            "Source": p.source, "Quantity": p.quantity, "Sale Price (₹)": p.salePrice,
-            "Cost Price (₹)": p.costPrice, "Warehouse": p.warehouse?.name || "",
-            "Barcode": p.barcode, "Created": formatDateShort(p.createdAt),
-          })))}
-            style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-            ⬇ Export CSV
-          </button>
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <input placeholder="Search SKU, item type, or barcode…" value={search} onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 220, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 14 }} />
-        <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}
-          style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)", fontSize: 14 }}>
+      <PageHeader
+        title="Finished Goods"
+        sub={`${products.length} SKUs`}
+        actions={
+          <>
+            <Button variant="ghost" onClick={() => setShowScanner(true)}>
+              📷 Scan Barcode
+            </Button>
+            <Button variant="secondary" onClick={() => downloadCsv(
+              `finished_goods_${new Date().toISOString().slice(0, 10)}.csv`,
+              filtered.map(p => ({
+                "SKU": p.sku, "Item Type": p.itemType.name, "Size": p.size || "", "Color": p.clothColor?.name || "",
+                "Source": p.source, "Quantity": p.quantity, "Sale Price (₹)": p.salePrice,
+                "Cost Price (₹)": p.costPrice, "Warehouse": p.warehouse?.name || "",
+                "Barcode": p.barcode, "Created": formatDateShort(p.createdAt),
+              }))
+            )}>
+              ⬇ Export CSV
+            </Button>
+          </>
+        }
+      />
+
+      <FilterBar>
+        <Input
+          placeholder="Search SKU, item type, or barcode…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 220, width: "auto" }}
+        />
+        <Select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} style={{ width: "auto" }}>
           <option value="">All sources</option>
           <option value="IN_HOUSE">In-house (Stitched)</option>
           <option value="IMPORTED">Imported (Readymade)</option>
-        </select>
-      </div>
+        </Select>
+      </FilterBar>
 
       {/* Detail / tag print panel */}
       {selected && (
@@ -183,10 +195,14 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 dangerouslySetInnerHTML={{ __html: selected.barcodeSvg }} />
             )}
             <div style={{ fontFamily: "monospace", fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>{selected.barcode}</div>
-            <button onClick={() => { printTag(selected); markPrinted(selected.id); }} disabled={markingPrinted}
-              style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff", fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
+            <Button
+              variant="primary"
+              onClick={() => { printTag(selected); markPrinted(selected.id); }}
+              disabled={markingPrinted}
+              style={{ width: "100%", padding: "11px", background: "var(--accent)", marginBottom: 8 }}
+            >
               🖨 Print Tag
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -203,11 +219,11 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{p.itemType.name}</div>
                 <div style={{ fontSize: 12, color: "var(--muted)" }}>{p.sku}</div>
               </div>
-              <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600,
-                background: p.source === "IN_HOUSE" ? "var(--primary)22" : "var(--accent)22",
-                color: p.source === "IN_HOUSE" ? "var(--primary)" : "var(--accent)" }}>
-                {p.source === "IN_HOUSE" ? "Stitched" : "Imported"}
-              </span>
+              <Badge
+                label={p.source === "IN_HOUSE" ? "Stitched" : "Imported"}
+                color={p.source === "IN_HOUSE" ? "var(--primary)" : "var(--accent)"}
+                bg={p.source === "IN_HOUSE" ? "var(--primary)22" : "var(--accent)22"}
+              />
             </div>
             <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10 }}>
               {[p.clothColor?.name, p.size].filter(Boolean).join(" · ") || "—"} · {p.warehouse.code}

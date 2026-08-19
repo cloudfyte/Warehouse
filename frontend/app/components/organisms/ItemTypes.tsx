@@ -2,6 +2,13 @@
 import React, { useState } from "react";
 import { ItemType } from "@/app/types";
 import { showToast } from "@/app/lib/toast";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import PageHeader from "@/app/components/molecules/PageHeader";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
 
 interface Props {
   itemTypes: ItemType[];
@@ -97,19 +104,12 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
     }
   }
 
-  const inp = "input w-full";
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Item Types</h2>
-        {canManage && (
-          <button onClick={openCreate} className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-            style={{ background: "var(--primary)" }}>
-            + New Item Type
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Item Types"
+        actions={canManage && <Button variant="primary" onClick={openCreate}>+ New Item Type</Button>}
+      />
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
@@ -154,14 +154,10 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
                   <td className="px-4 py-3">
                     {canManage && (
                       <div className="flex gap-2">
-                        <button onClick={() => openEdit(it)}
-                          className="text-xs px-2 py-1 rounded" style={{ background: "var(--surface-2)", color: "var(--primary)" }}>
-                          Edit
-                        </button>
-                        <button onClick={() => toggleActive(it)}
-                          className="text-xs px-2 py-1 rounded" style={{ color: "var(--text-secondary)", background: "var(--surface-2)" }}>
+                        <Button variant="secondary" size="sm" onClick={() => openEdit(it)}>Edit</Button>
+                        <Button variant="secondary" size="sm" onClick={() => toggleActive(it)}>
                           {it.active ? "Deactivate" : "Activate"}
-                        </button>
+                        </Button>
                       </div>
                     )}
                   </td>
@@ -181,56 +177,44 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
               <button onClick={() => setShowForm(false)} className="text-2xl" style={{ color: "var(--text-secondary)" }}>×</button>
             </div>
 
-            {err && <div className="p-3 rounded text-sm" style={{ background: "#fce4ec", color: "#c62828" }}>{err}</div>}
+            <ErrorBanner msg={err} />
 
             <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Name *</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} placeholder="e.g. Sherwani" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Category</label>
-                <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className={inp}>
+              <Field label="Name" required>
+                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Sherwani" />
+              </Field>
+              <Field label="Category">
+                <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
                   <option value="">Select category</option>
                   {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Cloth / Piece (m)</label>
-                  <input type="number" value={form.clothLengthPerPiece} onChange={e => setForm(f => ({ ...f, clothLengthPerPiece: e.target.value }))}
-                    className={inp} min="0" step="0.25" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>HSN Code</label>
-                  <input value={form.hsnCode} onChange={e => setForm(f => ({ ...f, hsnCode: e.target.value }))}
-                    className={inp} placeholder="e.g. 6211" maxLength={10} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>GST Rate %</label>
-                <div className="flex gap-2 flex-wrap">
+                </Select>
+              </Field>
+              <FormGrid cols={2} gap={12}>
+                <Field label="Cloth / Piece (m)">
+                  <Input type="number" value={form.clothLengthPerPiece} onChange={e => setForm(f => ({ ...f, clothLengthPerPiece: e.target.value }))} min="0" step="0.25" />
+                </Field>
+                <Field label="HSN Code">
+                  <Input value={form.hsnCode} onChange={e => setForm(f => ({ ...f, hsnCode: e.target.value }))} placeholder="e.g. 6211" maxLength={10} />
+                </Field>
+              </FormGrid>
+              <Field label="GST Rate %">
+                <div className="flex gap-2 flex-wrap" style={{ marginTop: 2 }}>
                   {GST_OPTIONS.map(r => (
-                    <button key={r} onClick={() => setForm(f => ({ ...f, gstRate: String(r) }))}
-                      className="px-3 py-1.5 rounded text-sm font-medium border transition-colors"
-                      style={{
-                        background: form.gstRate === String(r) ? "var(--primary)" : "transparent",
-                        color: form.gstRate === String(r) ? "#fff" : "var(--text-secondary)",
-                        borderColor: form.gstRate === String(r) ? "var(--primary)" : "var(--border)",
-                      }}>
+                    <Button key={r} size="sm"
+                      variant={form.gstRate === String(r) ? "primary" : "secondary"}
+                      onClick={() => setForm(f => ({ ...f, gstRate: String(r) }))}>
                       {r}%
-                    </button>
+                    </Button>
                   ))}
                 </div>
-              </div>
+              </Field>
             </div>
 
             <div className="flex gap-3 justify-end pt-1">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded text-sm" style={{ color: "var(--text-secondary)" }}>Cancel</button>
-              <button onClick={save} disabled={saving} className="px-4 py-2 rounded text-sm font-medium text-white"
-                style={{ background: "var(--primary)" }}>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="primary" onClick={save} disabled={saving}>
                 {saving ? "Saving…" : editing ? "Update" : "Create"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

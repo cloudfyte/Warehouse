@@ -2,6 +2,13 @@
 import { useState } from "react";
 import type { CustomRole } from "@/app/types";
 import Modal from "@/app/components/atoms/Modal";
+import Button from "@/app/components/atoms/Button";
+import Input from "@/app/components/atoms/Input";
+import Select from "@/app/components/atoms/Select";
+import Badge from "@/app/components/atoms/Badge";
+import Field from "@/app/components/molecules/Field";
+import FormGrid from "@/app/components/molecules/FormGrid";
+import PageHeader from "@/app/components/molecules/PageHeader";
 import { showToast } from "@/app/lib/toast";
 import { friendlyError } from "@/app/lib/errors";
 
@@ -47,23 +54,6 @@ const BACKEND_LEVELS = [
 
 const TAB_GROUPS = [...new Set(ALL_TABS.map(t => t.group))];
 
-const I: React.CSSProperties = {
-  padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)",
-  background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, width: "100%", outline: "none",
-};
-const LBL: React.CSSProperties = {
-  display: "flex", flexDirection: "column", gap: 5,
-  fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase",
-};
-const BTN_PRI: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "none",
-  background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14,
-};
-const BTN_SEC: React.CSSProperties = {
-  flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)",
-  background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14,
-};
-
 interface Props {
   roles: CustomRole[]
   isSuperAdmin: boolean
@@ -73,12 +63,7 @@ interface Props {
 
 function RoleBadge({ role }: { role: CustomRole }) {
   return (
-    <span style={{
-      padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700,
-      background: role.color + "22", color: role.color, border: `1px solid ${role.color}44`,
-    }}>
-      {role.displayName}
-    </span>
+    <Badge label={role.displayName} color={role.color} bg={role.color + "22"} style={{ border: `1px solid ${role.color}44` }} />
   );
 }
 
@@ -167,17 +152,12 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
 
   return (
     <div style={{ padding: 28, maxWidth: 900 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Roles &amp; Permissions</h2>
-          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>
-            Create custom roles with fine-grained tab access. Assign them to employees.
-          </div>
-        </div>
-        <button onClick={openCreate} style={BTN_PRI as React.CSSProperties & { width: number }}>
-          + New Role
-        </button>
-      </div>
+      <PageHeader
+        title="Roles &amp; Permissions"
+        sub="Create custom roles with fine-grained tab access. Assign them to employees."
+        actions={<Button variant="primary" onClick={openCreate}>+ New Role</Button>}
+        style={{ marginBottom: 24 }}
+      />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {roles.length === 0 && (
@@ -208,20 +188,15 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => openEdit(r)} style={{ ...BTN_SEC, flex: "unset", padding: "7px 16px", fontSize: 13 }}>
-                Edit
-              </button>
+              <Button variant="secondary" size="sm" onClick={() => openEdit(r)}>Edit</Button>
               {!r.isSystem && (
-                <button onClick={() => setShowDelete(r)} style={{ ...BTN_SEC, flex: "unset", padding: "7px 16px", fontSize: 13, color: "#dc2626", borderColor: "#dc262644" }}>
-                  Delete
-                </button>
+                <Button variant="danger" size="sm" onClick={() => setShowDelete(r)}>Delete</Button>
               )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Create / Edit modal */}
       {showForm && (
         <Modal
           title={isNew ? "Create Role" : `Edit — ${form.displayName}`}
@@ -230,46 +205,41 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
           width={620}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowForm(false)} style={BTN_SEC}>Cancel</button>
-              <button onClick={save} disabled={loading} style={BTN_PRI}>{loading ? "Saving…" : "Save Role"}</button>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="primary" onClick={save} disabled={loading}>{loading ? "Saving…" : "Save Role"}</Button>
             </div>
           }
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <label style={LBL}>
-                Display Name
-                <input style={I} value={form.displayName} onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))} placeholder="e.g. Accounts Manager" />
-              </label>
+            <FormGrid>
+              <Field label="Display Name" required>
+                <Input value={form.displayName} onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))} placeholder="e.g. Accounts Manager" />
+              </Field>
               {isNew ? (
-                <label style={LBL}>
-                  Role Key
-                  <input style={I} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. ACCOUNTS_MANAGER" />
-                </label>
+                <Field label="Role Key" required>
+                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. ACCOUNTS_MANAGER" />
+                </Field>
               ) : (
-                <label style={LBL}>
-                  Role Key (fixed)
-                  <input style={{ ...I, opacity: 0.5 }} value={form.name} disabled />
-                </label>
+                <Field label="Role Key (fixed)">
+                  <Input value={form.name} disabled style={{ opacity: 0.5 }} />
+                </Field>
               )}
-            </div>
+            </FormGrid>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <label style={LBL}>
-                Badge Color
+            <FormGrid>
+              <Field label="Badge Color">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <input type="color" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
                     style={{ width: 44, height: 38, borderRadius: 8, border: "1px solid var(--line)", cursor: "pointer", padding: 2 }} />
                   <span style={{ fontFamily: "monospace", fontSize: 13, color: "var(--muted)" }}>{form.color.toUpperCase()}</span>
                 </div>
-              </label>
-              <label style={LBL}>
-                Backend Permission Level
-                <select style={I} value={form.backendLevel} onChange={e => setForm(f => ({ ...f, backendLevel: e.target.value }))}>
+              </Field>
+              <Field label="Backend Permission Level">
+                <Select value={form.backendLevel} onChange={e => setForm(f => ({ ...f, backendLevel: e.target.value }))}>
                   {BACKEND_LEVELS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                </select>
-              </label>
-            </div>
+                </Select>
+              </Field>
+            </FormGrid>
 
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 12 }}>
@@ -282,10 +252,9 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
                   <div key={group} style={{ marginBottom: 14 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{group}</span>
-                      <button onClick={() => toggleAll(group, !allOn)}
-                        style={{ fontSize: 11, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+                      <Button variant="ghost" size="sm" style={{ border: "none", padding: "2px 8px", fontSize: 11, fontWeight: 600 }} onClick={() => toggleAll(group, !allOn)}>
                         {allOn ? "Deselect all" : "Select all"}
-                      </button>
+                      </Button>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       {tabs.map(t => {
@@ -312,16 +281,14 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
         </Modal>
       )}
 
-      {/* Delete confirm */}
       {showDelete && (
         <Modal title="Delete Role" onClose={() => setShowDelete(null)} width={400}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowDelete(null)} style={BTN_SEC}>Cancel</button>
-              <button onClick={deleteRole} disabled={loading}
-                style={{ ...BTN_PRI, background: "#dc2626" }}>
+              <Button variant="secondary" onClick={() => setShowDelete(null)}>Cancel</Button>
+              <Button variant="danger" onClick={deleteRole} disabled={loading}>
                 {loading ? "Deleting…" : "Delete"}
-              </button>
+              </Button>
             </div>
           }>
           <p style={{ color: "var(--muted)", fontSize: 14 }}>
