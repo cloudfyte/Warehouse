@@ -1,15 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AuditLog } from "@/app/types";
 import { downloadCsv } from "@/app/lib/csv";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Button from "@/app/components/atoms/Button";
 import Badge from "@/app/components/atoms/Badge";
+import Pagination from "@/app/components/atoms/Pagination";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
 
 interface Props { logs: AuditLog[] }
+
+const PER_PAGE = 20;
 
 const ENTITY_COLORS: Record<string, string> = {
   SalesOrder: "#3b82f6", PurchaseOrder: "#8b5cf6", CuttingAssignment: "#f59e0b",
@@ -33,6 +36,9 @@ export default function AuditLogs({ logs }: Props) {
   const [entityFilter, setEntityFilter] = useState("");
   const [detail, setDetail] = useState<AuditLog | null>(null);
 
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, entityFilter]);
+
   const entityTypes = Array.from(new Set(logs.map(l => l.entityType))).sort();
   const q = search.toLowerCase();
   const filtered = logs.filter(l =>
@@ -40,6 +46,7 @@ export default function AuditLogs({ logs }: Props) {
     (!q || l.action.toLowerCase().includes(q) || l.actorName.toLowerCase().includes(q) ||
       l.entityType.toLowerCase().includes(q) || l.entityId.includes(q))
   );
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
     <div style={{ padding: 24 }}>
@@ -82,7 +89,7 @@ export default function AuditLogs({ logs }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(l => {
+            {paged.map(l => {
               const color = entityColor(l.entityType);
               return (
                 <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
@@ -121,6 +128,7 @@ export default function AuditLogs({ logs }: Props) {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
 
       {detail && (
         <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}

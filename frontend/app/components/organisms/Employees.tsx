@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { CustomRole, Employee, WarehouseLocation } from "@/app/types";
 import { ROLE_LABELS } from "@/app/lib/constants";
 import Modal from "@/app/components/atoms/Modal";
@@ -13,6 +13,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
   employees: Employee[]; warehouses: WarehouseLocation[]
@@ -20,6 +21,8 @@ interface Props {
   isSuperAdmin: boolean; isAdmin: boolean; currentUserId: string
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
 }
+
+const PER_PAGE = 20;
 
 const ROLES = Object.keys(ROLE_LABELS);
 const ROLE_COLORS: Record<string, string> = {
@@ -57,11 +60,15 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search]);
+
   const canEdit = isSuperAdmin || isAdmin;
   const filtered = employees.filter(e =>
     e.username.toLowerCase().includes(search.toLowerCase()) ||
     e.role.toLowerCase().includes(search.toLowerCase())
   );
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const canEditEmployee = (e: Employee) => {
     if (!canEdit) return false;
@@ -255,7 +262,7 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
             </tr>
           </thead>
           <tbody>
-            {filtered.map(e => (
+            {paged.map(e => (
               <tr key={e.id} style={{ borderBottom: "1px solid var(--panel-border)", opacity: e.active ? 1 : 0.5 }}>
                 <td style={{ padding: "13px 16px" }}>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{e.username}</div>
@@ -283,6 +290,7 @@ export default function Employees({ employees, warehouses, customRoles = [], isS
           </tbody>
         </table>
       </div>
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }

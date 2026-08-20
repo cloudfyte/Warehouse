@@ -1,11 +1,12 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Expense, WarehouseLocation } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
 import Badge from "@/app/components/atoms/Badge";
+import Pagination from "@/app/components/atoms/Pagination";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Textarea from "@/app/components/atoms/Textarea";
@@ -22,6 +23,8 @@ interface Props {
   isAdmin: boolean; isSuperAdmin: boolean; isManager?: boolean
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
 }
+
+const PER_PAGE = 20;
 
 const CATEGORIES: Record<string, string> = {
   UTILITIES:   "Utilities (Electricity / Water)",
@@ -47,6 +50,8 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
   const [editing, setEditing] = useState<Partial<Expense> & { warehouseId?: string } | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [filterCat, setFilterCat] = useState("ALL");
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [filterCat]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -73,6 +78,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
   }
 
   const filtered = filterCat === "ALL" ? expenses : expenses.filter(e => e.category === filterCat);
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const totalFiltered = filtered.reduce((s, e) => s + (e.amount || 0), 0);
 
@@ -247,7 +253,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
             </tr>
           </thead>
           <tbody>
-            {filtered.map(e => (
+            {paged.map(e => (
               <tr key={e.id} style={{ borderBottom: "1px solid var(--panel-border)" }}>
                 <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 12, color: "var(--muted)" }}>{e.expenseNumber}</td>
                 <td style={{ padding: "12px 16px", fontSize: 13 }}>{e.expenseDate?.slice(0, 10)}</td>
@@ -302,6 +308,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
           )}
         </table>
       </div>
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { StockTransfer, WarehouseLocation, RawClothBatch, FinishedProduct } from "@/app/types";
 import Button from "@/app/components/atoms/Button";
+import Pagination from "@/app/components/atoms/Pagination";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Textarea from "@/app/components/atoms/Textarea";
@@ -10,6 +11,8 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import { showToast } from "@/app/lib/toast";
+
+const PER_PAGE = 20;
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING: "#f59e0b", IN_TRANSIT: "#6366f1", RECEIVED: "#10b981", CANCELLED: "#9ca3af",
@@ -36,8 +39,11 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [filter, setFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [filter]);
 
   const filtered = filter === "ALL" ? transfers : transfers.filter(t => t.status === filter);
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   async function handleCreate() {
     if (!form.fromWarehouseId || !form.toWarehouseId) { setErr("Select both warehouses."); return; }
@@ -132,7 +138,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
               {filter === "ALL" ? "Use + New Transfer to move stock between warehouse locations" : "Try selecting a different status filter"}
             </div>
           </div>
-        ) : filtered.map(t => (
+        ) : paged.map(t => (
           <div key={t.id} style={{ background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 18px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
               <div>
@@ -172,6 +178,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
             </div>
           </div>
         ))}
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
       </div>
 
       {/* Create modal */}

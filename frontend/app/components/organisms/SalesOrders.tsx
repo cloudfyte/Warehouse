@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { SalesOrder, Buyer, WarehouseLocation, FinishedProduct } from "@/app/types";
 import { SO_STATUS_LABELS, STATUS_BADGE_COLORS, PAYMENT_MODE_LABELS } from "@/app/lib/constants";
@@ -16,6 +16,7 @@ import Field from "@/app/components/molecules/Field";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
   orders: SalesOrder[]
@@ -39,6 +40,7 @@ interface SOItem { productId: string; qty: number; unitPrice: number }
 const emptyItem = (): SOItem => ({ productId: "", qty: 1, unitPrice: 0 });
 
 const SO_NEXT: Record<string, string> = { REQUESTED: "PROCESSING", PROCESSING: "READY", READY: "DISPATCHED", DISPATCHED: "DELIVERED" };
+const PER_PAGE = 20;
 
 export default function SalesOrders({ orders, buyers, warehouses, finishedProducts, isAdmin, isSuperAdmin, isManager, onMutate }: Props) {
   const [detail, setDetail] = useState<SalesOrder | null>(null);
@@ -63,6 +65,9 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<SOItem[]>([emptyItem()]);
 
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, statusFilter, dateFrom, dateTo]);
+
   const canEdit = isSuperAdmin || isAdmin || isManager;
   const activeWarehouses = warehouses.filter(w => w.active);
   const activeProducts = finishedProducts.filter(p => p.quantity > 0);
@@ -75,6 +80,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
     if (dateTo && o.orderDate > dateTo) return false;
     return true;
   });
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   // Live totals in create form
   const subtotal = items.reduce((s, it) => s + (it.qty * it.unitPrice), 0);
@@ -439,7 +445,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
             </tr>
           </thead>
           <tbody>
-            {filtered.map(o => (
+            {paged.map(o => (
               <tr key={o.id} style={{ borderBottom: "1px solid var(--line)" }}>
                 <td style={{ padding: "12px 14px", fontWeight: 600 }}>{o.orderNumber}</td>
                 <td style={{ padding: "12px 14px" }}>{o.buyer.name}</td>
@@ -460,6 +466,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
           </tbody>
         </table>
       </div>
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }

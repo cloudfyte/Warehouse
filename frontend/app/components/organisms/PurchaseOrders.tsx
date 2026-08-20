@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { PurchaseOrder, ParcelInspection, Supplier, WarehouseLocation, ClothCategory, ClothColor, ItemType } from "@/app/types";
 import { PO_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
@@ -21,6 +21,7 @@ import Field from "@/app/components/molecules/Field";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
   orders: PurchaseOrder[]; suppliers: Supplier[]; warehouses: WarehouseLocation[]
@@ -40,6 +41,7 @@ interface POItem { kind: "RAW_CLOTH" | "READYMADE"; categoryId: string; colorId:
 const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "", meters: 0, itemTypeId: "", itemName: "", ageGroup: "", size: "", qty: 0, unitPrice: 0 });
 
 const STATUSES = ["DRAFT", "PLACED", "DISPATCHED", "RECEIVED", "VERIFIED", "CANCELLED"];
+const PER_PAGE = 20;
 const PO_NEXT: Record<string, string> = { DRAFT: "PLACED", PLACED: "DISPATCHED", DISPATCHED: "RECEIVED", RECEIVED: "VERIFIED" };
 
 const CONDITION_LABEL: Record<string, string> = { GOOD: "Good Condition", PARTIAL_DAMAGE: "Partial Damage", DAMAGED: "Damaged" };
@@ -139,6 +141,9 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     : "MIXED";
   const [submitted, setSubmitted] = useState(false);
 
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, statusFilter, dateFrom, dateTo]);
+
   const canEdit = isSuperAdmin || isAdmin || isManager;
   const filtered = orders.filter(o => {
     const q = search.toLowerCase();
@@ -148,6 +153,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     if (dateTo && o.orderDate > dateTo) return false;
     return true;
   });
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   async function createCategory(name: string): Promise<string> {
     const r = await onMutate(`mutation C($n:String!){createClothCategory(name:$n,description:""){category{id name}}}`, { n: name });
@@ -727,7 +733,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
             </tr>
           </thead>
           <tbody>
-            {filtered.map(o => (
+            {paged.map(o => (
               <tr key={o.id} style={{ borderBottom: "1px solid var(--border)" }}>
                 <td style={{ padding: "12px 16px", fontWeight: 600 }}>{o.poNumber}</td>
                 <td style={{ padding: "12px 16px" }}>{o.supplier.name}</td>
@@ -744,6 +750,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
           </tbody>
         </table>
       </div>
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }

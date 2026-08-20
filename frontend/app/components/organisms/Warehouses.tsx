@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { WarehouseLocation } from "@/app/types";
 import StateCity from "@/app/components/atoms/StateCity";
+import Pagination from "@/app/components/atoms/Pagination";
 import Modal from "@/app/components/atoms/Modal";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
@@ -18,6 +19,8 @@ interface Props {
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
 }
 
+const PER_PAGE = 20;
+
 const LOCATION_TYPES = [
   { value: "WAREHOUSE", label: "Warehouse" },
   { value: "STORE", label: "Retail Store" },
@@ -28,6 +31,8 @@ const TYPE_COLORS: Record<string, string> = { WAREHOUSE: "#1d4ed8", STORE: "#158
 export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate }: Props) {
   const [editing, setEditing] = useState<Partial<WarehouseLocation> | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [page, setPage] = useState(1);
+  const paged = warehouses.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -131,7 +136,7 @@ export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-        {warehouses.map(w => (
+        {paged.map(w => (
           <div key={w.id} style={{
             background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14, padding: 20,
             borderTop: `3px solid ${TYPE_COLORS[w.locationType] || "#888"}`,
@@ -164,6 +169,7 @@ export default function Warehouses({ warehouses, isSuperAdmin, isAdmin, onMutate
           </div>
         )}
       </div>
+      <Pagination page={page} total={warehouses.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }

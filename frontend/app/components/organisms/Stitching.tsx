@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { StitchingJob, CuttingAssignment, Employee } from "@/app/types";
 import { STITCHING_STATUS_LABELS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
@@ -14,6 +14,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
   jobs: StitchingJob[]; assignments: CuttingAssignment[]; tailors: Employee[]
@@ -24,6 +25,8 @@ interface Props {
 }
 
 // ── Status step trail ──────────────────────────────────────────────────────────
+
+const PER_PAGE = 20;
 
 const STITCHING_STEPS = [
   { key: "RECEIVED",   label: "Received" },
@@ -165,6 +168,9 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
+
   const canAssign = isSuperAdmin || isAdmin || isManager;
   const canUpdate = canAssign || isTailor;
   const q = search.toLowerCase();
@@ -172,6 +178,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
     (!statusFilter || j.status === statusFilter) &&
     (!q || j.tailor.username.toLowerCase().includes(q) || j.cuttingAssignment.itemType.name.toLowerCase().includes(q))
   );
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const readyAssignments = assignments.filter(a => a.piecesCompleted > 0 && a.status !== "PENDING");
 
   async function createJob() {
@@ -365,7 +372,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 16 }}>
-          {filtered.map(j => {
+          {paged.map(j => {
             const pct = j.piecesAssigned > 0 ? Math.min(100, (j.piecesCompleted / j.piecesAssigned) * 100) : 0;
             const isRejected = j.status === "REJECTED";
             const borderColor = STEP_COLORS[j.status] || "#94a3b8";
@@ -435,6 +442,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
           })}
         </div>
       )}
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }

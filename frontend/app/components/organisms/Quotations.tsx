@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Quotation, Buyer, WarehouseLocation, FinishedProduct, SystemSettings } from "@/app/types";
 import { QUOTATION_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { showToast } from "@/app/lib/toast";
@@ -12,6 +12,7 @@ import PageHeader from "@/app/components/molecules/PageHeader";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
   quotations: Quotation[];
@@ -22,6 +23,8 @@ interface Props {
   gql: <T>(q: string, v?: Record<string, unknown>) => Promise<T>;
   onRefresh: () => void;
 }
+
+const PER_PAGE = 20;
 
 const STATUS_OPTIONS = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"];
 
@@ -41,7 +44,11 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
   const [converting, setConverting] = useState(false);
   const [convertMode, setConvertMode] = useState<"CREDIT" | "PAID" | null>(null);
 
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [filter]);
+
   const visible = filter === "ALL" ? quotations : quotations.filter(q => q.status === filter);
+  const paged = visible.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   function printQuotation(qt: Quotation) {
     const ss = systemSettings;
@@ -270,7 +277,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                     </div>
                   </td>
                 </tr>
-              ) : visible.map(q => (
+              ) : paged.map(q => (
                 <tr key={q.id} className="hover:bg-[var(--surface-2)] cursor-pointer transition-colors"
                   style={{ borderBottom: "1px solid var(--border)" }}
                   onClick={() => setSelected(q)}>
@@ -297,6 +304,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
           </table>
         </div>
       </div>
+      <Pagination page={page} total={visible.length} perPage={PER_PAGE} onChange={setPage} />
 
       {/* Detail panel */}
       {selected && (

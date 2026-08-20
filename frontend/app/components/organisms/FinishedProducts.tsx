@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { FinishedProduct } from "@/app/types";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { downloadCsv } from "@/app/lib/csv";
@@ -11,6 +11,9 @@ import { showToast } from "@/app/lib/toast";
 import Badge from "@/app/components/atoms/Badge";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Pagination from "@/app/components/atoms/Pagination";
+import BluetoothPrintButton from "@/app/components/molecules/BluetoothPrintButton";
+import { buildTagEscPos } from "@/app/lib/useBluetooth";
 
 interface Props {
   products: FinishedProduct[]
@@ -19,6 +22,8 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   gql?: (q: string, v?: Record<string, unknown>) => Promise<any>
 }
+
+const PER_PAGE = 20;
 
 function printTag(product: FinishedProduct) {
   const win = window.open("", "_blank");
@@ -78,6 +83,8 @@ function printTag(product: FinishedProduct) {
 export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql }: Props) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, sourceFilter]);
   const [selected, setSelected] = useState<FinishedProduct | null>(null);
   const [markingPrinted, setMarkingPrinted] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -88,6 +95,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
     (p.sku.toLowerCase().includes(search.toLowerCase()) || p.itemType.name.toLowerCase().includes(search.toLowerCase()) || p.barcode.includes(search)) &&
     (!sourceFilter || p.source === sourceFilter)
   );
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   async function markPrinted(id: string) {
     setMarkingPrinted(true);
@@ -206,12 +214,25 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
             >
               🖨 Print Tag
             </Button>
+            <BluetoothPrintButton
+              label="🔵 Bluetooth Print Tag"
+              size="md"
+              getData={() => buildTagEscPos({
+                sku: selected.sku,
+                itemName: selected.itemType.name,
+                size: selected.size,
+                ageGroup: selected.ageGroup || undefined,
+                salePrice: selected.salePrice,
+                barcode: selected.barcode,
+                companyName: "Sri Warehouse",
+              })}
+            />
           </div>
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
-        {filtered.map(p => (
+        {paged.map(p => (
           <div key={p.id} onClick={() => setSelected(p)} style={{
             background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 12, padding: 16,
             cursor: "pointer", transition: "box-shadow 0.15s",
@@ -248,6 +269,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
           <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 60, color: "var(--muted)" }}>No finished products found</div>
         )}
       </div>
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }

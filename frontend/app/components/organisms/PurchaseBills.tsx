@@ -1,5 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
+import { buildBillEscPos } from "@/app/lib/useBluetooth";
+import BluetoothPrintButton from "@/app/components/molecules/BluetoothPrintButton";
 import { formatMoney, formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
@@ -15,6 +17,7 @@ import PageHeader from "@/app/components/molecules/PageHeader";
 import { downloadCsv } from "@/app/lib/csv";
 import { showToast } from "@/app/lib/toast";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
+import Pagination from "@/app/components/atoms/Pagination";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +104,7 @@ interface Props {
   clothColors: ClothColor[]
   itemTypes: ItemType[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isStoreKeeper: boolean
-  systemSettings?: { gstOnPurchases?: boolean; currencySymbol?: string; gstin?: string }
+  systemSettings?: { gstOnPurchases?: boolean; currencySymbol?: string; gstin?: string; companyName?: string }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
 }
@@ -125,6 +128,8 @@ function blankItem(): DraftItem {
   };
 }
 
+const PER_PAGE = 20;
+
 function itemLineTotal(item: DraftItem): number {
   if (item.itemKind === "RAW_CLOTH") {
     return (parseFloat(item.totalMeters) || 0) * (parseFloat(item.costPerMeter) || 0);
@@ -147,7 +152,35 @@ export default function PurchaseBills({
 }: Props) {
   const canCreate = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
   const gstEnabled = !!systemSettings?.gstOnPurchases;
+  function getBillEscData(bill: PurchaseBill): Uint8Array {
+    return buildBillEscPos({
+      billNumber: bill.billNumber,
+      supplierName: bill.supplier.name,
+      billDate: bill.billDate,
+      companyName: systemSettings?.companyName || "Sri Warehouse",
+      gstin: systemSettings?.gstin || undefined,
+      items: bill.items.map(item => ({
+        name: item.itemKind === "RAW_CLOTH"
+          ? [item.clothCategory?.name, item.clothColor?.name].filter(Boolean).join(" ")
+          : (item.itemType?.name || "Item"),
+        qty: item.itemKind === "READYMADE" ? item.quantity : undefined,
+        meters: item.itemKind === "RAW_CLOTH" ? item.totalMeters : undefined,
+        unitPrice: item.costPerMeter ?? item.unitPrice ?? 0,
+        totalPrice: item.totalPrice,
+        gstRate: item.gstRate,
+      })),
+      taxableAmount: bill.taxableAmount ?? bill.totalAmount,
+      taxAmount: bill.taxAmount ?? 0,
+      totalAmount: bill.totalAmount,
+      amountPaid: bill.amountPaid,
+      amountPending: bill.amountPending,
+      paymentStatus: bill.paymentStatus,
+    });
+  }
   const currency = systemSettings?.currencySymbol || "₹";
+
+  const [page, setPage] = useState(1);
+  const paged = bills.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const [showForm, setShowForm] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -433,7 +466,7 @@ export default function PurchaseBills({
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {bills.map(bill => {
+          {paged.map(bill => {
             const st = STATUS_COLORS[bill.paymentStatus] ?? STATUS_COLORS.PENDING;
             const isOpen = expanded === bill.id;
             return (
@@ -564,6 +597,7 @@ export default function PurchaseBills({
                           <Button variant="secondary" size="sm" onClick={() => printBill(bill)}>
                             🖨 Print Bill
                           </Button>
+                          <BluetoothPrintButton getData={() => getBillEscData(bill)} />
                           {canCreate && bill.amountPending > 0 && (
                             <Button variant="primary" size="sm" onClick={() => { setPayBillId(bill.id); setPayErr(""); setPayAmount(""); setPayMode("CASH"); setPayRef(""); setPayNotes(""); setPayDate(new Date().toISOString().slice(0, 10)); }}>
                               + Record Payment
@@ -616,6 +650,7 @@ export default function PurchaseBills({
           })}
         </div>
       )}
+      <Pagination page={page} total={bills.length} perPage={PER_PAGE} onChange={setPage} />
 
       {/* Record Payment Modal */}
       {payBillId && payingBill && (

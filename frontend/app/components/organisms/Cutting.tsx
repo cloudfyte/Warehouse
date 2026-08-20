@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { CuttingAssignment, Employee, RawClothBatch, ItemType } from "@/app/types";
 import { CUTTING_STATUS_LABELS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
@@ -16,6 +16,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
   assignments: CuttingAssignment[]; batches: RawClothBatch[]
@@ -26,6 +27,8 @@ interface Props {
 }
 
 // ── Status step trail ──────────────────────────────────────────────────────────
+
+const PER_PAGE = 20;
 
 const CUTTING_STEPS = [
   { key: "PENDING",     label: "Pending" },
@@ -144,6 +147,9 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
+
   const canAssign = isSuperAdmin || isAdmin || isManager;
   const canUpdate = canAssign || isCuttingMaster;
   const q = search.toLowerCase();
@@ -154,6 +160,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       a.rawClothBatch.clothCategory.name.toLowerCase().includes(q) ||
       a.itemType.name.toLowerCase().includes(q))
   );
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   async function createAssignment() {
     setLoading(true); setError("");
@@ -321,7 +328,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
         <div style={{ padding: "64px 0", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>No assignments found</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 16 }}>
-          {filtered.map(a => {
+          {paged.map(a => {
             const piecePct = a.targetPieces > 0 ? Math.min(100, (a.piecesCompleted / a.targetPieces) * 100) : 0;
             const meterPct = a.metersAssigned > 0 ? Math.min(100, (a.clothUsed / a.metersAssigned) * 100) : 0;
             const statusColor = STEP_COLORS[a.status] || "#94a3b8";
@@ -397,6 +404,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
           })}
         </div>
       )}
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }

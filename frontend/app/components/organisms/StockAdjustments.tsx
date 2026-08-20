@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatDate } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import Input from "@/app/components/atoms/Input";
@@ -12,6 +12,7 @@ import FilterBar from "@/app/components/molecules/FilterBar";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import { downloadCsv } from "@/app/lib/csv";
+import Pagination from "@/app/components/atoms/Pagination";
 import { showToast } from "@/app/lib/toast";
 
 interface RawClothBatch {
@@ -41,6 +42,8 @@ interface Props {
   onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
 }
 
+const PER_PAGE = 20;
+
 const ADJ_TYPE_LABELS: Record<string, string> = {
   DAMAGE: "Damage / Write-off", LOSS: "Loss / Theft",
   QC_REJECT: "QC Rejection", CORRECTION: "Stock Correction", FOUND: "Found / Surplus",
@@ -67,6 +70,8 @@ export default function StockAdjustments({
   const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, typeFilter]);
 
   // Form
   const [itemKind, setItemKind] = useState<"RAW_CLOTH" | "FINISHED_PRODUCT">("RAW_CLOTH");
@@ -94,6 +99,7 @@ export default function StockAdjustments({
     const matchType = !typeFilter || a.adjustmentType === typeFilter;
     return matchSearch && matchType;
   });
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   async function handleSubmit() {
     setErr("");
@@ -223,7 +229,7 @@ export default function StockAdjustments({
               </tr>
             </thead>
             <tbody>
-              {filtered.map(adj => {
+              {paged.map(adj => {
                 const colors = ADJ_TYPE_COLORS[adj.adjustmentType] ?? { bg: "#eee", color: "#333" };
                 const isPositive = adj.quantityChange > 0;
                 return (
@@ -278,6 +284,7 @@ export default function StockAdjustments({
           </table>
         </div>
       )}
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
 
       {/* Create Adjustment Modal */}
       {showForm && (

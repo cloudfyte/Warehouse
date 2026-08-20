@@ -6,6 +6,7 @@ import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Badge from "@/app/components/atoms/Badge";
+import Pagination from "@/app/components/atoms/Pagination";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import PageHeader from "@/app/components/molecules/PageHeader";
@@ -52,6 +53,8 @@ const BACKEND_LEVELS = [
   { value: "AUDITOR",       label: "Auditor" },
 ];
 
+const PER_PAGE = 20;
+
 const TAB_GROUPS = [...new Set(ALL_TABS.map(t => t.group))];
 
 interface Props {
@@ -74,6 +77,8 @@ function emptyPermissions(): Record<string, boolean> {
 export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
   const [selected, setSelected] = useState<CustomRole | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [page, setPage] = useState(1);
+  const paged = roles.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const [isNew, setIsNew] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showDelete, setShowDelete] = useState<CustomRole | null>(null);
@@ -165,7 +170,7 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
             No custom roles yet. Click "New Role" to create one.
           </div>
         )}
-        {roles.map(r => (
+        {paged.map(r => (
           <div key={r.id} style={{
             background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 12,
             padding: "16px 20px", display: "flex", alignItems: "center", gap: 16,
@@ -195,6 +200,7 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
             </div>
           </div>
         ))}
+      <Pagination page={page} total={roles.length} perPage={PER_PAGE} onChange={setPage} />
       </div>
 
       {showForm && (

@@ -1,9 +1,13 @@
 "use client";
+import { useState } from "react";
 import type { BuyerReturn, SupplierReturn } from "@/app/types";
 import { STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { formatDateShort } from "@/app/lib/formatters";
 import Badge from "@/app/components/atoms/Badge";
+import Pagination from "@/app/components/atoms/Pagination";
 import PageHeader from "@/app/components/molecules/PageHeader";
+
+const PER_PAGE = 20;
 
 interface Props { buyerReturns: BuyerReturn[]; supplierReturns: SupplierReturn[] }
 
@@ -22,6 +26,10 @@ function EmptyTable({ colSpan, icon, title, hint }: { colSpan: number; icon: str
 }
 
 export default function Returns({ buyerReturns, supplierReturns }: Props) {
+  const [buyerPage, setBuyerPage] = useState(1);
+  const [supplierPage, setSupplierPage] = useState(1);
+  const pagedBuyer = buyerReturns.slice((buyerPage - 1) * PER_PAGE, buyerPage * PER_PAGE);
+  const pagedSupplier = supplierReturns.slice((supplierPage - 1) * PER_PAGE, supplierPage * PER_PAGE);
   const total = buyerReturns.length + supplierReturns.length;
   return (
     <div style={{ padding: 24 }}>
@@ -48,7 +56,7 @@ export default function Returns({ buyerReturns, supplierReturns }: Props) {
               </tr>
             </thead>
             <tbody>
-              {buyerReturns.map(r => (
+              {pagedBuyer.map(r => (
                 <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td style={{ padding: "12px 14px", fontWeight: 600, fontSize: 13, color: "var(--primary)" }}>{r.returnNumber}</td>
                   <td style={{ padding: "12px 14px", fontWeight: 600 }}>{r.buyer.name}</td>
@@ -66,6 +74,7 @@ export default function Returns({ buyerReturns, supplierReturns }: Props) {
             </tbody>
           </table>
         </div>
+        <Pagination page={buyerPage} total={buyerReturns.length} perPage={PER_PAGE} onChange={setBuyerPage} />
       </div>
 
       {/* Supplier Returns */}
@@ -85,7 +94,7 @@ export default function Returns({ buyerReturns, supplierReturns }: Props) {
               </tr>
             </thead>
             <tbody>
-              {supplierReturns.map(r => (
+              {pagedSupplier.map(r => (
                 <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td style={{ padding: "12px 14px", fontWeight: 600, fontSize: 13, color: "var(--primary)" }}>{r.returnNumber}</td>
                   <td style={{ padding: "12px 14px", fontWeight: 600 }}>{r.supplier.name}</td>
@@ -104,6 +113,7 @@ export default function Returns({ buyerReturns, supplierReturns }: Props) {
             </tbody>
           </table>
         </div>
+        <Pagination page={supplierPage} total={supplierReturns.length} perPage={PER_PAGE} onChange={setSupplierPage} />
       </div>
     </div>
   );

@@ -5,7 +5,10 @@ import type { Notification } from "@/app/types";
 import { formatDateShort } from "@/app/lib/formatters";
 import { TAB_TITLES } from "@/app/lib/constants";
 import Button from "@/app/components/atoms/Button";
+import Pagination from "@/app/components/atoms/Pagination";
 import PageHeader from "@/app/components/molecules/PageHeader";
+
+const PER_PAGE = 20;
 
 interface Props {
   notifications: Notification[]
@@ -38,6 +41,7 @@ type Filter = "all" | "unread" | "read";
 
 export default function Notifications({ notifications, onMutate, onNavigate }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [page, setPage] = useState(1);
   const [detail, setDetail] = useState<Notification | null>(null);
 
   const unread = notifications.filter(n => !n.read);
@@ -46,6 +50,7 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
     filter === "unread" ? unread :
     filter === "read"   ? read   :
     notifications;
+  const paged = visible.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   async function markAll() {
     await onMutate(`mutation{markNotificationsRead(markAll:true){count}}`, {});
@@ -69,7 +74,7 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
     return (
       <Button
         key={f}
-        onClick={() => setFilter(f)}
+        onClick={() => { setFilter(f); setPage(1); }}
         style={{
           background: active ? "var(--primary)" : "var(--canvas)",
           color: active ? "#fff" : "var(--muted)",
@@ -111,7 +116,7 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
 
       {/* ── List ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 720 }}>
-        {visible.map(n => {
+        {paged.map(n => {
           const color = LEVEL_COLORS[n.level] || "#3b82f6";
           const hasLink = !!n.link;
           return (
@@ -163,6 +168,7 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
           );
         })}
 
+        <Pagination page={page} total={visible.length} perPage={PER_PAGE} onChange={setPage} />
         {visible.length === 0 && (
           <div style={{ textAlign: "center", padding: 64, color: "var(--muted)", fontSize: 14 }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { CreditTransaction } from "@/app/types";
 import { CREDIT_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
@@ -14,8 +14,11 @@ import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Pagination from "@/app/components/atoms/Pagination";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import { downloadCsv } from "@/app/lib/csv";
+
+const PER_PAGE = 20;
 
 interface Props {
   credits: CreditTransaction[]; isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean
@@ -32,6 +35,9 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, statusFilter, dateFrom, dateTo]);
+
   const canEdit = isSuperAdmin || isAdmin || isManager;
   const q = search.toLowerCase();
   const filtered = credits.filter(c => {
@@ -42,6 +48,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
     if (dateTo && d > dateTo) return false;
     return true;
   });
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const totalOutstanding = credits.filter(c => c.status !== "SETTLED").reduce((s, c) => s + c.amountDue, 0);
 
   async function recordPayment() {
@@ -180,7 +187,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
             </tr>
           </thead>
           <tbody>
-            {filtered.map(c => (
+            {paged.map(c => (
               <tr key={c.id} style={{ borderBottom: "1px solid var(--panel-border)" }}>
                 <td style={{ padding: "13px 16px", fontWeight: 700, fontSize: 13 }}>{c.buyer.name}</td>
                 <td style={{ padding: "13px 16px", fontSize: 13, color: "var(--muted)" }}>{c.salesOrder.orderNumber}</td>
@@ -206,6 +213,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
           </tbody>
         </table>
       </div>
+      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );
 }
