@@ -15,34 +15,49 @@ import Pagination from "@/app/components/atoms/Pagination";
 import BluetoothPrintButton from "@/app/components/molecules/BluetoothPrintButton";
 import { buildTagEscPos } from "@/app/lib/useBluetooth";
 
+interface TagSettings {
+  tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
+  tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
+  companyName?: string
+}
+
 interface Props {
   products: FinishedProduct[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isStoreKeeper: boolean
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   gql?: (q: string, v?: Record<string, unknown>) => Promise<any>
+  systemSettings?: TagSettings
 }
 
 const PER_PAGE = 20;
 
-function printTag(product: FinishedProduct) {
+function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   const win = window.open("", "_blank");
   if (!win) return;
   const cap = (s: string | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
-  const desc = [product.clothColor?.name, product.ageGroup, product.size].filter(Boolean).map(cap).join(" · ");
+  const brandName = ts.tagBrandName || ts.companyName || "Garment Tag";
+  const descParts = [
+    ts.tagShowColor !== false ? (product.clothColor?.name || undefined) : undefined,
+    ts.tagShowAgeGroup !== false ? (product.ageGroup || undefined) : undefined,
+    product.size || undefined,
+  ].filter((v): v is string => !!v).map(cap);
+  const desc = descParts.join(" · ");
   const mrp = Number(product.salePrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const tagW = ts.tagPrinterWidth === "80mm" ? "90mm" : "72mm";
   win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, Helvetica, sans-serif; background: #fff; }
     .page { display: flex; flex-wrap: wrap; gap: 6mm; padding: 6mm; }
     .tag {
-      width: 72mm; min-height: 48mm;
+      width: ${tagW}; min-height: 48mm;
       border: 1.5px solid #222; border-radius: 3mm;
       padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1.5mm;
       page-break-inside: avoid;
     }
     .brand { font-size: 7pt; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+    .tagline { font-size: 6pt; color: #888; margin-top: -1mm; }
     .name { font-size: 13pt; font-weight: 800; line-height: 1.1; color: #111; }
     .desc { font-size: 8pt; color: #444; }
     .barcode-wrap { width: 100%; display: flex; justify-content: center; margin: 1mm 0; }
@@ -52,27 +67,30 @@ function printTag(product: FinishedProduct) {
     .mrp-label { font-size: 7pt; color: #555; font-weight: 600; }
     .mrp { font-size: 18pt; font-weight: 900; color: #111; line-height: 1; }
     .sku { font-size: 7pt; color: #666; font-family: monospace; text-align: right; }
+    .footer { font-size: 6pt; color: #999; text-align: center; margin-top: 1.5mm; }
     @media print { body { margin: 0; } @page { margin: 0; } }
   </style></head><body>
   <div class="page">
     <div class="tag">
-      <div class="brand">Garment Tag</div>
+      <div class="brand">${brandName}</div>
+      ${ts.tagTagline ? `<div class="tagline">${ts.tagTagline}</div>` : ""}
       <div class="name">${cap(product.itemType.name)}</div>
       ${desc ? `<div class="desc">${desc}</div>` : ""}
-      <div class="barcode-wrap">
+      ${ts.tagShowBarcode !== false ? `<div class="barcode-wrap">
         ${product.barcodeSvg ? product.barcodeSvg : `<span style="font-family:monospace;font-size:9pt;">${product.barcode}</span>`}
       </div>
-      <div class="barcode-text">${product.barcode}</div>
+      <div class="barcode-text">${product.barcode}</div>` : ""}
       <div class="bottom">
         <div>
           <div class="mrp-label">MRP (incl. taxes)</div>
           <div class="mrp">₹${mrp}</div>
         </div>
-        <div class="sku">
+        ${ts.tagShowSku !== false ? `<div class="sku">
           <div>SKU</div>
           <div>${product.sku}</div>
-        </div>
+        </div>` : ""}
       </div>
+      ${ts.tagFooterText ? `<div class="footer">${ts.tagFooterText}</div>` : ""}
     </div>
   </div>
   <script>window.onload=()=>{window.print();}<\/script>
@@ -80,7 +98,7 @@ function printTag(product: FinishedProduct) {
   win.document.close();
 }
 
-export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql }: Props) {
+export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql, systemSettings }: Props) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -208,7 +226,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
             <div style={{ fontFamily: "monospace", fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>{selected.barcode}</div>
             <Button
               variant="primary"
-              onClick={() => { printTag(selected); markPrinted(selected.id); }}
+              onClick={() => { printTag(selected, systemSettings || {}); markPrinted(selected.id); }}
               disabled={markingPrinted}
               style={{ width: "100%", padding: "11px", background: "var(--accent)", marginBottom: 8 }}
             >
@@ -224,7 +242,14 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 ageGroup: selected.ageGroup || undefined,
                 salePrice: selected.salePrice,
                 barcode: selected.barcode,
-                companyName: "Sri Warehouse",
+                companyName: systemSettings?.tagBrandName || systemSettings?.companyName || "Sri Warehouse",
+                tagline: systemSettings?.tagTagline || undefined,
+                showBarcode: systemSettings?.tagShowBarcode !== false,
+                showSku: systemSettings?.tagShowSku !== false,
+                showColor: systemSettings?.tagShowColor !== false,
+                showAgeGroup: systemSettings?.tagShowAgeGroup !== false,
+                footerText: systemSettings?.tagFooterText || undefined,
+                printerWidth: systemSettings?.tagPrinterWidth,
               })}
             />
           </div>

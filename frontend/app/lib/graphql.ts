@@ -83,6 +83,7 @@ export const DASHBOARD_QUERY = `
       otpExpiryMinutes allowOtpLogin
       printCompanyAddress printBankDetails printTerms printSignatureLabel printShowLogo
       gstOnPurchases gstin
+      tagBrandName tagTagline tagShowBarcode tagShowSku tagShowColor tagShowAgeGroup tagFooterText tagPrinterWidth
     }
     employeeProfile { id role phone active username email locations { id name code locationType }
       customRole { id name displayName color backendLevel tabPermissions isSystem } }

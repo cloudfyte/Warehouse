@@ -308,6 +308,9 @@ export interface SystemSettings extends AppSettings {
   printCompanyAddress: string; printBankDetails: string; printTerms: string
   printSignatureLabel: string; printShowLogo: boolean
   gstOnPurchases: boolean; gstin: string
+  tagBrandName: string; tagTagline: string
+  tagShowBarcode: boolean; tagShowSku: boolean; tagShowColor: boolean; tagShowAgeGroup: boolean
+  tagFooterText: string; tagPrinterWidth: string
 }
 
 // ─── ledger ──────────────────────────────────────────────────────────────────

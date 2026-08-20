@@ -43,6 +43,14 @@ class UpdateSystemSettings(graphene.Mutation):
         print_show_logo = graphene.Boolean()
         gst_on_purchases = graphene.Boolean()
         gstin = graphene.String()
+        tag_brand_name = graphene.String()
+        tag_tagline = graphene.String()
+        tag_show_barcode = graphene.Boolean()
+        tag_show_sku = graphene.Boolean()
+        tag_show_color = graphene.Boolean()
+        tag_show_age_group = graphene.Boolean()
+        tag_footer_text = graphene.String()
+        tag_printer_width = graphene.String()
 
     settings = graphene.Field(SystemSettingsType)
 

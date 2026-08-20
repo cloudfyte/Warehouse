@@ -1179,6 +1179,15 @@ class SystemSettings(models.Model):
     # GST / ITC
     gst_on_purchases = models.BooleanField(default=False, help_text="Apply GST on purchase bills (Input Tax Credit)")
     gstin = models.CharField(max_length=15, blank=True, help_text="Company GSTIN — printed on purchase bills")
+    # Product tag layout
+    tag_brand_name = models.CharField(max_length=80, blank=True, help_text="Brand name on tags (defaults to company name)")
+    tag_tagline = models.CharField(max_length=120, blank=True, help_text="Tagline under brand name on tags")
+    tag_show_barcode = models.BooleanField(default=True, help_text="Show barcode on printed tags")
+    tag_show_sku = models.BooleanField(default=True, help_text="Show SKU code on printed tags")
+    tag_show_color = models.BooleanField(default=True, help_text="Show cloth color on printed tags")
+    tag_show_age_group = models.BooleanField(default=True, help_text="Show age group on printed tags")
+    tag_footer_text = models.CharField(max_length=120, blank=True, help_text="Footer text on tags (e.g. '100% Cotton · Made in India')")
+    tag_printer_width = models.CharField(max_length=5, default="58mm", help_text="Thermal paper width: 58mm or 80mm")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="settings_updates"

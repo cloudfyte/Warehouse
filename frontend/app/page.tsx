@@ -825,6 +825,7 @@ export default function Home() {
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
             onMutate={mutate}
             gql={(q, v) => graphql(q, v || {}, token!)}
+            systemSettings={data?.systemSettings}
           />
         )}
         {currentTab === "sales_orders" && (

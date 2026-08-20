@@ -22,6 +22,8 @@ interface SettingsData {
   printCompanyAddress?: string; printBankDetails?: string; printTerms?: string
   printSignatureLabel?: string; printShowLogo?: boolean
   gstOnPurchases?: boolean; gstin?: string
+  tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
+  tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -108,7 +110,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $firebaseJson:String,$fcmEnabled:Boolean,
           $otpExpiry:Int,$allowOtp:Boolean,
           $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean,
-          $gstOnPurchases:Boolean,$gstin:String
+          $gstOnPurchases:Boolean,$gstin:String,
+          $tagBrand:String,$tagTagline:String,$tagShowBarcode:Boolean,$tagShowSku:Boolean,$tagShowColor:Boolean,$tagShowAgeGroup:Boolean,$tagFooter:String,$tagWidth:String
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -118,7 +121,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           firebaseServiceAccountJson:$firebaseJson,fcmEnabled:$fcmEnabled,
           otpExpiryMinutes:$otpExpiry,allowOtpLogin:$allowOtp,
           printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo,
-          gstOnPurchases:$gstOnPurchases,gstin:$gstin
+          gstOnPurchases:$gstOnPurchases,gstin:$gstin,
+          tagBrandName:$tagBrand,tagTagline:$tagTagline,tagShowBarcode:$tagShowBarcode,tagShowSku:$tagShowSku,tagShowColor:$tagShowColor,tagShowAgeGroup:$tagShowAgeGroup,tagFooterText:$tagFooter,tagPrinterWidth:$tagWidth
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -144,6 +148,14 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           printLogo: form.printShowLogo,
           gstOnPurchases: form.gstOnPurchases,
           gstin: form.gstin || undefined,
+          tagBrand: form.tagBrandName || undefined,
+          tagTagline: form.tagTagline || undefined,
+          tagShowBarcode: form.tagShowBarcode,
+          tagShowSku: form.tagShowSku,
+          tagShowColor: form.tagShowColor,
+          tagShowAgeGroup: form.tagShowAgeGroup,
+          tagFooter: form.tagFooterText || undefined,
+          tagWidth: form.tagPrinterWidth || undefined,
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -365,6 +377,35 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           <Input value={form.printSignatureLabel || ""} onChange={e => set("printSignatureLabel")(e.target.value)} placeholder="Authorised Signatory" />
         </Field>
         <Toggle label="Show Company Logo on Printed Documents" description="Display the logo URL image in the header of all print outputs" checked={form.printShowLogo !== false} onChange={tog("printShowLogo")} />
+      </SettingsSection>
+
+      <SettingsSection title="Product Tag Layout" badge="New">
+        <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", lineHeight: 1.6 }}>
+          Controls what appears on printed product tags and Bluetooth thermal prints from Finished Goods.
+        </div>
+        <Field label="Brand Name on Tag">
+          <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} />
+        </Field>
+        <Field label="Tagline under Brand">
+          <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Quality Garments · Since 2010" />
+        </Field>
+        <Field label="Tag Footer Text">
+          <Input value={form.tagFooterText || ""} onChange={e => set("tagFooterText")(e.target.value)} placeholder="100% Cotton · Made in India" />
+        </Field>
+        <Field label="Thermal Printer Width">
+          <select
+            value={form.tagPrinterWidth || "58mm"}
+            onChange={e => set("tagPrinterWidth")(e.target.value)}
+            style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 14 }}
+          >
+            <option value="58mm">58mm (compact)</option>
+            <option value="80mm">80mm (wide)</option>
+          </select>
+        </Field>
+        <Toggle label="Show Barcode" description="Print barcode stripe on tag" checked={form.tagShowBarcode !== false} onChange={tog("tagShowBarcode")} />
+        <Toggle label="Show SKU Code" description="Print SKU number on tag" checked={form.tagShowSku !== false} onChange={tog("tagShowSku")} />
+        <Toggle label="Show Cloth Color" description="Print colour name on tag" checked={form.tagShowColor !== false} onChange={tog("tagShowColor")} />
+        <Toggle label="Show Age Group" description="Print age group (e.g. Kids / Adult) on tag" checked={form.tagShowAgeGroup !== false} onChange={tog("tagShowAgeGroup")} />
       </SettingsSection>
 
       {/* ── Danger Zone ── */}

@@ -226,19 +226,28 @@ export interface TagEscData {
   salePrice: number
   barcode: string
   companyName: string
+  tagline?: string
+  showBarcode?: boolean
+  showSku?: boolean
+  showColor?: boolean
+  showAgeGroup?: boolean
+  footerText?: string
+  printerWidth?: string
 }
 
 export function buildTagEscPos(tag: TagEscData): Uint8Array {
   const b: number[] = [];
-  const W = 32;
+  const W = tag.printerWidth === "80mm" ? 48 : 32;
 
   b.push(0x1B, 0x40);
   b.push(0x1B, 0x61, 0x01); // center
 
-  // Company
+  // Company / brand
   b.push(0x1B, 0x45, 0x01, 0x1D, 0x21, 0x01);
   b.push(...encodeText(tag.companyName + "\n"));
   b.push(0x1B, 0x45, 0x00, 0x1D, 0x21, 0x00);
+
+  if (tag.tagline) b.push(...encodeText(tag.tagline + "\n"));
 
   divider(b, W);
 
@@ -249,11 +258,11 @@ export function buildTagEscPos(tag: TagEscData): Uint8Array {
   b.push(0x1B, 0x45, 0x00);
 
   // Size / age group
-  const sizeLabel = [tag.ageGroup, tag.size].filter(Boolean).join(" / ");
+  const agePart = tag.showAgeGroup !== false ? tag.ageGroup : null;
+  const sizeLabel = [agePart, tag.size].filter(Boolean).join(" / ");
   if (sizeLabel) b.push(...encodeText(sizeLabel + "\n"));
 
-  // SKU
-  b.push(...encodeText("SKU: " + tag.sku + "\n"));
+  if (tag.showSku !== false) b.push(...encodeText("SKU: " + tag.sku + "\n"));
 
   divider(b, W);
 
@@ -262,10 +271,17 @@ export function buildTagEscPos(tag: TagEscData): Uint8Array {
   b.push(...encodeText("MRP Rs." + Math.round(tag.salePrice) + "\n"));
   b.push(0x1B, 0x45, 0x00, 0x1D, 0x21, 0x00);
 
-  // Barcode (CODE39 — widely supported)
-  b.push(0x1D, 0x6B, 0x04); // CODE39
-  b.push(tag.barcode.length);
-  b.push(...encodeText(tag.barcode));
+  if (tag.showBarcode !== false) {
+    // Barcode (CODE39 — widely supported)
+    b.push(0x1D, 0x6B, 0x04); // CODE39
+    b.push(tag.barcode.length);
+    b.push(...encodeText(tag.barcode));
+  }
+
+  if (tag.footerText) {
+    divider(b, W);
+    b.push(...encodeText(tag.footerText + "\n"));
+  }
 
   b.push(0x0A, 0x0A, 0x0A, 0x0A);
   b.push(0x1D, 0x56, 0x42, 0x00); // partial cut
