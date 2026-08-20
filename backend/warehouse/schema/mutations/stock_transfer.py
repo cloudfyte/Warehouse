@@ -3,6 +3,7 @@ from graphql_jwt.decorators import login_required
 
 from warehouse.models import EmployeeProfile
 from warehouse.permissions import require_role
+from warehouse.services.notify import notify_managers
 from warehouse.services.stock_transfer import (
     cancel_stock_transfer, create_stock_transfer,
     dispatch_stock_transfer, receive_stock_transfer,
@@ -44,7 +45,14 @@ class DispatchStockTransfer(graphene.Mutation):
     @login_required
     def mutate(self, info, id):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER, EmployeeProfile.Role.STORE_KEEPER)
-        return DispatchStockTransfer(transfer=dispatch_stock_transfer(transfer_id=id, user=info.context.user))
+        t = dispatch_stock_transfer(transfer_id=id, user=info.context.user)
+        notify_managers(
+            title=f"Transfer Dispatched: {t.transfer_number}",
+            message=f"Stock transfer {t.transfer_number} dispatched from {t.from_warehouse.name} → {t.to_warehouse.name}.",
+            level="INFO",
+            link="stock_transfers",
+        )
+        return DispatchStockTransfer(transfer=t)
 
 
 class ReceiveStockTransfer(graphene.Mutation):
@@ -56,7 +64,14 @@ class ReceiveStockTransfer(graphene.Mutation):
     @login_required
     def mutate(self, info, id):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER, EmployeeProfile.Role.STORE_KEEPER)
-        return ReceiveStockTransfer(transfer=receive_stock_transfer(transfer_id=id, user=info.context.user))
+        t = receive_stock_transfer(transfer_id=id, user=info.context.user)
+        notify_managers(
+            title=f"Transfer Received: {t.transfer_number}",
+            message=f"Stock transfer {t.transfer_number} received at {t.to_warehouse.name} from {t.from_warehouse.name}.",
+            level="INFO",
+            link="stock_transfers",
+        )
+        return ReceiveStockTransfer(transfer=t)
 
 
 class CancelStockTransfer(graphene.Mutation):

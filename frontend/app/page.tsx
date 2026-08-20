@@ -439,12 +439,17 @@ export default function Home() {
                     borderLeft: currentTab === t ? "3px solid #fff" : "3px solid transparent",
                     transition: "background 0.15s",
                   }}>
-                    <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>{TAB_ICONS[t]}</span>
+                    <span style={{ flexShrink: 0, display: "flex", alignItems: "center", position: "relative" }}>
+                      {TAB_ICONS[t]}
+                      {!sidebarOpen && t === "notifications" && unreadCount > 0 && (
+                        <span aria-label={`${unreadCount} unread notifications`} style={{ position: "absolute", top: -3, right: -3, width: 8, height: 8, borderRadius: "50%", background: "#f44336", border: "1.5px solid var(--primary)" }} />
+                      )}
+                    </span>
                     {sidebarOpen && (
                       <span style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
                         {TAB_TITLES[t]}
                         {t === "notifications" && unreadCount > 0 && (
-                          <span style={{ background: "#f44336", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>{unreadCount}</span>
+                          <span role="status" aria-atomic="true" aria-label={`${unreadCount} unread notifications`} style={{ background: "#f44336", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>{unreadCount}</span>
                         )}
                         {t === "credit" && (() => { const n = (data?.creditTransactions ?? []).filter((c: {status:string}) => c.status === "OVERDUE").length; return n > 0 ? <span style={{ background: "#ef4444", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>{n}</span> : null; })()}
                         {t === "purchase_orders" && (() => { const n = (data?.purchaseOrders ?? []).filter((p: {status:string}) => p.status === "PLACED" || p.status === "DISPATCHED").length; return n > 0 ? <span style={{ background: "#f59e0b", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>{n}</span> : null; })()}

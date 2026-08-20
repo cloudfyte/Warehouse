@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { X, ExternalLink, CheckCircle2, MailOpen, Bell } from "lucide-react";
+import React, { useState } from "react";
+import { X, ExternalLink, CheckCircle2, MailOpen, Bell, Info, AlertTriangle, AlertOctagon } from "lucide-react";
 import type { Notification } from "@/app/types";
 import { formatDateShort } from "@/app/lib/formatters";
 import { TAB_TITLES } from "@/app/lib/constants";
@@ -26,10 +26,10 @@ const LEVEL_BG: Record<string, string> = {
   WARNING: "color-mix(in srgb, #f59e0b 12%, transparent)",
   CRITICAL: "color-mix(in srgb, #ef4444 12%, transparent)",
 };
-const LEVEL_ICONS: Record<string, string> = {
-  INFO: "ℹ",
-  WARNING: "⚠",
-  CRITICAL: "🚨",
+const LEVEL_ICON_MAP: Record<string, React.ReactNode> = {
+  INFO: <Info size={16} />,
+  WARNING: <AlertTriangle size={16} />,
+  CRITICAL: <AlertOctagon size={16} />,
 };
 const LEVEL_LABELS: Record<string, string> = {
   INFO: "Information",
@@ -131,10 +131,10 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
                 borderRadius: 10, padding: "14px 18px",
                 cursor: "pointer",
                 display: "flex", gap: 14, alignItems: "flex-start",
-                transition: "box-shadow 0.15s",
+                transition: "box-shadow 0.15s, background 0.15s",
               }}
             >
-              <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{LEVEL_ICONS[n.level] || "ℹ"}</span>
+              <span style={{ flexShrink: 0, marginTop: 1, display: "flex", color: LEVEL_COLORS[n.level] || "#3b82f6" }}>{LEVEL_ICON_MAP[n.level] || <Info size={16} />}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                   <div style={{ fontWeight: n.read ? 500 : 700, fontSize: 14, color: "var(--ink)" }}>{n.title}</div>
@@ -207,7 +207,7 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
               display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 28 }}>{LEVEL_ICONS[detail.level] || "ℹ"}</span>
+                <span style={{ display: "flex", color: LEVEL_COLORS[detail.level] || "#3b82f6" }}>{LEVEL_ICON_MAP[detail.level] || <Info size={28} />}</span>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>{detail.title}</div>
                   <span style={{

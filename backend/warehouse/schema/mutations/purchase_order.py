@@ -93,4 +93,10 @@ class ReceivePurchaseOrder(graphene.Mutation):
         )
         log_action(entity_type="PurchaseOrder", entity_id=po.pk, action="RECEIVED",
                    actor=info.context.user, detail={"po_number": po.po_number})
+        notify_managers(
+            title=f"PO Received: {po.po_number}",
+            message=f"Purchase order {po.po_number} from {po.supplier.name} has been received at {po.warehouse.name}.",
+            level="INFO",
+            link="purchase_orders",
+        )
         return ReceivePurchaseOrder(purchase_order=po)

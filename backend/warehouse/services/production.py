@@ -7,6 +7,7 @@ from graphql import GraphQLError
 
 from warehouse.models import CuttingAssignment, EmployeeProfile, FinishedProduct, ItemType, RawClothBatch, StitchingJob
 from warehouse.services.barcode import generate_barcode_svg
+from warehouse.services.notify import notify_managers, notify_user
 
 
 def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, item_type_id,
@@ -38,7 +39,7 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
         batch.available_meters -= meters
         batch.save(update_fields=["available_meters", "updated_at"])
 
-        return CuttingAssignment.objects.create(
+        assignment = CuttingAssignment.objects.create(
             raw_cloth_batch=batch,
             cutting_master=master,
             item_type=item_type,
@@ -51,6 +52,15 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
             notes=notes.strip(),
             assigned_by=user,
         )
+        notify_user(
+            user=master.user,
+            title=f"New Cutting Job: {assignment.assignment_number}",
+            message=f"You have been assigned {target_pieces} pieces of {item_type.name} "
+                    f"({meters}m from batch {batch.batch_number}).",
+            level="INFO",
+            link="cutting",
+        )
+        return assignment
 
 
 def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_used=None,
@@ -59,6 +69,8 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
         assignment = CuttingAssignment.objects.get(pk=id)
     except CuttingAssignment.DoesNotExist as exc:
         raise GraphQLError("Cutting assignment not found.") from exc
+
+    prev_status = assignment.status
 
     if pieces_completed is not None:
         if pieces_completed > assignment.target_pieces:
@@ -75,6 +87,7 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
         assignment.cloth_used = cloth_used_dec
     if cloth_wasted is not None:
         assignment.cloth_wasted = Decimal(str(cloth_wasted))
+    prev_status = assignment.status
     if status is not None:
         assignment.status = status.upper()
     if completed_date is not None:
@@ -84,6 +97,14 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
     if notes is not None:
         assignment.notes = notes.strip()
     assignment.save()
+    if status == CuttingAssignment.Status.COMPLETED and prev_status != CuttingAssignment.Status.COMPLETED:
+        notify_managers(
+            title=f"Cutting Complete: {assignment.assignment_number}",
+            message=f"{assignment.cutting_master.username} completed {assignment.pieces_completed} pieces "
+                    f"of {assignment.item_type.name} (job {assignment.assignment_number}).",
+            level="INFO",
+            link="cutting",
+        )
     return assignment
 
 
@@ -106,7 +127,7 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id, pieces_assig
     except EmployeeProfile.DoesNotExist as exc:
         raise GraphQLError("Tailor not found or inactive.") from exc
 
-    return StitchingJob.objects.create(
+    job = StitchingJob.objects.create(
         cutting_assignment=ca,
         tailor=tailor,
         pieces_assigned=pieces_assigned,
@@ -115,6 +136,15 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id, pieces_assig
         notes=notes.strip(),
         assigned_by=user,
     )
+    notify_user(
+        user=tailor.user,
+        title=f"New Stitching Job: {job.job_number}",
+        message=f"You have been assigned {pieces_assigned} pieces of "
+                f"{ca.item_type.name} for stitching (job {job.job_number}).",
+        level="INFO",
+        link="stitching",
+    )
+    return job
 
 
 def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejected=None,
@@ -123,6 +153,8 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
         job = StitchingJob.objects.get(pk=id)
     except StitchingJob.DoesNotExist as exc:
         raise GraphQLError("Stitching job not found.") from exc
+
+    prev_status = job.status
 
     if job.status in (StitchingJob.Status.READY, StitchingJob.Status.MOVED):
         raise GraphQLError(
@@ -152,6 +184,14 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
     if notes is not None:
         job.notes = notes.strip()
     job.save()
+    if status == StitchingJob.Status.READY and prev_status != StitchingJob.Status.READY:
+        notify_managers(
+            title=f"Stitching Ready: {job.job_number}",
+            message=f"{job.tailor.username} completed {job.pieces_completed} pieces "
+                    f"(job {job.job_number}) — ready to move to Finished Goods.",
+            level="INFO",
+            link="stitching",
+        )
     return job
 
 
