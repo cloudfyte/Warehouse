@@ -60,14 +60,23 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
     except CuttingAssignment.DoesNotExist as exc:
         raise GraphQLError("Cutting assignment not found.") from exc
 
-    if status is not None:
-        assignment.status = status.upper()
     if pieces_completed is not None:
+        if pieces_completed > assignment.target_pieces:
+            raise GraphQLError(
+                f"Pieces completed ({pieces_completed}) cannot exceed target pieces ({assignment.target_pieces})."
+            )
         assignment.pieces_completed = pieces_completed
     if cloth_used is not None:
-        assignment.cloth_used = Decimal(str(cloth_used))
+        cloth_used_dec = Decimal(str(cloth_used))
+        if cloth_used_dec > assignment.meters_assigned:
+            raise GraphQLError(
+                f"Cloth used ({cloth_used_dec}m) cannot exceed meters assigned ({assignment.meters_assigned}m)."
+            )
+        assignment.cloth_used = cloth_used_dec
     if cloth_wasted is not None:
         assignment.cloth_wasted = Decimal(str(cloth_wasted))
+    if status is not None:
+        assignment.status = status.upper()
     if completed_date is not None:
         assignment.completed_date = completed_date
     elif status == CuttingAssignment.Status.COMPLETED and not assignment.completed_date:

@@ -175,6 +175,16 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
     const pc = Number(update.piecesCompleted);
     const cu = Number(update.clothUsed);
     const cw = Number(update.clothWasted);
+    if (pc > selected.targetPieces) {
+      setError(`Pieces completed (${pc}) cannot exceed target pieces (${selected.targetPieces}).`);
+      showToast(`Cannot exceed ${selected.targetPieces} target pieces.`, "error");
+      setLoading(false); return;
+    }
+    if (cu > Number(selected.metersAssigned)) {
+      setError(`Cloth used (${cu}m) cannot exceed meters assigned (${selected.metersAssigned}m).`);
+      showToast(`Cannot exceed ${selected.metersAssigned}m assigned cloth.`, "error");
+      setLoading(false); return;
+    }
     try {
       await onMutate(
         `mutation U($id:ID!,$status:String,$pc:Int,$cu:Float,$cw:Float){updateCuttingAssignment(id:$id,status:$status,piecesCompleted:$pc,clothUsed:$cu,clothWasted:$cw){assignment{id status piecesCompleted}}}`,
