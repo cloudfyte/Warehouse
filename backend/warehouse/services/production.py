@@ -124,6 +124,17 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
     except StitchingJob.DoesNotExist as exc:
         raise GraphQLError("Stitching job not found.") from exc
 
+    if job.status in (StitchingJob.Status.READY, StitchingJob.Status.MOVED):
+        raise GraphQLError(
+            f"Job is already {job.status.lower().replace('_', ' ')} — only move to Finished Goods is allowed."
+        )
+    new_completed = pieces_completed if pieces_completed is not None else job.pieces_completed
+    new_rejected = pieces_rejected if pieces_rejected is not None else job.pieces_rejected
+    if new_completed + new_rejected > job.pieces_assigned:
+        raise GraphQLError(
+            f"Pieces completed ({new_completed}) + rejected ({new_rejected}) = {new_completed + new_rejected} "
+            f"cannot exceed pieces assigned ({job.pieces_assigned})."
+        )
     if status is not None:
         job.status = status.upper()
     if pieces_completed is not None:

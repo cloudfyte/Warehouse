@@ -166,7 +166,6 @@ def receive_stock_transfer(*, transfer_id, user):
                     warehouse=transfer.to_warehouse,
                     cost_price=src.cost_price,
                     sale_price=src.sale_price,
-                    notes=f"Transferred from {transfer.from_warehouse.name} via {transfer.transfer_number}",
                 )
 
         transfer.status = StockTransfer.Status.RECEIVED

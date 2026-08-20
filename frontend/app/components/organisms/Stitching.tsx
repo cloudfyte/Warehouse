@@ -189,11 +189,17 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
 
   async function saveUpdate() {
     if (!selected) return;
+    const pc = Number(upd.piecesCompleted);
+    const pr = Number(upd.piecesRejected);
+    if (pc + pr > selected.piecesAssigned) {
+      const msg = `Completed (${pc}) + Rejected (${pr}) = ${pc + pr} exceeds assigned pieces (${selected.piecesAssigned}).`;
+      setError(msg); showToast(msg, "error"); return;
+    }
     setLoading(true); setError("");
     try {
       await onMutate(
         `mutation U($id:ID!,$status:String,$pc:Int,$pr:Int){updateStitchingJob(id:$id,status:$status,piecesCompleted:$pc,piecesRejected:$pr){job{id status}}}`,
-        { id: selected.id, status: upd.status || undefined, pc: Number.isFinite(Number(upd.piecesCompleted)) ? Number(upd.piecesCompleted) : undefined, pr: Number.isFinite(Number(upd.piecesRejected)) ? Number(upd.piecesRejected) : undefined }
+        { id: selected.id, status: upd.status || undefined, pc: Number.isFinite(pc) ? pc : undefined, pr: Number.isFinite(pr) ? pr : undefined }
       );
       setSelected(null);
       showToast("Stitching job updated.", "success");
@@ -261,32 +267,46 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
       )}
 
       {/* Update modal */}
-      {selected && (
-        <Modal title={`Update: ${selected.jobNumber}`}
-          subtitle={`${selected.cuttingAssignment.itemType.name} · ${selected.piecesAssigned} pieces → ${selected.tailor.username}`}
-          onClose={() => { setSelected(null); setError(""); }} width={440}
-          footer={<div style={{ display: "flex", gap: 10 }}>
-            <Button onClick={saveUpdate} disabled={loading} style={{ flex: 1 }}>{loading ? "Saving…" : "Save Update"}</Button>
-            <Button variant="secondary" onClick={() => { setSelected(null); setError(""); }} style={{ flex: 1 }}>Cancel</Button>
-          </div>}>
-          <ErrorBanner msg={error} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field label="Status">
-              <Select value={upd.status || selected.status} onChange={e => setUpd(p => ({ ...p, status: e.target.value }))}>
-                {Object.entries(STITCHING_STATUS_LABELS).filter(([k]) => k !== "MOVED").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </Select>
-            </Field>
-            <FormGrid>
-              {([["Pieces Completed", "piecesCompleted"], ["Pieces Rejected", "piecesRejected"]] as [string, string][]).map(([label, field]) => (
-                <Field key={field} label={label}>
-                  <Input type="number" value={(upd as unknown as Record<string, number>)[field] || 0}
-                    onChange={e => setUpd(p => ({ ...p, [field]: +e.target.value }))} />
-                </Field>
-              ))}
-            </FormGrid>
-          </div>
-        </Modal>
-      )}
+      {selected && (() => {
+        const isReady = selected.status === "READY";
+        return (
+          <Modal title={`Update: ${selected.jobNumber}`}
+            subtitle={`${selected.cuttingAssignment.itemType.name} · ${selected.piecesAssigned} pieces → ${selected.tailor.username}`}
+            onClose={() => { setSelected(null); setError(""); }} width={440}
+            footer={<div style={{ display: "flex", gap: 10 }}>
+              {isReady ? (
+                <Button onClick={() => { openFG(selected); setSelected(null); }} style={{ flex: 1, background: "#10b981", border: "none" }}>
+                  → Move to Finished Goods
+                </Button>
+              ) : (
+                <Button onClick={saveUpdate} disabled={loading} style={{ flex: 1 }}>{loading ? "Saving…" : "Save Update"}</Button>
+              )}
+              <Button variant="secondary" onClick={() => { setSelected(null); setError(""); }} style={{ flex: 1 }}>Cancel</Button>
+            </div>}>
+            <ErrorBanner msg={error} />
+            {isReady && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#15803d", marginBottom: 14 }}>
+                ✓ Job is <strong>Ready</strong> — status and pieces cannot be edited. Use Move to Finished Goods.
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Field label="Status">
+                <Select value={upd.status || selected.status} onChange={e => setUpd(p => ({ ...p, status: e.target.value }))} disabled={isReady}>
+                  {Object.entries(STITCHING_STATUS_LABELS).filter(([k]) => k !== "MOVED").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </Select>
+              </Field>
+              <FormGrid>
+                {([["Pieces Completed", "piecesCompleted"], ["Pieces Rejected", "piecesRejected"]] as [string, string][]).map(([label, field]) => (
+                  <Field key={field} label={label}>
+                    <Input type="number" value={(upd as unknown as Record<string, number>)[field] || 0}
+                      onChange={e => setUpd(p => ({ ...p, [field]: +e.target.value }))} disabled={isReady} />
+                  </Field>
+                ))}
+              </FormGrid>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* Move to Finished Goods modal */}
       {fgJob && (

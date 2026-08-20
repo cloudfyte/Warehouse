@@ -241,16 +241,16 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
             <ErrorBanner msg={error} />
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-              <Field label="Buyer" required>
-                <Select value={buyerId} onChange={e => setBuyerId(e.target.value)}>
-                  <option value="">Select buyer</option>
-                  {buyers.filter(b => b.active).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </Select>
-              </Field>
-              <Field label="Warehouse" required>
+              <Field label="Warehouse (from)" required>
                 <Select value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
                   <option value="">Select warehouse</option>
                   {activeWarehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Buyer (to)" required>
+                <Select value={buyerId} onChange={e => setBuyerId(e.target.value)}>
+                  <option value="">Select buyer</option>
+                  {buyers.filter(b => b.active).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </Select>
               </Field>
               <Field label="Order Date">
@@ -298,8 +298,9 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                       </Select>
                     </Field>
                     <Field label={i === 0 ? "Qty" : ""}>
-                      <Input type="number" min="1" max={fp?.quantity || 9999} value={it.qty}
-                        onChange={e => setItem(i, { qty: parseInt(e.target.value) || 1 })} />
+                      <Input type="number" min="1" max={fp?.quantity || 9999} value={it.qty || ""}
+                        onChange={e => setItem(i, { qty: parseInt(e.target.value) || 0 })} />
+                      {fp && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>max {fp.quantity} avail</div>}
                     </Field>
                     <Field label={i === 0 ? "Unit Price (₹)" : ""}>
                       <Input type="number" min="0" step="0.01" value={it.unitPrice}
