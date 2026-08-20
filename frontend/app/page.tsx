@@ -171,7 +171,11 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === "undefined") return "dashboard";
+    const h = window.location.hash.slice(1) as Tab;
+    return ALL_TABS.includes(h) ? h : "dashboard";
+  });
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -268,9 +272,25 @@ export default function Home() {
     }
   }, []);
 
+  // Hash-based routing — sync tab ↔ URL hash
+  const navigateTo = useCallback((t: Tab) => {
+    setTab(t);
+    window.location.hash = t;
+  }, []);
+
+  useEffect(() => {
+    function onHashChange() {
+      const h = window.location.hash.slice(1) as Tab;
+      if (ALL_TABS.includes(h)) setTab(h);
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
   function handleLogin(jwt: string, rt: string) {
     localStorage.setItem("jwt", jwt); localStorage.setItem("refreshToken", rt);
     setTab("dashboard");
+    window.location.hash = "dashboard";
     setConfirmLogout(false);
     setToken(jwt);
   }
@@ -279,6 +299,7 @@ export default function Home() {
     localStorage.removeItem("jwt"); localStorage.removeItem("refreshToken");
     setConfirmLogout(false);
     setTab("dashboard");
+    window.location.hash = "dashboard";
     setToken(null); setData(null);
   }
 
@@ -409,7 +430,7 @@ export default function Home() {
                   </div>
                 )}
                 {sectionTabs.map(t => (
-                  <button key={t} onClick={() => { setTab(t); if (isMobile) setSidebarOpen(false); }} title={!sidebarOpen ? TAB_TITLES[t] : undefined} style={{
+                  <button key={t} onClick={() => { navigateTo(t); if (isMobile) setSidebarOpen(false); }} title={!sidebarOpen ? TAB_TITLES[t] : undefined} style={{
                     width: "100%", display: "flex", alignItems: "center", gap: 10,
                     padding: sidebarOpen ? "8px 14px 8px 18px" : "9px", justifyContent: sidebarOpen ? "flex-start" : "center",
                     background: currentTab === t ? "#ffffff22" : "none",
@@ -442,7 +463,7 @@ export default function Home() {
 
           {/* Profile row — click to open profile page */}
           <button
-            onClick={() => { setTab("profile"); if (isMobile) setSidebarOpen(false); }}
+            onClick={() => { navigateTo("profile"); if (isMobile) setSidebarOpen(false); }}
             title="My Profile"
             style={{
               width: "100%", display: "flex", alignItems: "center",
@@ -582,7 +603,7 @@ export default function Home() {
             suppliers={data?.suppliers || []}
             buyers={data?.buyers || []}
             rawBatches={data?.rawClothBatches || []}
-            onNavigate={t => setTab(t)}
+            onNavigate={t => { navigateTo(t); setShowSearch(false); }}
             onClose={() => setShowSearch(false)}
           />
         )}
@@ -592,7 +613,7 @@ export default function Home() {
           <Analytics gql={(q) => graphql(q, {}, token!)} />
         )}
         {currentTab === "dashboard" && (
-          <Dashboard stats={data?.dashboardStats} profile={data?.employeeProfile} rawBatches={data?.rawClothBatches || []} readymadeStock={data?.readymadeStock || []} role={role} cuttingAssignments={data?.cuttingAssignments || []} stitchingJobs={data?.stitchingJobs || []} onNavigate={t => setTab(t)} />
+          <Dashboard stats={data?.dashboardStats} profile={data?.employeeProfile} rawBatches={data?.rawClothBatches || []} readymadeStock={data?.readymadeStock || []} role={role} cuttingAssignments={data?.cuttingAssignments || []} stitchingJobs={data?.stitchingJobs || []} onNavigate={t => navigateTo(t)} />
         )}
         {currentTab === "suppliers" && (
           <Suppliers suppliers={data?.suppliers || []} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} purchaseBills={data?.purchaseBills || []} purchaseOrders={data?.purchaseOrders || []} supplierReturns={data?.supplierReturns || []} onMutate={mutate} />
@@ -912,7 +933,7 @@ export default function Home() {
           />
         )}
         {currentTab === "notifications" && (
-          <Notifications notifications={data?.notifications || []} onMutate={mutate} onNavigate={(t) => setTab(t as Tab)} />
+          <Notifications notifications={data?.notifications || []} onMutate={mutate} onNavigate={(t) => navigateTo(t as Tab)} />
         )}
         {currentTab === "audit_log" && (
           <AuditLogs logs={data?.allAuditLogs || []} />
