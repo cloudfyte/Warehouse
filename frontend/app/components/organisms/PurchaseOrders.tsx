@@ -557,7 +557,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 Cancel Order
               </Button>
             )}
-            {detail.status === "RECEIVED" && (() => {
+            {(detail.status === "RECEIVED" || detail.status === "VERIFIED") && (() => {
               const existingBill = purchaseBills.find(b => b.sourcePo?.id === detail.id);
               return existingBill ? (
                 <div style={{ marginTop: 8, padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 13, color: "#15803d", display: "flex", alignItems: "center", gap: 8 }}>

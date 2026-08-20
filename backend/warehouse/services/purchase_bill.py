@@ -196,7 +196,7 @@ def generate_bill_from_po(*, po_id, user):
     except PurchaseOrder.DoesNotExist as exc:
         raise GraphQLError("Purchase order not found.") from exc
 
-    if po.status != PurchaseOrder.Status.RECEIVED:
+    if po.status not in (PurchaseOrder.Status.RECEIVED, PurchaseOrder.Status.VERIFIED):
         raise GraphQLError("Bill can only be generated for a received purchase order.")
 
     if PurchaseBill.objects.filter(source_po=po).exists():
