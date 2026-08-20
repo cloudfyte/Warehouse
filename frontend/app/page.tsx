@@ -430,11 +430,11 @@ export default function Home() {
                   </div>
                 )}
                 {sectionTabs.map(t => (
-                  <button key={t} onClick={() => { navigateTo(t); if (isMobile) setSidebarOpen(false); }} title={!sidebarOpen ? TAB_TITLES[t] : undefined} style={{
+                  <a key={t} href={`#${t}`} onClick={() => { if (isMobile) setSidebarOpen(false); }} title={!sidebarOpen ? TAB_TITLES[t] : undefined} style={{
                     width: "100%", display: "flex", alignItems: "center", gap: 10,
                     padding: sidebarOpen ? "8px 14px 8px 18px" : "9px", justifyContent: sidebarOpen ? "flex-start" : "center",
                     background: currentTab === t ? "#ffffff22" : "none",
-                    border: "none", color: "#fff", cursor: "pointer",
+                    color: "#fff", cursor: "pointer", textDecoration: "none",
                     fontWeight: currentTab === t ? 700 : 400, fontSize: 13,
                     borderLeft: currentTab === t ? "3px solid #fff" : "3px solid transparent",
                     transition: "background 0.15s",
@@ -450,7 +450,7 @@ export default function Home() {
                         {t === "purchase_orders" && (() => { const n = (data?.purchaseOrders ?? []).filter((p: {status:string}) => p.status === "PLACED" || p.status === "DISPATCHED").length; return n > 0 ? <span style={{ background: "#f59e0b", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>{n}</span> : null; })()}
                       </span>
                     )}
-                  </button>
+                  </a>
                 ))}
                 {sidebarOpen && <div style={{ margin: "6px 14px", borderBottom: "1px solid #ffffff18" }} />}
               </div>
@@ -462,14 +462,15 @@ export default function Home() {
         <div style={{ padding: "12px", borderTop: "1px solid #ffffff22" }}>
 
           {/* Profile row — click to open profile page */}
-          <button
-            onClick={() => { navigateTo("profile"); if (isMobile) setSidebarOpen(false); }}
+          <a
+            href="#profile"
+            onClick={() => { if (isMobile) setSidebarOpen(false); }}
             title="My Profile"
             style={{
               width: "100%", display: "flex", alignItems: "center",
               gap: sidebarOpen ? 10 : 0, justifyContent: sidebarOpen ? "flex-start" : "center",
               marginBottom: 10, background: currentTab === "profile" ? "rgba(255,255,255,0.12)" : "transparent",
-              border: "none", borderRadius: 9, padding: "6px 4px", cursor: "pointer",
+              borderRadius: 9, padding: "6px 4px", cursor: "pointer", textDecoration: "none",
               transition: "background 0.15s",
             }}
           >
@@ -497,7 +498,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-          </button>
+          </a>
 
           {/* Controls row — stacks vertically when collapsed so buttons fit in 56px */}
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexDirection: sidebarOpen ? "row" : "column" }}>
