@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { applyBrandColors } from "@/app/lib/theme";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
+import { Lock, AlertTriangle } from "lucide-react";
 import Input from "@/app/components/atoms/Input";
 import AtomTextarea from "@/app/components/atoms/Textarea";
 import Button from "@/app/components/atoms/Button";
@@ -28,7 +29,15 @@ interface SettingsData {
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
 
-function SettingsSection({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
+type Tab = "general" | "integrations" | "print" | "danger";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "general", label: "General" },
+  { id: "integrations", label: "Integrations" },
+  { id: "print", label: "Print & Tags" },
+  { id: "danger", label: "Danger Zone" },
+];
+
+function Section({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
   return (
     <div style={{ background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14, padding: 24, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid var(--line)" }}>
@@ -54,12 +63,20 @@ function Toggle({ label, description, checked, onChange }: { label: string; desc
   );
 }
 
+function InfoBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", lineHeight: 1.6 }}>
+      {children}
+    </div>
+  );
+}
+
 const RESET_PHRASE = "RESET ALL DATA";
 
 export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
+  const [tab, setTab] = useState<Tab>("general");
   const [form, setForm] = useState<SettingsData>({ ...settings });
   const [loading, setLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
   const [resetModal, setResetModal] = useState(false);
@@ -72,7 +89,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
   if (!isSuperAdmin) {
     return (
       <div style={{ padding: 60, textAlign: "center", color: "var(--muted)" }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+        <div style={{ marginBottom: 12, display: "flex", justifyContent: "center", opacity: 0.4 }}><Lock size={40} /></div>
         <div style={{ fontSize: 16, fontWeight: 600 }}>Super Administrators only</div>
         <div style={{ fontSize: 14, marginTop: 4 }}>Contact your system administrator to change settings.</div>
       </div>
@@ -85,20 +102,15 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
   async function handleReset() {
     setResetLoading(true); setResetError("");
     try {
-      await onMutate(
-        `mutation R($phrase:String!){resetAllData(confirmPhrase:$phrase){ok message}}`,
-        { phrase: resetPhrase }
-      );
-      setResetDone(true);
-      setResetModal(false);
-      setResetPhrase("");
+      await onMutate(`mutation R($phrase:String!){resetAllData(confirmPhrase:$phrase){ok message}}`, { phrase: resetPhrase });
+      setResetDone(true); setResetModal(false); setResetPhrase("");
       showToast("All data has been reset.", "success");
     } catch (e: unknown) { setResetError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setResetLoading(false); }
   }
 
   async function save() {
-    setLoading(true); setSaved(false); setError("");
+    setLoading(true); setError("");
     try {
       await onMutate(
         `mutation U(
@@ -129,327 +141,317 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           companyName: form.companyName, companyState: form.companyState || undefined,
           currencySymbol: form.currencySymbol,
           taxPercent: form.taxPercent ? +form.taxPercent : undefined,
-          primaryColor: form.primaryColor || undefined,
-          accentColor: form.accentColor || undefined,
+          primaryColor: form.primaryColor || undefined, accentColor: form.accentColor || undefined,
           smtpHost: form.smtpHost, smtpPort: form.smtpPort ? +form.smtpPort : undefined,
           smtpUser: form.smtpUser, smtpPassword: form.smtpPassword || undefined,
           smtpFromEmail: form.smtpFromEmail, emailEnabled: form.emailEnabled,
           twilioSid: form.twilioAccountSid, twilioToken: form.twilioAuthToken,
           twilioFrom: form.twilioFromNumber, smsEnabled: form.smsEnabled,
-          waToken: form.waToken || undefined, waPhoneNumberId: form.waPhoneNumberId || undefined,
-          waEnabled: form.waEnabled,
+          waToken: form.waToken || undefined, waPhoneNumberId: form.waPhoneNumberId || undefined, waEnabled: form.waEnabled,
           firebaseJson: form.firebaseServiceAccountJson || undefined, fcmEnabled: form.fcmEnabled,
-          otpExpiry: form.otpExpiryMinutes ? +form.otpExpiryMinutes : undefined,
-          allowOtp: form.allowOtpLogin,
-          printAddr: form.printCompanyAddress || undefined,
-          printBank: form.printBankDetails || undefined,
-          printTerms: form.printTerms || undefined,
-          printSig: form.printSignatureLabel || undefined,
-          printLogo: form.printShowLogo,
-          gstOnPurchases: form.gstOnPurchases,
-          gstin: form.gstin || undefined,
-          tagBrand: form.tagBrandName || undefined,
-          tagTagline: form.tagTagline || undefined,
-          tagShowBarcode: form.tagShowBarcode,
-          tagShowSku: form.tagShowSku,
-          tagShowColor: form.tagShowColor,
-          tagShowAgeGroup: form.tagShowAgeGroup,
-          tagFooter: form.tagFooterText || undefined,
-          tagWidth: form.tagPrinterWidth || undefined,
+          otpExpiry: form.otpExpiryMinutes ? +form.otpExpiryMinutes : undefined, allowOtp: form.allowOtpLogin,
+          printAddr: form.printCompanyAddress || undefined, printBank: form.printBankDetails || undefined,
+          printTerms: form.printTerms || undefined, printSig: form.printSignatureLabel || undefined, printLogo: form.printShowLogo,
+          gstOnPurchases: form.gstOnPurchases, gstin: form.gstin || undefined,
+          tagBrand: form.tagBrandName || undefined, tagTagline: form.tagTagline || undefined,
+          tagShowBarcode: form.tagShowBarcode, tagShowSku: form.tagShowSku,
+          tagShowColor: form.tagShowColor, tagShowAgeGroup: form.tagShowAgeGroup,
+          tagFooter: form.tagFooterText || undefined, tagWidth: form.tagPrinterWidth || undefined,
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
-      setSaved(true);
       showToast("Settings saved.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 820 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>System Settings</h2>
-          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>Changes take effect immediately after saving</div>
+    <div style={{ padding: 24, maxWidth: 860 }}>
+      {/* ── Tab bar + Save ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", gap: 4, background: "var(--canvas)", borderRadius: 10, padding: 4, border: "1px solid var(--line)" }}>
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: "8px 18px", borderRadius: 7, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, transition: "all 0.15s",
+                background: tab === t.id ? "var(--paper)" : "transparent",
+                color: tab === t.id ? (t.id === "danger" ? "#dc2626" : "var(--primary)") : "var(--muted)",
+                boxShadow: tab === t.id ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-        <Button onClick={save} disabled={loading} style={{ padding: "11px 28px" }}>
-          {loading ? "Saving…" : "Save Changes"}
-        </Button>
+        {tab !== "danger" && (
+          <Button onClick={save} disabled={loading} style={{ padding: "10px 26px" }}>
+            {loading ? "Saving…" : "Save Changes"}
+          </Button>
+        )}
       </div>
 
-      {saved && (
-        <div style={{ background: "#edf8ee", border: "1px solid #c3e6c5", color: "#2e6e34", padding: "12px 16px", borderRadius: 10, marginBottom: 20, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          ✓ Settings saved successfully.
-        </div>
-      )}
       <ErrorBanner msg={error} />
 
-      <SettingsSection title="App & Company">
-        <Field label="App Name">
-          <Input value={form.appName || ""} onChange={e => set("appName")(e.target.value)} />
-        </Field>
-        <Field label="App Subtitle">
-          <Input value={form.appSubtitle || ""} onChange={e => set("appSubtitle")(e.target.value)} />
-        </Field>
-        <Field label="Company Name">
-          <Input value={form.companyName || ""} onChange={e => set("companyName")(e.target.value)} />
-        </Field>
-        <Field label="Company State">
-          <Input value={form.companyState || ""} onChange={e => set("companyState")(e.target.value)} placeholder="e.g. Tamil Nadu (for CGST/SGST vs IGST)" />
-        </Field>
-        <Field label="Currency Symbol">
-          <Input value={form.currencySymbol || ""} onChange={e => set("currencySymbol")(e.target.value)} />
-        </Field>
-        <Field label="Default GST / Tax %">
-          <Input type="number" value={String(form.taxPercent ?? "")} onChange={e => set("taxPercent")(e.target.value)} />
-        </Field>
-        <Field label="Company GSTIN">
-          <Input value={form.gstin || ""} onChange={e => set("gstin")(e.target.value)} placeholder="e.g. 33AABCU9603R1ZX" />
-        </Field>
-        <Toggle
-          label="Apply GST on Purchase Bills (Input Tax Credit)"
-          description="When ON, each bill item shows a GST % field. Tax is split as CGST+SGST (intra-state) or IGST (inter-state) based on supplier state vs company state."
-          checked={!!form.gstOnPurchases}
-          onChange={tog("gstOnPurchases")}
-        />
-        <Field label="OTP Expiry (minutes)">
-          <Input type="number" value={String(form.otpExpiryMinutes ?? "")} onChange={e => set("otpExpiryMinutes")(e.target.value)} />
-        </Field>
-        <Toggle label="Allow OTP Login" description="Users can log in via Email, SMS, or WhatsApp one-time password" checked={!!form.allowOtpLogin} onChange={tog("allowOtpLogin")} />
-      </SettingsSection>
+      {/* ── General ── */}
+      {tab === "general" && (
+        <>
+          <Section title="App & Company">
+            <Field label="App Name">
+              <Input value={form.appName || ""} onChange={e => set("appName")(e.target.value)} />
+            </Field>
+            <Field label="App Subtitle">
+              <Input value={form.appSubtitle || ""} onChange={e => set("appSubtitle")(e.target.value)} />
+            </Field>
+            <Field label="Company Name">
+              <Input value={form.companyName || ""} onChange={e => set("companyName")(e.target.value)} />
+            </Field>
+            <Field label="Company State">
+              <Input value={form.companyState || ""} onChange={e => set("companyState")(e.target.value)} placeholder="e.g. Tamil Nadu (for CGST/SGST vs IGST)" />
+            </Field>
+            <Field label="Currency Symbol">
+              <Input value={form.currencySymbol || ""} onChange={e => set("currencySymbol")(e.target.value)} />
+            </Field>
+            <Field label="Default GST / Tax %">
+              <Input type="number" value={String(form.taxPercent ?? "")} onChange={e => set("taxPercent")(e.target.value)} />
+            </Field>
+            <Field label="Company GSTIN">
+              <Input value={form.gstin || ""} onChange={e => set("gstin")(e.target.value)} placeholder="e.g. 33AABCU9603R1ZX" />
+            </Field>
+            <Toggle
+              label="Apply GST on Purchase Bills (Input Tax Credit)"
+              description="When ON, each bill item shows a GST % field. Tax is split as CGST+SGST (intra-state) or IGST (inter-state) based on supplier state vs company state."
+              checked={!!form.gstOnPurchases}
+              onChange={tog("gstOnPurchases")}
+            />
+            <Field label="OTP Expiry (minutes)">
+              <Input type="number" value={String(form.otpExpiryMinutes ?? "")} onChange={e => set("otpExpiryMinutes")(e.target.value)} />
+            </Field>
+            <Toggle label="Allow OTP Login" description="Users can log in via Email, SMS, or WhatsApp one-time password" checked={!!form.allowOtpLogin} onChange={tog("allowOtpLogin")} />
+          </Section>
 
-      {/* ── Brand Colors ── */}
-      <div style={{ background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14, padding: 24, marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid var(--line)" }}>
-          <span style={{ fontWeight: 700, fontSize: 13, color: "var(--primary)", textTransform: "uppercase", letterSpacing: 0.6 }}>Brand Colors</span>
-          <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: "#818cf818", color: "#6366f1", border: "1px solid #818cf833" }}>Live Preview</span>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
-          {/* Primary color picker */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Primary Color</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <input type="color" value={form.primaryColor || "#173a2c"}
-                onChange={e => { setForm(p => ({ ...p, primaryColor: e.target.value })); applyBrandColors({ primaryColor: e.target.value }); }}
-                style={{ width: 52, height: 52, padding: 2, borderRadius: 10, border: "2px solid var(--line)", cursor: "pointer", background: "var(--input-bg)" }} />
+          {/* Brand Colors */}
+          <div style={{ background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14, padding: 24, marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid var(--line)" }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: "var(--primary)", textTransform: "uppercase", letterSpacing: 0.6 }}>Brand Colors</span>
+              <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: "#818cf818", color: "#6366f1", border: "1px solid #818cf833" }}>Live Preview</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontFamily: "monospace" }}>{(form.primaryColor || "#173a2c").toUpperCase()}</div>
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Sidebar, buttons, headings</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Primary Color</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <input type="color" value={form.primaryColor || "#173a2c"}
+                    onChange={e => { setForm(p => ({ ...p, primaryColor: e.target.value })); applyBrandColors({ primaryColor: e.target.value }); }}
+                    style={{ width: 52, height: 52, padding: 2, borderRadius: 10, border: "2px solid var(--line)", cursor: "pointer", background: "var(--input-bg)" }} />
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontFamily: "monospace" }}>{(form.primaryColor || "#173a2c").toUpperCase()}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Sidebar, buttons, headings</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Accent Color</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <input type="color" value={form.accentColor || "#d4932f"}
+                    onChange={e => { setForm(p => ({ ...p, accentColor: e.target.value })); applyBrandColors({ accentColor: e.target.value }); }}
+                    style={{ width: 52, height: 52, padding: 2, borderRadius: 10, border: "2px solid var(--line)", cursor: "pointer", background: "var(--input-bg)" }} />
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontFamily: "monospace" }}>{(form.accentColor || "#d4932f").toUpperCase()}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Badges, highlights, tags</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--line)", display: "flex", height: 64 }}>
+              <div style={{ background: form.primaryColor || "#173a2c", width: 180, display: "flex", alignItems: "center", paddingLeft: 16, gap: 10, flexShrink: 0 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>A</div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>Sidebar</div>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>Navigation</div>
+                </div>
+              </div>
+              <div style={{ flex: 1, background: "var(--canvas)", display: "flex", alignItems: "center", gap: 10, paddingLeft: 16 }}>
+                <button style={{ background: form.primaryColor || "#173a2c", color: "#fff", border: "none", borderRadius: 7, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "default" }}>Save</button>
+                <span style={{ background: form.accentColor || "#d4932f", color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "3px 9px" }}>Badge</span>
+                <span style={{ padding: "3px 9px", borderRadius: 99, border: `1.5px solid ${form.primaryColor || "#173a2c"}`, color: form.primaryColor || "#173a2c", fontSize: 10, fontWeight: 600 }}>Outline</span>
               </div>
             </div>
           </div>
+        </>
+      )}
 
-          {/* Accent color picker */}
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>Accent Color</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <input type="color" value={form.accentColor || "#d4932f"}
-                onChange={e => { setForm(p => ({ ...p, accentColor: e.target.value })); applyBrandColors({ accentColor: e.target.value }); }}
-                style={{ width: 52, height: 52, padding: 2, borderRadius: 10, border: "2px solid var(--line)", cursor: "pointer", background: "var(--input-bg)" }} />
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontFamily: "monospace" }}>{(form.accentColor || "#d4932f").toUpperCase()}</div>
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Badges, highlights, tags</div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* ── Integrations ── */}
+      {tab === "integrations" && (
+        <>
+          <Section title="Email — SMTP">
+            <Field label="SMTP Host">
+              <Input value={form.smtpHost || ""} onChange={e => set("smtpHost")(e.target.value)} placeholder="smtp.gmail.com" />
+            </Field>
+            <Field label="SMTP Port">
+              <Input type="number" value={String(form.smtpPort ?? "")} onChange={e => set("smtpPort")(e.target.value)} placeholder="587" />
+            </Field>
+            <Field label="SMTP Username">
+              <Input value={form.smtpUser || ""} onChange={e => set("smtpUser")(e.target.value)} placeholder="you@gmail.com" />
+            </Field>
+            <Field label="SMTP Password">
+              <Input type="password" value={form.smtpPassword || ""} onChange={e => set("smtpPassword")(e.target.value)} placeholder="App password" />
+            </Field>
+            <Field label="From Email">
+              <Input type="email" value={form.smtpFromEmail || ""} onChange={e => set("smtpFromEmail")(e.target.value)} placeholder="noreply@yourcompany.com" />
+            </Field>
+            <Toggle label="Enable Email Notifications" description="Send OTP codes and alerts via email" checked={!!form.emailEnabled} onChange={tog("emailEnabled")} />
+          </Section>
 
-        {/* Live preview strip */}
-        <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--line)", display: "flex", height: 64 }}>
-          <div style={{ background: form.primaryColor || "#173a2c", width: 180, display: "flex", alignItems: "center", paddingLeft: 16, gap: 10, flexShrink: 0 }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>A</div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>Sidebar</div>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>Navigation</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, background: "var(--canvas)", display: "flex", alignItems: "center", gap: 10, paddingLeft: 16 }}>
-            <button style={{ background: form.primaryColor || "#173a2c", color: "#fff", border: "none", borderRadius: 7, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "default" }}>
-              Save
-            </button>
-            <span style={{ background: form.accentColor || "#d4932f", color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "3px 9px" }}>
-              Badge
-            </span>
-            <span style={{ padding: "3px 9px", borderRadius: 99, border: `1.5px solid ${form.primaryColor || "#173a2c"}`, color: form.primaryColor || "#173a2c", fontSize: 10, fontWeight: 600 }}>
-              Outline
-            </span>
-          </div>
-        </div>
+          <Section title="SMS — Twilio">
+            <Field label="Account SID">
+              <Input value={form.twilioAccountSid || ""} onChange={e => set("twilioAccountSid")(e.target.value)} placeholder="ACxxxxxxxx" />
+            </Field>
+            <Field label="Auth Token">
+              <Input type="password" value={form.twilioAuthToken || ""} onChange={e => set("twilioAuthToken")(e.target.value)} placeholder="Leave blank to keep unchanged" />
+            </Field>
+            <Field label="From Number">
+              <Input value={form.twilioFromNumber || ""} onChange={e => set("twilioFromNumber")(e.target.value)} placeholder="+91..." />
+            </Field>
+            <Toggle label="Enable SMS OTP" description="Send one-time passwords via SMS" checked={!!form.smsEnabled} onChange={tog("smsEnabled")} />
+          </Section>
 
-        <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>
-          Click "Save Changes" at the top to apply these colors permanently for all users.
-        </div>
-      </div>
+          <Section title="WhatsApp — Meta Business API" badge="New">
+            <InfoBox>Get your credentials from <strong>Meta Business Manager → WhatsApp → API Setup</strong>. The access token and Phone Number ID are shown on the app dashboard.</InfoBox>
+            <Field label="Access Token">
+              <Input type="password" value={form.waToken || ""} onChange={e => set("waToken")(e.target.value)} placeholder="Leave blank to keep unchanged" />
+            </Field>
+            <Field label="Phone Number ID">
+              <Input value={form.waPhoneNumberId || ""} onChange={e => set("waPhoneNumberId")(e.target.value)} placeholder="123456789012345" />
+            </Field>
+            <Toggle label="Enable WhatsApp Notifications" description="Send OTP codes and business alerts via WhatsApp" checked={!!form.waEnabled} onChange={tog("waEnabled")} />
+          </Section>
 
-      <SettingsSection title="Email — SMTP">
-        <Field label="SMTP Host">
-          <Input value={form.smtpHost || ""} onChange={e => set("smtpHost")(e.target.value)} placeholder="smtp.gmail.com" />
-        </Field>
-        <Field label="SMTP Port">
-          <Input type="number" value={String(form.smtpPort ?? "")} onChange={e => set("smtpPort")(e.target.value)} placeholder="587" />
-        </Field>
-        <Field label="SMTP Username">
-          <Input value={form.smtpUser || ""} onChange={e => set("smtpUser")(e.target.value)} placeholder="you@gmail.com" />
-        </Field>
-        <Field label="SMTP Password">
-          <Input type="password" value={form.smtpPassword || ""} onChange={e => set("smtpPassword")(e.target.value)} placeholder="App password" />
-        </Field>
-        <Field label="From Email">
-          <Input type="email" value={form.smtpFromEmail || ""} onChange={e => set("smtpFromEmail")(e.target.value)} placeholder="noreply@yourcompany.com" />
-        </Field>
-        <Toggle label="Enable Email Notifications" description="Send OTP codes and alerts via email" checked={!!form.emailEnabled} onChange={tog("emailEnabled")} />
-      </SettingsSection>
+          <Section title="Firebase Push Notifications" badge="New">
+            <InfoBox>Generate a service account key from <strong>Firebase Console → Project Settings → Service Accounts → Generate new private key</strong>. Paste the full JSON content below.</InfoBox>
+            <Field label="Service Account JSON" style={{ gridColumn: "1 / -1" }}>
+              <AtomTextarea
+                value={form.firebaseServiceAccountJson || ""}
+                onChange={e => set("firebaseServiceAccountJson")(e.target.value)}
+                placeholder='Leave blank to keep unchanged. Paste full JSON: {"type":"service_account","project_id":"..."}'
+                rows={5}
+                style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
+              />
+            </Field>
+            <Toggle label="Enable Firebase Push Notifications" description="Send real-time push notifications to browsers" checked={!!form.fcmEnabled} onChange={tog("fcmEnabled")} />
+          </Section>
+        </>
+      )}
 
-      <SettingsSection title="SMS — Twilio">
-        <Field label="Account SID">
-          <Input value={form.twilioAccountSid || ""} onChange={e => set("twilioAccountSid")(e.target.value)} placeholder="ACxxxxxxxx" />
-        </Field>
-        <Field label="Auth Token">
-          <Input type="password" value={form.twilioAuthToken || ""} onChange={e => set("twilioAuthToken")(e.target.value)} placeholder="Leave blank to keep unchanged" />
-        </Field>
-        <Field label="From Number">
-          <Input value={form.twilioFromNumber || ""} onChange={e => set("twilioFromNumber")(e.target.value)} placeholder="+91..." />
-        </Field>
-        <Toggle label="Enable SMS OTP" description="Send one-time passwords via SMS" checked={!!form.smsEnabled} onChange={tog("smsEnabled")} />
-      </SettingsSection>
+      {/* ── Print & Tags ── */}
+      {tab === "print" && (
+        <>
+          <Section title="Print & Document Layout" badge="New">
+            <InfoBox>These details appear on all printed documents — quotations, invoices, delivery challans, and purchase orders.</InfoBox>
+            <Field label="Company Address (printed header)" style={{ gridColumn: "1 / -1" }}>
+              <AtomTextarea
+                value={form.printCompanyAddress || ""}
+                onChange={e => set("printCompanyAddress")(e.target.value)}
+                placeholder={"123, Industrial Area, Phase II\nCoimbatore - 641 003, Tamil Nadu\nPhone: +91 98765 43210"}
+                rows={3}
+              />
+            </Field>
+            <Field label="Bank Details (printed footer)" style={{ gridColumn: "1 / -1" }}>
+              <AtomTextarea
+                value={form.printBankDetails || ""}
+                onChange={e => set("printBankDetails")(e.target.value)}
+                placeholder={"Bank: State Bank of India\nA/C No: 12345678901\nIFSC: SBIN0001234\nBranch: Main Branch, Coimbatore"}
+                rows={3}
+              />
+            </Field>
+            <Field label="Terms & Conditions" style={{ gridColumn: "1 / -1" }}>
+              <AtomTextarea
+                value={form.printTerms || ""}
+                onChange={e => set("printTerms")(e.target.value)}
+                placeholder={"1. Goods once sold will not be taken back.\n2. All disputes subject to local jurisdiction.\n3. Payment due within 30 days of invoice date."}
+                rows={3}
+              />
+            </Field>
+            <Field label="Signature Line Label">
+              <Input value={form.printSignatureLabel || ""} onChange={e => set("printSignatureLabel")(e.target.value)} placeholder="Authorised Signatory" />
+            </Field>
+            <Toggle label="Show Company Logo on Printed Documents" description="Display the logo URL image in the header of all print outputs" checked={form.printShowLogo !== false} onChange={tog("printShowLogo")} />
+          </Section>
 
-      <SettingsSection title="WhatsApp — Meta Business API" badge="New">
-        <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", lineHeight: 1.6 }}>
-          Get your credentials from <strong>Meta Business Manager → WhatsApp → API Setup</strong>.
-          The access token and Phone Number ID are shown on the app dashboard.
-        </div>
-        <Field label="Access Token">
-          <Input type="password" value={form.waToken || ""} onChange={e => set("waToken")(e.target.value)} placeholder="Leave blank to keep unchanged" />
-        </Field>
-        <Field label="Phone Number ID">
-          <Input value={form.waPhoneNumberId || ""} onChange={e => set("waPhoneNumberId")(e.target.value)} placeholder="123456789012345" />
-        </Field>
-        <Toggle label="Enable WhatsApp Notifications" description="Send OTP codes and business alerts via WhatsApp" checked={!!form.waEnabled} onChange={tog("waEnabled")} />
-      </SettingsSection>
-
-      <SettingsSection title="Firebase Push Notifications" badge="New">
-        <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", lineHeight: 1.6 }}>
-          Generate a service account key from <strong>Firebase Console → Project Settings → Service Accounts → Generate new private key</strong>.
-          Paste the full JSON content below. Also set the NEXT_PUBLIC_FIREBASE_* variables in the frontend .env.
-        </div>
-        <Field label="Service Account JSON" style={{ gridColumn: "1 / -1" }}>
-          <AtomTextarea
-            value={form.firebaseServiceAccountJson || ""}
-            onChange={e => set("firebaseServiceAccountJson")(e.target.value)}
-            placeholder='Leave blank to keep unchanged. Paste full JSON: {"type":"service_account","project_id":"..."}'
-            rows={5}
-            style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 }}
-          />
-        </Field>
-        <Toggle label="Enable Firebase Push Notifications" description="Send real-time push notifications to browsers" checked={!!form.fcmEnabled} onChange={tog("fcmEnabled")} />
-      </SettingsSection>
-
-      <SettingsSection title="Print & Document Layout" badge="New">
-        <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", lineHeight: 1.6 }}>
-          These details appear on all printed documents — quotations, invoices, delivery challans, and purchase orders.
-        </div>
-        <Field label="Company Address (printed header)" style={{ gridColumn: "1 / -1" }}>
-          <AtomTextarea
-            value={form.printCompanyAddress || ""}
-            onChange={e => set("printCompanyAddress")(e.target.value)}
-            placeholder={"123, Industrial Area, Phase II\nCoimbatore - 641 003, Tamil Nadu\nPhone: +91 98765 43210"}
-            rows={3}
-          />
-        </Field>
-        <Field label="Bank Details (printed footer)" style={{ gridColumn: "1 / -1" }}>
-          <AtomTextarea
-            value={form.printBankDetails || ""}
-            onChange={e => set("printBankDetails")(e.target.value)}
-            placeholder={"Bank: State Bank of India\nA/C No: 12345678901\nIFSC: SBIN0001234\nBranch: Main Branch, Coimbatore"}
-            rows={3}
-          />
-        </Field>
-        <Field label="Terms & Conditions" style={{ gridColumn: "1 / -1" }}>
-          <AtomTextarea
-            value={form.printTerms || ""}
-            onChange={e => set("printTerms")(e.target.value)}
-            placeholder={"1. Goods once sold will not be taken back.\n2. All disputes subject to local jurisdiction.\n3. Payment due within 30 days of invoice date."}
-            rows={3}
-          />
-        </Field>
-        <Field label="Signature Line Label">
-          <Input value={form.printSignatureLabel || ""} onChange={e => set("printSignatureLabel")(e.target.value)} placeholder="Authorised Signatory" />
-        </Field>
-        <Toggle label="Show Company Logo on Printed Documents" description="Display the logo URL image in the header of all print outputs" checked={form.printShowLogo !== false} onChange={tog("printShowLogo")} />
-      </SettingsSection>
-
-      <SettingsSection title="Product Tag Layout" badge="New">
-        <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", lineHeight: 1.6 }}>
-          Controls what appears on printed product tags and Bluetooth thermal prints from Finished Goods.
-        </div>
-        <Field label="Brand Name on Tag">
-          <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} />
-        </Field>
-        <Field label="Tagline under Brand">
-          <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Quality Garments · Since 2010" />
-        </Field>
-        <Field label="Tag Footer Text">
-          <Input value={form.tagFooterText || ""} onChange={e => set("tagFooterText")(e.target.value)} placeholder="100% Cotton · Made in India" />
-        </Field>
-        <Field label="Thermal Printer Width">
-          <select
-            value={form.tagPrinterWidth || "58mm"}
-            onChange={e => set("tagPrinterWidth")(e.target.value)}
-            style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 14 }}
-          >
-            <option value="58mm">58mm (compact)</option>
-            <option value="80mm">80mm (wide)</option>
-          </select>
-        </Field>
-        <Toggle label="Show Barcode" description="Print barcode stripe on tag" checked={form.tagShowBarcode !== false} onChange={tog("tagShowBarcode")} />
-        <Toggle label="Show SKU Code" description="Print SKU number on tag" checked={form.tagShowSku !== false} onChange={tog("tagShowSku")} />
-        <Toggle label="Show Cloth Color" description="Print colour name on tag" checked={form.tagShowColor !== false} onChange={tog("tagShowColor")} />
-        <Toggle label="Show Age Group" description="Print age group (e.g. Kids / Adult) on tag" checked={form.tagShowAgeGroup !== false} onChange={tog("tagShowAgeGroup")} />
-      </SettingsSection>
+          <Section title="Product Tag Layout" badge="New">
+            <InfoBox>Controls what appears on printed product tags and Bluetooth thermal prints from Finished Goods.</InfoBox>
+            <Field label="Brand Name on Tag">
+              <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} />
+            </Field>
+            <Field label="Tagline under Brand">
+              <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Quality Garments · Since 2010" />
+            </Field>
+            <Field label="Tag Footer Text">
+              <Input value={form.tagFooterText || ""} onChange={e => set("tagFooterText")(e.target.value)} placeholder="100% Cotton · Made in India" />
+            </Field>
+            <Field label="Thermal Printer Width">
+              <select
+                value={form.tagPrinterWidth || "58mm"}
+                onChange={e => set("tagPrinterWidth")(e.target.value)}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 14 }}
+              >
+                <option value="58mm">58mm (compact)</option>
+                <option value="80mm">80mm (wide)</option>
+              </select>
+            </Field>
+            <Toggle label="Show Barcode" description="Print barcode stripe on tag" checked={form.tagShowBarcode !== false} onChange={tog("tagShowBarcode")} />
+            <Toggle label="Show SKU Code" description="Print SKU number on tag" checked={form.tagShowSku !== false} onChange={tog("tagShowSku")} />
+            <Toggle label="Show Cloth Color" description="Print colour name on tag" checked={form.tagShowColor !== false} onChange={tog("tagShowColor")} />
+            <Toggle label="Show Age Group" description="Print age group (e.g. Kids / Adult) on tag" checked={form.tagShowAgeGroup !== false} onChange={tog("tagShowAgeGroup")} />
+          </Section>
+        </>
+      )}
 
       {/* ── Danger Zone ── */}
-      {resetDone && (
-        <div style={{ background: "#edf8ee", border: "1px solid #c3e6c5", color: "#2e6e34", padding: "12px 16px", borderRadius: 10, marginBottom: 20, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          ✓ All data has been cleared. You can now create fresh warehouses and data.
-        </div>
-      )}
-      <div style={{ background: "var(--paper)", border: "1.5px solid #ef444433", borderRadius: 14, padding: 24, marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid #ef444422" }}>
-          <span style={{ fontWeight: 700, fontSize: 13, color: "#dc2626", textTransform: "uppercase", letterSpacing: 0.6 }}>Danger Zone</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--ink)", marginBottom: 6 }}>Reset All Data</div>
-            <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, maxWidth: 460 }}>
-              Permanently deletes all warehouses, suppliers, buyers, purchase orders, purchase bills, raw cloth, production records, sales orders, employees (except your account), and all inventory. System settings and your admin account are preserved. This cannot be undone.
+      {tab === "danger" && (
+        <>
+          {resetDone && (
+            <div style={{ background: "#edf8ee", border: "1px solid #c3e6c5", color: "#2e6e34", padding: "12px 16px", borderRadius: 10, marginBottom: 20, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              ✓ All data has been cleared. You can now create fresh warehouses and data.
+            </div>
+          )}
+          <div style={{ background: "var(--paper)", border: "1.5px solid #ef444433", borderRadius: 14, padding: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid #ef444422" }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: "#dc2626", textTransform: "uppercase", letterSpacing: 0.6 }}>Danger Zone</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "var(--ink)", marginBottom: 6 }}>Reset All Data</div>
+                <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, maxWidth: 460 }}>
+                  Permanently deletes all warehouses, suppliers, buyers, purchase orders, purchase bills, raw cloth, production records, sales orders, employees (except your account), and all inventory. System settings and your admin account are preserved. This cannot be undone.
+                </div>
+              </div>
+              <Button
+                variant="danger"
+                onClick={() => { setResetModal(true); setResetPhrase(""); setResetError(""); setTimeout(() => resetInputRef.current?.focus(), 50); }}
+                style={{ flexShrink: 0, whiteSpace: "nowrap", background: "transparent", color: "#dc2626", border: "1.5px solid #dc2626" }}
+              >
+                Reset All Data
+              </Button>
             </div>
           </div>
-          <Button
-            variant="danger"
-            onClick={() => { setResetModal(true); setResetPhrase(""); setResetError(""); setTimeout(() => resetInputRef.current?.focus(), 50); }}
-            style={{ flexShrink: 0, whiteSpace: "nowrap", background: "transparent", color: "#dc2626", border: "1.5px solid #dc2626" }}
-          >
-            Reset All Data
-          </Button>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* ── Reset confirmation modal ── */}
       {resetModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={e => { if (e.target === e.currentTarget) { setResetModal(false); setResetPhrase(""); } }}>
           <div style={{ background: "var(--paper)", borderRadius: 16, padding: 32, width: "100%", maxWidth: 480, border: "1.5px solid #ef444433", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize: 28, marginBottom: 12, textAlign: "center" }}>⚠️</div>
+            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center", color: "#dc2626" }}><AlertTriangle size={28} /></div>
             <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 800, color: "#dc2626", textAlign: "center" }}>Reset All Data?</h3>
             <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--muted)", lineHeight: 1.7, textAlign: "center" }}>
               This will permanently delete <strong>all warehouses, suppliers, buyers, orders, inventory, employees</strong> and every other record in the system. Your admin account and system settings will be preserved.
             </p>
-
             <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 14px", marginBottom: 20, fontSize: 12, color: "#991b1b", lineHeight: 1.6 }}>
               <strong>Cannot be undone.</strong> Take a database backup before proceeding if you want to recover this data later.
             </div>
-
             <label style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
                 Type <strong style={{ color: "#dc2626", fontFamily: "monospace" }}>{RESET_PHRASE}</strong> to confirm
@@ -463,19 +465,9 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                 style={{ padding: "11px 14px", borderRadius: 9, border: `1.5px solid ${resetPhrase === RESET_PHRASE ? "#dc2626" : "var(--line)"}`, background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, fontFamily: "monospace", outline: "none", letterSpacing: 1 }}
               />
             </label>
-
-            <div style={{ marginBottom: 16 }}>
-              <ErrorBanner msg={resetError} />
-            </div>
-
+            <div style={{ marginBottom: 16 }}><ErrorBanner msg={resetError} /></div>
             <div style={{ display: "flex", gap: 12 }}>
-              <Button
-                variant="secondary"
-                onClick={() => { setResetModal(false); setResetPhrase(""); setResetError(""); }}
-                style={{ flex: 1, padding: "11px" }}
-              >
-                Cancel
-              </Button>
+              <Button variant="secondary" onClick={() => { setResetModal(false); setResetPhrase(""); setResetError(""); }} style={{ flex: 1, padding: "11px" }}>Cancel</Button>
               <Button
                 variant={resetPhrase === RESET_PHRASE ? "danger" : "secondary"}
                 onClick={handleReset}
