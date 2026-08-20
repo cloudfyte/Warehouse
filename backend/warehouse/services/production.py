@@ -128,6 +128,10 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
         raise GraphQLError(
             f"Job is already {job.status.lower().replace('_', ' ')} — only move to Finished Goods is allowed."
         )
+    if pieces_completed is not None and pieces_completed < 0:
+        raise GraphQLError("Pieces completed cannot be negative.")
+    if pieces_rejected is not None and pieces_rejected < 0:
+        raise GraphQLError("Pieces rejected cannot be negative.")
     new_completed = pieces_completed if pieces_completed is not None else job.pieces_completed
     new_rejected = pieces_rejected if pieces_rejected is not None else job.pieces_rejected
     if new_completed + new_rejected > job.pieces_assigned:

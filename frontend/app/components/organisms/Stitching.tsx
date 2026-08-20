@@ -191,8 +191,12 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
     if (!selected) return;
     const pc = Number(upd.piecesCompleted);
     const pr = Number(upd.piecesRejected);
+    if (pc < 0 || pr < 0) {
+      const msg = "Pieces cannot be negative.";
+      setError(msg); showToast(msg, "error"); return;
+    }
     if (pc + pr > selected.piecesAssigned) {
-      const msg = `Completed (${pc}) + Rejected (${pr}) = ${pc + pr} exceeds assigned pieces (${selected.piecesAssigned}).`;
+      const msg = `Completed (${pc}) + Rejected (${pr}) = ${pc + pr} exceeds assigned (${selected.piecesAssigned}).`;
       setError(msg); showToast(msg, "error"); return;
     }
     setLoading(true); setError("");
@@ -295,11 +299,18 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                   {Object.entries(STITCHING_STATUS_LABELS).filter(([k]) => k !== "MOVED").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </Select>
               </Field>
+              {!isReady && (
+                <div style={{ fontSize: 12, color: "var(--muted)", background: "var(--canvas)", borderRadius: 7, padding: "7px 12px" }}>
+                  Assigned: <strong style={{ color: "var(--ink)" }}>{selected.piecesAssigned}</strong> pieces — completed + rejected must not exceed this.
+                </div>
+              )}
               <FormGrid>
                 {([["Pieces Completed", "piecesCompleted"], ["Pieces Rejected", "piecesRejected"]] as [string, string][]).map(([label, field]) => (
                   <Field key={field} label={label}>
-                    <Input type="number" value={(upd as unknown as Record<string, number>)[field] || 0}
-                      onChange={e => setUpd(p => ({ ...p, [field]: +e.target.value }))} disabled={isReady} />
+                    <Input type="number" min="0" max={selected.piecesAssigned}
+                      value={(upd as unknown as Record<string, number>)[field] ?? 0}
+                      onChange={e => { setError(""); setUpd(p => ({ ...p, [field]: Math.max(0, +e.target.value || 0) })); }}
+                      disabled={isReady} />
                   </Field>
                 ))}
               </FormGrid>
