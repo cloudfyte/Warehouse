@@ -26,6 +26,9 @@ export function applyBrandColors(cfg: Partial<AppSettings>) {
 export function applyDarkMode(dark: boolean) {
   const r = document.documentElement;
   if (dark) {
+    // Remove light guard so the prefers-color-scheme media query can apply,
+    // then override inline for users whose OS is light but who chose dark.
+    r.removeAttribute("data-theme");
     r.style.setProperty("--ink",               "#dce8e1");
     r.style.setProperty("--muted",             "#7a9589");
     r.style.setProperty("--line",              "#243328");
@@ -40,6 +43,8 @@ export function applyDarkMode(dark: boolean) {
     r.style.setProperty("--panel-border",      "#243328");
     r.style.setProperty("--modal-close-color", "#9fb8ac");
   } else {
+    // Stamp data-theme="light" to override the prefers-color-scheme dark query
+    r.setAttribute("data-theme", "light");
     [
       "--ink", "--muted", "--line", "--canvas", "--paper", "--pale-green",
       "--th-bg", "--td-color", "--hover-bg", "--input-bg", "--topbar-bg",

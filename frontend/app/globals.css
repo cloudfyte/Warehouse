@@ -40,6 +40,33 @@
   --surface:        var(--paper);
   --surface-2:      var(--canvas);
   --text-secondary: var(--muted);
+
+  /* Semantic severity tokens — used for status indicators, stat cards */
+  --ok:     #2a7a4b;
+  --warn:   #c07020;
+  --danger: #b83030;
+}
+
+/* ─── OS-level dark mode (respects prefers-color-scheme when user hasn't toggled) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink:              #dce8e1;
+    --muted:            #7a9589;
+    --line:             #243328;
+    --canvas:           #0f1a14;
+    --paper:            #172118;
+    --pale-green:       #1a2d1e;
+    --th-bg:            #1a2820;
+    --td-color:         #c0d4c8;
+    --hover-bg:         #1e2e24;
+    --input-bg:         #1e2e24;
+    --topbar-bg:        rgba(15,26,20,.92);
+    --panel-border:     #243328;
+    --modal-close-color:#9fb8ac;
+    --ok:               #4dab78;
+    --warn:             #d48040;
+    --danger:           #e06060;
+  }
 }
 
 /* ─── Reset ───────────────────────────────────────────────────────────────── */
@@ -49,12 +76,13 @@ body {
   margin: 0;
   background: var(--canvas);
   color: var(--ink);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   transition: background .25s, color .25s;
 }
 
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
+button:hover:not(:disabled) { filter: brightness(0.9); transition: filter 0.15s; }
 
 /* ─── App shell ───────────────────────────────────────────────────────────── */
 .app-shell { min-height: 100vh; display: flex; }
@@ -261,6 +289,7 @@ td {
   border-top: 1px solid var(--panel-border);
   color: var(--td-color);                /* was: #465149 */
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 td strong, td small { display: block; }
 td strong { color: var(--ink); font-size: 11px; }
@@ -400,7 +429,7 @@ input, select, textarea {
   outline: none; color: var(--ink); font-size: 12px;
   transition: background .25s, border-color .2s;
 }
-input:focus, select:focus, textarea:focus { border-color: #6d9782; box-shadow: 0 0 0 3px rgba(68,124,94,.08); }
+input:focus, select:focus, textarea:focus { border-color: #6d9782; box-shadow: 0 0 0 3px rgba(68,124,94,.25); }
 textarea { min-height: 78px; resize: vertical; }
 .login-button { width: 100%; margin-top: 8px; padding: 12px; }
 .login-card > .text-button { width: 100%; margin-top: 15px; }

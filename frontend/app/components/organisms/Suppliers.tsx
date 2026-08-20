@@ -20,8 +20,12 @@ import FilterBar from "@/app/components/molecules/FilterBar";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div onClick={() => onChange(!checked)} style={{ width: 30, height: 17, borderRadius: 9, flexShrink: 0,
-      background: checked ? "var(--primary)" : "#bbb", position: "relative", cursor: "pointer", transition: "background 0.18s" }}>
+    <div
+      role="switch" aria-checked={checked} tabIndex={0}
+      onClick={() => onChange(!checked)}
+      onKeyDown={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onChange(!checked); } }}
+      style={{ width: 30, height: 17, borderRadius: 9, flexShrink: 0,
+        background: checked ? "var(--primary)" : "#bbb", position: "relative", cursor: "pointer", transition: "background 0.18s" }}>
       <div style={{ position: "absolute", top: 2.5, left: checked ? 15 : 2.5, width: 12, height: 12,
         borderRadius: "50%", background: "#fff", transition: "left 0.15s", boxShadow: "0 1px 3px #0004" }} />
     </div>

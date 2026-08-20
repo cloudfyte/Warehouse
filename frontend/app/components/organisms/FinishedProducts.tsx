@@ -198,7 +198,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{selected.sku}</div>
                 <div style={{ color: "var(--muted)", fontSize: 14 }}>{selected.itemType.name}</div>
               </div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}>×</button>
+              <button onClick={() => setSelected(null)} aria-label="Close" style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)", padding: "4px 8px", borderRadius: 6 }}>×</button>
             </div>
             <div style={{ background: "var(--bg)", borderRadius: 10, padding: 16, marginBottom: 16, fontSize: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -260,9 +260,11 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
         {paged.map(p => (
           <div key={p.id} onClick={() => setSelected(p)} style={{
             background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 12, padding: 16,
-            cursor: "pointer", transition: "box-shadow 0.15s",
+            cursor: "pointer", transition: "box-shadow 0.15s, transform 0.1s",
             borderLeft: p.source === "IN_HOUSE" ? "4px solid var(--primary)" : "4px solid var(--accent)",
-          }}>
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = ""; (e.currentTarget as HTMLDivElement).style.transform = ""; }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{p.itemType.name}</div>
