@@ -180,10 +180,14 @@ class PurchaseBillType(DjangoObjectType):
     total_amount = graphene.Float()
     amount_paid = graphene.Float()
     amount_pending = graphene.Float()
+    source_po = graphene.Field("warehouse.schema.types.PurchaseOrderType")
 
     class Meta:
         model = PurchaseBill
         fields = "__all__"
+
+    def resolve_source_po(self, info):
+        return self.source_po
 
     def resolve_taxable_amount(self, info):
         return float(self.taxable_amount)

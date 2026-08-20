@@ -132,6 +132,7 @@ export const DASHBOARD_QUERY = `
         clothCategory { id name } clothColor { id name hexCode } itemType { id name }
       }
       supplierPayments { id paymentNumber amount paymentDate paymentMode reference notes createdAt }
+      sourcePo { id poNumber }
     }
     rawClothBatches {
       id batchNumber totalMeters availableMeters costPerMeter binLocation receivedDate

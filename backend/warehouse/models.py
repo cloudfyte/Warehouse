@@ -334,6 +334,10 @@ class PurchaseBill(models.Model):
     amount_paid = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     payment_status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
     notes = models.TextField(blank=True)
+    source_po = models.ForeignKey(
+        'PurchaseOrder', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='generated_bills',
+    )
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="purchase_bills")
     created_at = models.DateTimeField(auto_now_add=True)
 

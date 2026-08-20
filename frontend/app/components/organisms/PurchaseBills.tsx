@@ -73,6 +73,7 @@ interface PurchaseBill {
   createdAt: string
   items: BillItem[]
   supplierPayments: SupplierPayment[]
+  sourcePo?: { id: string; poNumber: string } | null
 }
 
 interface DraftItem {
@@ -446,6 +447,7 @@ export default function PurchaseBills({
                     <span style={{ fontSize: 13, color: "var(--muted)" }}>{bill.supplier.name}</span>
                     <span style={{ fontSize: 12, color: "var(--muted)" }}>{formatDate(bill.billDate)}</span>
                     {bill.invoiceRef && <span style={{ fontSize: 12, color: "var(--muted)" }}>Ref: {bill.invoiceRef}</span>}
+                    {bill.sourcePo && <span style={{ fontSize: 11, background: "#e0f2fe", color: "#0369a1", padding: "2px 7px", borderRadius: 99, fontWeight: 600 }}>From {bill.sourcePo.poNumber}</span>}
                   </div>
                   <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <span style={{ fontWeight: 700 }}>{formatMoney(bill.totalAmount)}</span>

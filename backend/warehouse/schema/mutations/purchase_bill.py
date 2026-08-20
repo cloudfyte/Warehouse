@@ -5,7 +5,7 @@ from warehouse.models import EmployeeProfile
 from warehouse.permissions import require_role
 from warehouse.services.audit import log_action
 from warehouse.services.notify import notify_managers
-from warehouse.services.purchase_bill import create_purchase_bill
+from warehouse.services.purchase_bill import create_purchase_bill, generate_bill_from_po
 from warehouse.schema.types import PurchaseBillType
 
 
@@ -75,3 +75,27 @@ class CreatePurchaseBill(graphene.Mutation):
         except Exception:
             pass
         return CreatePurchaseBill(purchase_bill=bill)
+
+
+class GenerateBillFromPO(graphene.Mutation):
+    class Arguments:
+        po_id = graphene.ID(required=True)
+
+    purchase_bill = graphene.Field(PurchaseBillType)
+
+    @login_required
+    def mutate(self, info, po_id):
+        user = info.context.user
+        profile = EmployeeProfile.objects.get(user=user)
+        require_role(profile, "ADMIN", "SUPER_ADMIN", "MANAGER", "STORE_KEEPER")
+        bill = generate_bill_from_po(po_id=po_id, user=user)
+        try:
+            log_action(
+                entity_type="PurchaseBill", entity_id=bill.pk, action="CREATED",
+                actor=user,
+                detail={"bill_number": bill.bill_number, "source_po": bill.source_po.po_number,
+                        "supplier": bill.supplier.name, "total": str(bill.total_amount)},
+            )
+        except Exception:
+            pass
+        return GenerateBillFromPO(purchase_bill=bill)

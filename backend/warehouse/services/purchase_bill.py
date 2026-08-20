@@ -6,7 +6,7 @@ from graphql import GraphQLError
 
 from warehouse.models import (
     ClothCategory, ClothColor, ItemType,
-    PurchaseBill, PurchaseBillItem,
+    PurchaseBill, PurchaseBillItem, PurchaseOrder,
     RawClothBatch, ReadymadeStock, Supplier,
 )
 from warehouse.permissions import get_warehouse
@@ -180,6 +180,109 @@ def create_purchase_bill(
         bill.save(update_fields=[
             "taxable_amount", "tax_amount", "cgst_amount", "sgst_amount", "igst_amount",
             "total_amount", "amount_paid", "payment_status",
+        ])
+
+    return bill
+
+
+def generate_bill_from_po(*, po_id, user):
+    """
+    Generate a PurchaseBill from a RECEIVED PurchaseOrder.
+    Stock was already created when the PO was received — this only creates
+    the accounting document (bill + bill items) for GST/payment tracking.
+    """
+    try:
+        po = PurchaseOrder.objects.get(pk=po_id)
+    except PurchaseOrder.DoesNotExist as exc:
+        raise GraphQLError("Purchase order not found.") from exc
+
+    if po.status != PurchaseOrder.Status.RECEIVED:
+        raise GraphQLError("Bill can only be generated for a received purchase order.")
+
+    if PurchaseBill.objects.filter(source_po=po).exists():
+        raise GraphQLError("A bill has already been generated for this purchase order.")
+
+    from warehouse.models import SystemSettings
+    sys_settings = SystemSettings.load()
+    gst_enabled = sys_settings.gst_on_purchases
+
+    with transaction.atomic():
+        bill = PurchaseBill.objects.create(
+            supplier=po.supplier,
+            warehouse=po.warehouse,
+            bill_date=timezone.now().date(),
+            notes=f"Generated from {po.po_number}",
+            source_po=po,
+            created_by=user,
+        )
+
+        computed_total = Decimal("0.00")
+        item_gst_records = []
+
+        for item in po.items.all():
+            if item.item_kind == "RAW_CLOTH":
+                meters = Decimal(str(item.received_meters or item.ordered_meters or 0))
+                cpm = Decimal(str(item.unit_price or 0))
+                line_total = meters * cpm
+                gst_rate = Decimal("0.00")
+            else:
+                qty = int(item.received_quantity or item.ordered_quantity or 0)
+                unit = Decimal(str(item.unit_price or 0))
+                line_total = qty * unit
+                gst_rate = Decimal(str(item.item_type.gst_rate if item.item_type else 0))
+
+            PurchaseBillItem.objects.create(
+                bill=bill,
+                item_kind=item.item_kind,
+                cloth_category=item.cloth_category,
+                cloth_color=item.cloth_color,
+                total_meters=item.received_meters if item.item_kind == "RAW_CLOTH" else None,
+                cost_per_meter=item.unit_price if item.item_kind == "RAW_CLOTH" else None,
+                item_type=item.item_type,
+                age_group=item.age_group or "",
+                size=item.size or "",
+                quantity=item.received_quantity if item.item_kind == "READYMADE" else 0,
+                unit_price=item.unit_price if item.item_kind == "READYMADE" else None,
+                gst_rate=gst_rate,
+                total_price=line_total,
+                notes=item.notes or "",
+            )
+
+            computed_total += line_total
+            item_gst_records.append((line_total, gst_rate))
+
+        if gst_enabled and item_gst_records:
+            tax_amount = sum(
+                (lt * rate / 100).quantize(Decimal("0.01"))
+                for lt, rate in item_gst_records if rate > 0
+            )
+            supplier_state = (po.supplier.state or "").strip().lower()
+            company_state = (sys_settings.company_state or "").strip().lower()
+            is_intra = bool(supplier_state and company_state and supplier_state == company_state)
+            if is_intra and tax_amount > 0:
+                cgst = (tax_amount / 2).quantize(Decimal("0.01"))
+                sgst = tax_amount - cgst
+                igst = Decimal("0.00")
+            elif tax_amount > 0:
+                cgst = sgst = Decimal("0.00")
+                igst = tax_amount
+            else:
+                cgst = sgst = igst = Decimal("0.00")
+            final_total = computed_total + tax_amount
+        else:
+            tax_amount = cgst = sgst = igst = Decimal("0.00")
+            final_total = computed_total
+
+        bill.taxable_amount = computed_total
+        bill.tax_amount = tax_amount
+        bill.cgst_amount = cgst
+        bill.sgst_amount = sgst
+        bill.igst_amount = igst
+        bill.total_amount = final_total
+        bill.payment_status = PurchaseBill.PaymentStatus.PENDING
+        bill.save(update_fields=[
+            "taxable_amount", "tax_amount", "cgst_amount", "sgst_amount", "igst_amount",
+            "total_amount", "payment_status",
         ])
 
     return bill

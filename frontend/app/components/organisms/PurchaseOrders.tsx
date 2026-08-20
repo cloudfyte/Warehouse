@@ -26,6 +26,8 @@ interface Props {
   orders: PurchaseOrder[]; suppliers: Supplier[]; warehouses: WarehouseLocation[]
   categories: ClothCategory[]; colors: ClothColor[]; itemTypes: ItemType[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean
+  purchaseBills: import("@/app/types").PurchaseBill[]
+  onNavigateToBills?: () => void
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMutate: (q: string, v: Record<string, unknown>) => Promise<any>
 }
@@ -43,7 +45,7 @@ const PO_NEXT: Record<string, string> = { DRAFT: "PLACED", PLACED: "DISPATCHED",
 const CONDITION_LABEL: Record<string, string> = { GOOD: "Good Condition", PARTIAL_DAMAGE: "Partial Damage", DAMAGED: "Damaged" };
 const CONDITION_COLOR: Record<string, string> = { GOOD: "#10b981", PARTIAL_DAMAGE: "#f59e0b", DAMAGED: "#ef4444" };
 
-export default function PurchaseOrders({ orders, suppliers, warehouses, categories, colors, itemTypes, isAdmin, isSuperAdmin, isManager, onMutate }: Props) {
+export default function PurchaseOrders({ orders, suppliers, warehouses, categories, colors, itemTypes, isAdmin, isSuperAdmin, isManager, purchaseBills, onNavigateToBills, onMutate }: Props) {
   const [detail, setDetail] = useState<PurchaseOrder | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [search, setSearch] = useState("");
@@ -97,6 +99,20 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       setReceiveErr(msg); showToast(msg, "error");
     }
     finally { setReceiveSaving(false); }
+  }
+
+  async function generateBill(poId: string) {
+    setLoading(true);
+    try {
+      await onMutate(
+        `mutation G($poId:ID!){generateBillFromPo(poId:$poId){purchaseBill{id billNumber}}}`,
+        { poId }
+      );
+      showToast("Purchase Bill created — check Purchase Bills tab.", "success");
+      if (onNavigateToBills) onNavigateToBills();
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : "Failed to generate bill", "error");
+    } finally { setLoading(false); }
   }
 
   // Parcel inspection state
@@ -541,6 +557,26 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 Cancel Order
               </Button>
             )}
+            {detail.status === "RECEIVED" && (() => {
+              const existingBill = purchaseBills.find(b => b.sourcePo?.id === detail.id);
+              return existingBill ? (
+                <div style={{ marginTop: 8, padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: 13, color: "#15803d", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>✓ Bill generated:</span>
+                  <strong
+                    style={{ cursor: "pointer", textDecoration: "underline" }}
+                    onClick={onNavigateToBills}
+                  >{existingBill.billNumber}</strong>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => generateBill(detail.id)}
+                  disabled={loading}
+                  style={{ width: "100%", marginTop: 8, background: "#0ea5e9", border: "none" }}
+                >
+                  {loading ? "Generating…" : "📄 Generate Purchase Bill"}
+                </Button>
+              );
+            })()}
 
             {/* Parcel Inspection */}
             <div style={{ marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 16 }}>

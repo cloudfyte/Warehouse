@@ -64,6 +64,7 @@ export interface PurchaseBill {
   totalAmount: number; amountPaid: number; amountPending: number
   paymentStatus: string; notes: string; items: PurchaseBillItem[]
   supplierPayments: SupplierPayment[]; createdAt: string
+  sourcePo?: { id: string; poNumber: string } | null
 }
 
 // ─── purchase orders ─────────────────────────────────────────────────────────

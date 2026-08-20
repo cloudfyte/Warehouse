@@ -630,7 +630,9 @@ export default function Home() {
             categories={data?.clothCategories || []}
             colors={data?.clothColors || []}
             itemTypes={data?.itemTypes || []}
+            purchaseBills={data?.purchaseBills || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager}
+            onNavigateToBills={() => navigateTo("purchase_bills")}
             onMutate={mutate}
           />
         )}
