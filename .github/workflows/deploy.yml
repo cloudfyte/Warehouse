@@ -36,6 +36,10 @@ jobs:
             echo "=== Start all services ==="
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
+            echo "=== Reload nginx to re-resolve container DNS ==="
+            sleep 5
+            docker exec warehouse_nginx nginx -s reload
+
             echo "=== Prune old images ==="
             docker image prune -f
 
