@@ -10,17 +10,20 @@ _STORE_KEEPER = EmployeeProfile.Role.STORE_KEEPER
 
 class CreateExpense(graphene.Mutation):
     class Arguments:
-        category     = graphene.String(required=True)
-        amount       = graphene.Float(required=True)
-        expense_date = graphene.String(required=True)
-        description  = graphene.String(required=True)
-        warehouse_id = graphene.ID(required=True)
-        reference    = graphene.String()
+        category       = graphene.String(required=True)
+        amount         = graphene.Float(required=True)
+        expense_date   = graphene.String(required=True)
+        description    = graphene.String(required=True)
+        warehouse_id   = graphene.ID(required=True)
+        reference      = graphene.String()
+        payment_method = graphene.String()
+        proof_image    = graphene.String()
 
     expense = graphene.Field(ExpenseType)
 
     @login_required
-    def mutate(self, info, category, amount, expense_date, description, warehouse_id, reference=""):
+    def mutate(self, info, category, amount, expense_date, description, warehouse_id,
+               reference="", payment_method="CASH", proof_image=""):
         require_role(info.context.user, *MANAGEMENT_ROLES, _STORE_KEEPER)
         warehouse = WarehouseLocation.objects.get(pk=warehouse_id)
         exp = Expense.objects.create(
@@ -29,6 +32,8 @@ class CreateExpense(graphene.Mutation):
             expense_date=expense_date,
             description=description,
             reference=reference,
+            payment_method=payment_method.upper(),
+            proof_image=proof_image,
             warehouse=warehouse,
             created_by=info.context.user,
         )
@@ -37,12 +42,14 @@ class CreateExpense(graphene.Mutation):
 
 class UpdateExpense(graphene.Mutation):
     class Arguments:
-        id           = graphene.ID(required=True)
-        category     = graphene.String()
-        amount       = graphene.Float()
-        expense_date = graphene.String()
-        description  = graphene.String()
-        reference    = graphene.String()
+        id             = graphene.ID(required=True)
+        category       = graphene.String()
+        amount         = graphene.Float()
+        expense_date   = graphene.String()
+        description    = graphene.String()
+        reference      = graphene.String()
+        payment_method = graphene.String()
+        proof_image    = graphene.String()
 
     expense = graphene.Field(ExpenseType)
 
@@ -50,6 +57,8 @@ class UpdateExpense(graphene.Mutation):
     def mutate(self, info, id, **kwargs):
         require_role(info.context.user, *MANAGEMENT_ROLES)
         exp = Expense.objects.get(pk=id)
+        if "payment_method" in kwargs and kwargs["payment_method"]:
+            kwargs["payment_method"] = kwargs["payment_method"].upper()
         for k, v in kwargs.items():
             if v is not None:
                 setattr(exp, k, v)

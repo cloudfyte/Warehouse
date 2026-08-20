@@ -39,7 +39,7 @@ function buildBuyerLedger(buyerId: string, salesOrders: SalesOrder[], creditTran
         reference: ct.salesOrder?.orderNumber ?? "—",
         description: `Payment — ${p.paymentMethod}${p.reference ? ` (${p.reference})` : ""}`,
         debit: 0,
-        credit: p.amount,
+        credit: Number(p.amount),
         balance: 0,
       });
     }

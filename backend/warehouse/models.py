@@ -786,15 +786,24 @@ class Expense(models.Model):
         LABOR        = "LABOR",        "Contract Labour"
         OTHER        = "OTHER",        "Other"
 
-    expense_number = models.CharField(max_length=40, unique=True, editable=False)
-    category    = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
-    amount      = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
-    expense_date = models.DateField()
-    description = models.TextField()
-    reference   = models.CharField(max_length=100, blank=True, help_text="Bill no / voucher / receipt ref")
-    warehouse   = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="expenses")
-    created_by  = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="expenses_created")
-    created_at  = models.DateTimeField(auto_now_add=True)
+    class PaymentMethod(models.TextChoices):
+        CASH   = "CASH",   "Cash"
+        UPI    = "UPI",    "UPI"
+        NEFT   = "NEFT",   "NEFT / IMPS"
+        CHEQUE = "CHEQUE", "Cheque"
+        OTHER  = "OTHER",  "Other"
+
+    expense_number  = models.CharField(max_length=40, unique=True, editable=False)
+    category        = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
+    amount          = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    expense_date    = models.DateField()
+    description     = models.TextField()
+    reference       = models.CharField(max_length=100, blank=True, help_text="Bill no / voucher / receipt ref")
+    payment_method  = models.CharField(max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.CASH)
+    proof_image     = models.TextField(blank=True, help_text="Base64-encoded proof / receipt photo")
+    warehouse       = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="expenses")
+    created_by      = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="expenses_created")
+    created_at      = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-expense_date", "-created_at"]

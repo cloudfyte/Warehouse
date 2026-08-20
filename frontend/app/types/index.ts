@@ -45,6 +45,7 @@ export interface Buyer {
 export interface Expense {
   id: string; expenseNumber: string; category: string; amount: number
   expenseDate: string; description: string; reference: string
+  paymentMethod: string; proofImage?: string
   warehouse: WarehouseLocation; createdAt: string
 }
 

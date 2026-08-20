@@ -117,7 +117,7 @@ export const DASHBOARD_QUERY = `
       }
     }
     expenses(limit: 500) {
-      id expenseNumber category amount expenseDate description reference createdAt
+      id expenseNumber category amount expenseDate description reference paymentMethod proofImage createdAt
       warehouse { id name }
     }
     purchaseBills(limit: 100) {

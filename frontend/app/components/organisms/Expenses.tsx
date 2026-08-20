@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { Expense, WarehouseLocation } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
@@ -43,6 +43,7 @@ function today() {
 }
 
 export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, isManager, onMutate }: Props) {
+  const proofRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState<Partial<Expense> & { warehouseId?: string } | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [filterCat, setFilterCat] = useState("ALL");
@@ -54,13 +55,21 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
 
   function openNew() {
     setIsNew(true);
-    setEditing({ category: "OTHER", amount: 0, expenseDate: today(), description: "", reference: "", warehouseId: warehouses[0]?.id || "" });
+    setEditing({ category: "OTHER", amount: 0, expenseDate: today(), description: "", reference: "", paymentMethod: "CASH", proofImage: "", warehouseId: warehouses[0]?.id || "" });
     setError("");
   }
   function openEdit(e: Expense) {
     setIsNew(false);
     setEditing({ ...e, warehouseId: e.warehouse?.id });
     setError("");
+  }
+
+  function handleProofPick(ev: React.ChangeEvent<HTMLInputElement>) {
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setEditing(p => p ? { ...p, proofImage: reader.result as string } : p);
+    reader.readAsDataURL(file);
   }
 
   const filtered = filterCat === "ALL" ? expenses : expenses.filter(e => e.category === filterCat);
@@ -76,13 +85,13 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
     try {
       if (isNew) {
         await onMutate(
-          `mutation C($cat:String!,$amt:Float!,$date:String!,$desc:String!,$wid:ID!,$ref:String){createExpense(category:$cat,amount:$amt,expenseDate:$date,description:$desc,warehouseId:$wid,reference:$ref){expense{id}}}`,
-          { cat: editing.category, amt: editing.amount, date: editing.expenseDate, desc: editing.description, wid: editing.warehouseId, ref: editing.reference || "" }
+          `mutation C($cat:String!,$amt:Float!,$date:String!,$desc:String!,$wid:ID!,$ref:String,$pm:String,$proof:String){createExpense(category:$cat,amount:$amt,expenseDate:$date,description:$desc,warehouseId:$wid,reference:$ref,paymentMethod:$pm,proofImage:$proof){expense{id}}}`,
+          { cat: editing.category, amt: editing.amount, date: editing.expenseDate, desc: editing.description, wid: editing.warehouseId, ref: editing.reference || "", pm: editing.paymentMethod || "CASH", proof: editing.proofImage || "" }
         );
       } else {
         await onMutate(
-          `mutation U($id:ID!,$cat:String,$amt:Float,$date:String,$desc:String,$ref:String){updateExpense(id:$id,category:$cat,amount:$amt,expenseDate:$date,description:$desc,reference:$ref){expense{id}}}`,
-          { id: editing.id, cat: editing.category, amt: editing.amount, date: editing.expenseDate, desc: editing.description, ref: editing.reference || "" }
+          `mutation U($id:ID!,$cat:String,$amt:Float,$date:String,$desc:String,$ref:String,$pm:String,$proof:String){updateExpense(id:$id,category:$cat,amount:$amt,expenseDate:$date,description:$desc,reference:$ref,paymentMethod:$pm,proofImage:$proof){expense{id}}}`,
+          { id: editing.id, cat: editing.category, amt: editing.amount, date: editing.expenseDate, desc: editing.description, ref: editing.reference || "", pm: editing.paymentMethod || "CASH", proof: editing.proofImage || undefined }
         );
       }
       setEditing(null);
@@ -164,6 +173,15 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
             <Field label="Amount (₹)" required>
               <Input type="number" min="0" step="0.01" value={editing.amount || ""} onChange={e => setEditing(p => ({ ...p, amount: +e.target.value }))} />
             </Field>
+            <Field label="Payment Method">
+              <Select value={editing.paymentMethod || "CASH"} onChange={e => setEditing(p => ({ ...p, paymentMethod: e.target.value }))}>
+                <option value="CASH">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="NEFT">NEFT / IMPS</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="OTHER">Other</option>
+              </Select>
+            </Field>
             <Field label="Date" required>
               <Input type="date" value={editing.expenseDate || today()} onChange={e => setEditing(p => ({ ...p, expenseDate: e.target.value }))} />
             </Field>
@@ -183,6 +201,20 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
             <Textarea value={editing.description || ""} onChange={e => setEditing(p => ({ ...p, description: e.target.value }))}
               style={{ minHeight: 72 }} placeholder="What was this expense for?" />
           </Field>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--muted)" }}>PROOF / RECEIPT (optional)</div>
+            <Button variant="secondary" size="sm" onClick={() => proofRef.current?.click()}>
+              📷 {editing.proofImage ? "Change Photo" : "Upload Receipt Photo"}
+            </Button>
+            <input ref={proofRef} type="file" accept="image/*" onChange={handleProofPick} style={{ display: "none" }} />
+            {editing.proofImage && (
+              <div style={{ marginTop: 10, position: "relative", display: "inline-block" }}>
+                <img src={editing.proofImage} alt="proof" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, border: "1px solid var(--line)", objectFit: "contain" }} />
+                <button onClick={() => setEditing(p => p ? { ...p, proofImage: "" } : p)}
+                  style={{ position: "absolute", top: -6, right: -6, background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+              </div>
+            )}
+          </div>
         </Modal>
       )}
 
@@ -209,7 +241,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: "var(--th-bg)", textAlign: "left" }}>
-              {["Expense #", "Date", "Category", "Description", "Warehouse", "Amount", ""].map(h => (
+              {["Expense #", "Date", "Category", "Description", "Payment", "Warehouse", "Amount", ""].map(h => (
                 <th key={h} style={{ padding: "11px 16px", fontWeight: 700, fontSize: 10, color: "var(--muted)", letterSpacing: 0.5, textTransform: "uppercase", borderBottom: "1px solid var(--line)" }}>{h}</th>
               ))}
             </tr>
@@ -220,10 +252,17 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
                 <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 12, color: "var(--muted)" }}>{e.expenseNumber}</td>
                 <td style={{ padding: "12px 16px", fontSize: 13 }}>{e.expenseDate?.slice(0, 10)}</td>
                 <td style={{ padding: "12px 16px" }}><Badge label={CATEGORIES[e.category] || e.category} color={CAT_COLORS[e.category] || "#666"} /></td>
-                <td style={{ padding: "12px 16px", fontSize: 13, maxWidth: 260 }}>
+                <td style={{ padding: "12px 16px", fontSize: 13, maxWidth: 240 }}>
                   <div style={{ fontWeight: 500 }}>{e.description}</div>
                   {e.reference && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Ref: {e.reference}</div>}
+                  {e.proofImage && (
+                    <button onClick={() => window.open(e.proofImage, "_blank")}
+                      style={{ fontSize: 11, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 4 }}>
+                      📎 View proof
+                    </button>
+                  )}
                 </td>
+                <td style={{ padding: "12px 16px", fontSize: 12, color: "var(--muted)" }}>{e.paymentMethod || "—"}</td>
                 <td style={{ padding: "12px 16px", fontSize: 12, color: "var(--muted)" }}>{e.warehouse?.name}</td>
                 <td style={{ padding: "12px 16px", fontSize: 15, fontWeight: 700 }}>{formatMoney(e.amount)}</td>
                 <td style={{ padding: "12px 16px" }}>

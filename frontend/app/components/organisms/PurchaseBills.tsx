@@ -757,6 +757,9 @@ export default function PurchaseBills({
                 {(() => {
                   const paid = parseFloat(amountPaid) || 0;
                   const pending = grandTotal - paid;
+                  if (paid > grandTotal) return (
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#c0392b" }}>⚠ Exceeds total</div>
+                  );
                   return pending > 0 ? (
                     <div>
                       <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>PENDING</div>
