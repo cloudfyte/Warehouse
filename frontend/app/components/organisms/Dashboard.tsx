@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Truck, Receipt, Package, Scissors, Shirt, Tag, ShoppingCart, Landmark, AlertTriangle, AlertOctagon } from "lucide-react";
 import type { CustomRole, DashboardStats, Employee, Tab } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import StatCard from "@/app/components/molecules/StatCard";
@@ -22,10 +22,11 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
-function AlertRow({ icon, title, sub, color }: { icon: string; title: string; sub: string; color: string }) {
+function AlertRow({ critical, title, sub, color }: { critical?: boolean; title: string; sub: string; color: string }) {
+  const Icon = critical ? AlertOctagon : AlertTriangle;
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", borderBottom: "1px solid var(--line)" }}>
-      <span style={{ fontSize: 16, marginTop: 1, flexShrink: 0 }}>{icon}</span>
+      <Icon size={15} color={color} style={{ marginTop: 2, flexShrink: 0 }} />
       <div>
         <div style={{ fontSize: 13, fontWeight: 600, color }}>{title}</div>
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{sub}</div>
@@ -43,15 +44,15 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
   );
 }
 
-const FLOW_STEPS: { tab: Tab; icon: string; label: string; getValue: (s: DashboardStats) => string; getAlert?: (s: DashboardStats) => boolean }[] = [
-  { tab: "suppliers",        icon: "🏭", label: "Suppliers",    getValue: s => `${s.totalSuppliers ?? 0} vendors` },
-  { tab: "purchase_bills",   icon: "🧾", label: "Purchase",     getValue: s => formatMoney(s.supplierTotalPurchased ?? 0), getAlert: s => (s.supplierTotalPending ?? 0) > 0 },
-  { tab: "raw_cloth",        icon: "🧵", label: "Raw Cloth",    getValue: s => `${(s.totalRawMeters ?? 0).toFixed(0)} m` },
-  { tab: "cutting",          icon: "✂️", label: "Cutting",      getValue: s => `${s.cuttingInProgress ?? 0} active`,     getAlert: s => (s.cuttingInProgress ?? 0) > 0 },
-  { tab: "stitching",        icon: "🪡", label: "Stitching",    getValue: s => `${s.stitchingInProgress ?? 0} active`,   getAlert: s => (s.stitchingInProgress ?? 0) > 0 },
-  { tab: "finished_products",icon: "👕", label: "Finished",     getValue: s => `${s.totalFinishedPieces ?? 0} pcs` },
-  { tab: "sales_orders",     icon: "🛍️", label: "Sales",        getValue: s => `${s.activeSalesOrders ?? 0} orders`,     getAlert: s => (s.activeSalesOrders ?? 0) > 0 },
-  { tab: "credit",           icon: "💰", label: "Payments",     getValue: s => formatMoney(s.creditOutstanding ?? 0),    getAlert: s => (s.creditOutstanding ?? 0) > 0 },
+const FLOW_STEPS: { tab: Tab; icon: React.ReactNode; label: string; getValue: (s: DashboardStats) => string; getAlert?: (s: DashboardStats) => boolean }[] = [
+  { tab: "suppliers",        icon: <Truck size={18} />,       label: "Suppliers",    getValue: s => `${s.totalSuppliers ?? 0} vendors` },
+  { tab: "purchase_bills",   icon: <Receipt size={18} />,     label: "Purchase",     getValue: s => formatMoney(s.supplierTotalPurchased ?? 0), getAlert: s => (s.supplierTotalPending ?? 0) > 0 },
+  { tab: "raw_cloth",        icon: <Package size={18} />,     label: "Raw Cloth",    getValue: s => `${(s.totalRawMeters ?? 0).toFixed(0)} m` },
+  { tab: "cutting",          icon: <Scissors size={18} />,    label: "Cutting",      getValue: s => `${s.cuttingInProgress ?? 0} active`,     getAlert: s => (s.cuttingInProgress ?? 0) > 0 },
+  { tab: "stitching",        icon: <Shirt size={18} />,       label: "Stitching",    getValue: s => `${s.stitchingInProgress ?? 0} active`,   getAlert: s => (s.stitchingInProgress ?? 0) > 0 },
+  { tab: "finished_products",icon: <Tag size={18} />,         label: "Finished",     getValue: s => `${s.totalFinishedPieces ?? 0} pcs` },
+  { tab: "sales_orders",     icon: <ShoppingCart size={18} />,label: "Sales",        getValue: s => `${s.activeSalesOrders ?? 0} orders`,     getAlert: s => (s.activeSalesOrders ?? 0) > 0 },
+  { tab: "credit",           icon: <Landmark size={18} />,    label: "Payments",     getValue: s => formatMoney(s.creditOutstanding ?? 0),    getAlert: s => (s.creditOutstanding ?? 0) > 0 },
 ];
 
 function WorkflowGuide({ stats, onNavigate }: { stats: DashboardStats; onNavigate?: (tab: Tab) => void }) {
@@ -77,7 +78,7 @@ function WorkflowGuide({ stats, onNavigate }: { stats: DashboardStats; onNavigat
                   onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 2px 10px rgba(0,0,0,0.10)")}
                   onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
                 >
-                  <span style={{ fontSize: 20, lineHeight: 1 }}>{step.icon}</span>
+                  <span style={{ display: "flex", color: alert ? "#b45309" : "var(--muted)" }}>{step.icon}</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: alert ? "#b45309" : "var(--ink)", marginTop: 4, whiteSpace: "nowrap" }}>{val}</span>
                   <span style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>{step.label}</span>
                 </button>
@@ -108,7 +109,13 @@ export default function Dashboard({
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(t); }, []);
 
   if (!stats || !profile) {
-    return <div style={{ padding: 28, color: "var(--muted)" }}>Loading dashboard…</div>;
+    return (
+      <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 14 }}>
+        {[1,2,3,4].map(i => (
+          <div key={i} style={{ height: 80, borderRadius: 12, background: "linear-gradient(90deg, var(--line) 25%, var(--canvas) 50%, var(--line) 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s infinite" }} />
+        ))}
+      </div>
+    );
   }
 
   const lowRaw = rawBatches.filter(b => b.availableMeters > 0 && b.availableMeters < LOW_RAW_THRESHOLD);
@@ -315,10 +322,10 @@ export default function Dashboard({
                 </button>
               </div>
               <div style={{ background: "var(--paper)", border: "1px solid #f59e0b55", borderRadius: 12, overflow: "hidden" }}>
-                {outRaw.map(b => <AlertRow key={b.id} icon="🚨" color="#dc2626" title={`OUT OF STOCK: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name}`} />)}
-                {lowRaw.map(b => <AlertRow key={b.id} icon="⚠️" color="#b45309" title={`Low raw cloth: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · ${b.availableMeters.toFixed(1)}m left`} />)}
-                {outRmd.map(r => <AlertRow key={r.id} icon="🚨" color="#dc2626" title={`OUT OF STOCK: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name}`} />)}
-                {lowRmd.map(r => <AlertRow key={r.id} icon="⚠️" color="#b45309" title={`Low readymade: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · ${r.quantityAvailable} pcs left`} />)}
+                {outRaw.map(b => <AlertRow key={b.id} critical color="#dc2626" title={`OUT OF STOCK: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name}`} />)}
+                {lowRaw.map(b => <AlertRow key={b.id} color="#b45309" title={`Low raw cloth: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · ${b.availableMeters.toFixed(1)}m left`} />)}
+                {outRmd.map(r => <AlertRow key={r.id} critical color="#dc2626" title={`OUT OF STOCK: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name}`} />)}
+                {lowRmd.map(r => <AlertRow key={r.id} color="#b45309" title={`Low readymade: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · ${r.quantityAvailable} pcs left`} />)}
               </div>
             </div>
           )}
@@ -349,10 +356,10 @@ export default function Dashboard({
                 <div style={{ background: "#fffbeb", padding: "10px 14px", borderBottom: "1px solid #f59e0b44", fontSize: 12, color: "#92400e", fontWeight: 600 }}>
                   Low stock threshold: raw cloth &lt; {LOW_RAW_THRESHOLD}m · readymade &lt; {LOW_RMD_THRESHOLD} pcs
                 </div>
-                {outRaw.map(b => <AlertRow key={b.id} icon="🚨" color="#dc2626" title={`OUT OF STOCK: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · 0m remaining`} />)}
-                {lowRaw.map(b => <AlertRow key={b.id} icon="⚠️" color="#b45309" title={`Low raw cloth: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · ${b.availableMeters.toFixed(1)}m remaining`} />)}
-                {outRmd.map(r => <AlertRow key={r.id} icon="🚨" color="#dc2626" title={`OUT OF STOCK: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · 0 pcs remaining`} />)}
-                {lowRmd.map(r => <AlertRow key={r.id} icon="⚠️" color="#b45309" title={`Low readymade stock: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · ${r.quantityAvailable} pcs remaining`} />)}
+                {outRaw.map(b => <AlertRow key={b.id} critical color="#dc2626" title={`OUT OF STOCK: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · 0m remaining`} />)}
+                {lowRaw.map(b => <AlertRow key={b.id} color="#b45309" title={`Low raw cloth: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · ${b.availableMeters.toFixed(1)}m remaining`} />)}
+                {outRmd.map(r => <AlertRow key={r.id} critical color="#dc2626" title={`OUT OF STOCK: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · 0 pcs remaining`} />)}
+                {lowRmd.map(r => <AlertRow key={r.id} color="#b45309" title={`Low readymade stock: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · ${r.quantityAvailable} pcs remaining`} />)}
               </div>
             </div>
           )}

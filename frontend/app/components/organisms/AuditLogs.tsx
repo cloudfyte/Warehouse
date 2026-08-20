@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { Download, ClipboardList } from "lucide-react";
 import type { AuditLog } from "@/app/types";
 import { downloadCsv } from "@/app/lib/csv";
 import Input from "@/app/components/atoms/Input";
@@ -61,7 +62,7 @@ export default function AuditLogs({ logs }: Props) {
               "Actor": l.actorName, "Detail": JSON.stringify(l.detail), "Time": l.createdAt,
             }))
           )}>
-            ⬇ Export CSV
+            <Download size={14} /> Export CSV
           </Button>
         }
       />
@@ -114,7 +115,7 @@ export default function AuditLogs({ logs }: Props) {
               <tr>
                 <td colSpan={6}>
                   <div style={{ textAlign: "center", padding: "60px 24px" }}>
-                    <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>📋</div>
+                    <div style={{ marginBottom: 10, opacity: 0.3, display: "flex", justifyContent: "center" }}><ClipboardList size={36} /></div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
                       {logs.length === 0 ? "No activity recorded yet" : "No matching entries"}
                     </div>

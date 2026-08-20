@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { Camera, Download, Printer, Bluetooth } from "lucide-react";
 import type { FinishedProduct } from "@/app/types";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { downloadCsv } from "@/app/lib/csv";
@@ -158,7 +159,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
         actions={
           <>
             <Button variant="ghost" onClick={() => setShowScanner(true)}>
-              📷 Scan Barcode
+              <Camera size={14} /> Scan Barcode
             </Button>
             <Button variant="secondary" onClick={() => downloadCsv(
               `finished_goods_${new Date().toISOString().slice(0, 10)}.csv`,
@@ -169,7 +170,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 "Barcode": p.barcode, "Created": formatDateShort(p.createdAt),
               }))
             )}>
-              ⬇ Export CSV
+              <Download size={14} /> Export CSV
             </Button>
           </>
         }
@@ -230,10 +231,10 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
               disabled={markingPrinted}
               style={{ width: "100%", padding: "11px", background: "var(--accent)", marginBottom: 8 }}
             >
-              🖨 Print Tag
+              <Printer size={14} /> Print Tag
             </Button>
             <BluetoothPrintButton
-              label="🔵 Bluetooth Print Tag"
+              label="Bluetooth Print"
               size="md"
               getData={() => buildTagEscPos({
                 sku: selected.sku,
@@ -289,7 +290,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 <div style={{ fontWeight: 700 }}>{p.quantity} pcs</div>
               </div>
             </div>
-            {!p.tagsPrinted && <div style={{ marginTop: 8, fontSize: 11, color: "#ff9800", fontWeight: 600 }}>⚠ Tags not printed</div>}
+            {!p.tagsPrinted && <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#c07020", fontWeight: 600, background: "#fff3e0", borderRadius: 4, padding: "2px 7px" }}>Tag pending</div>}
           </div>
         ))}
         {filtered.length === 0 && (

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { Camera } from "lucide-react";
 import type { Expense, WarehouseLocation } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
@@ -210,7 +211,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
           <div style={{ marginTop: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--muted)" }}>PROOF / RECEIPT (optional)</div>
             <Button variant="secondary" size="sm" onClick={() => proofRef.current?.click()}>
-              📷 {editing.proofImage ? "Change Photo" : "Upload Receipt Photo"}
+              <Camera size={14} /> {editing.proofImage ? "Change Photo" : "Upload Receipt Photo"}
             </Button>
             <input ref={proofRef} type="file" accept="image/*" onChange={handleProofPick} style={{ display: "none" }} />
             {editing.proofImage && (

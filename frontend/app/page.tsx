@@ -610,6 +610,7 @@ export default function Home() {
         )}
 
         {/* ── Tab content ── */}
+        <div key={currentTab} className="tab-content">
         {currentTab === "analytics" && (
           <Analytics gql={(q) => graphql(q, {}, token!)} />
         )}
@@ -910,7 +911,7 @@ export default function Home() {
         {currentTab === "item_types" && (
           <ItemTypes
             itemTypes={data?.itemTypes || []}
-            isAdmin={isAdmin} isManager={isManager}
+            isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} isManager={isManager}
             gql={(q, v) => graphql(q, v || {}, token!)}
             onRefresh={() => loadData(token!)}
           />
@@ -953,6 +954,7 @@ export default function Home() {
             onProfileUpdated={() => loadData(token!)}
           />
         )}
+        </div>
       </main>
     </div>
   );

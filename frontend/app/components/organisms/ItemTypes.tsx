@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { Tag } from "lucide-react";
 import { ItemType } from "@/app/types";
 import { showToast } from "@/app/lib/toast";
 import Button from "@/app/components/atoms/Button";
@@ -12,6 +13,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 
 interface Props {
   itemTypes: ItemType[];
+  isSuperAdmin?: boolean;
   isAdmin: boolean;
   isManager: boolean;
   gql: <T>(q: string, v?: Record<string, unknown>) => Promise<T>;
@@ -23,14 +25,14 @@ const CATEGORY_OPTIONS = ["SHERWANI", "KURTA", "PANT", "COAT", "SHIRT", "BRIDAL"
 
 const EMPTY_FORM = { name: "", category: "", clothLengthPerPiece: "0", hsnCode: "", gstRate: "0" };
 
-export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefresh }: Props) {
+export default function ItemTypes({ itemTypes, isSuperAdmin, isAdmin, isManager, gql, onRefresh }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ItemType | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const canManage = isAdmin || isManager;
+  const canManage = isSuperAdmin || isAdmin || isManager;
 
   function openCreate() {
     setEditing(null);
@@ -126,7 +128,7 @@ export default function ItemTypes({ itemTypes, isAdmin, isManager, gql, onRefres
                 <tr>
                   <td colSpan={7}>
                     <div style={{ textAlign: "center", padding: "60px 24px" }}>
-                      <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>🏷️</div>
+                      <div style={{ marginBottom: 10, opacity: 0.3, display: "flex", justifyContent: "center" }}><Tag size={36} /></div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>No item types yet</div>
                       <div style={{ fontSize: 13, color: "var(--muted)" }}>Create item types to classify finished garment products</div>
                     </div>

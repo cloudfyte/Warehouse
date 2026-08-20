@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { X, ExternalLink } from "lucide-react";
+import { X, ExternalLink, CheckCircle2, MailOpen, Bell } from "lucide-react";
 import type { Notification } from "@/app/types";
 import { formatDateShort } from "@/app/lib/formatters";
 import { TAB_TITLES } from "@/app/lib/constants";
@@ -171,8 +171,8 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
         <Pagination page={page} total={visible.length} perPage={PER_PAGE} onChange={setPage} />
         {visible.length === 0 && (
           <div style={{ textAlign: "center", padding: 64, color: "var(--muted)", fontSize: 14 }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>
-              {filter === "unread" ? "✅" : filter === "read" ? "📭" : "🔔"}
+            <div style={{ marginBottom: 12, opacity: 0.3, display: "flex", justifyContent: "center" }}>
+              {filter === "unread" ? <CheckCircle2 size={36} /> : filter === "read" ? <MailOpen size={36} /> : <Bell size={36} />}
             </div>
             {filter === "unread" ? "No unread notifications" :
              filter === "read"   ? "No read notifications yet" :

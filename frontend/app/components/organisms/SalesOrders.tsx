@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Download, Printer } from "lucide-react";
 import type { SalesOrder, Buyer, WarehouseLocation, FinishedProduct } from "@/app/types";
 import { SO_STATUS_LABELS, STATUS_BADGE_COLORS, PAYMENT_MODE_LABELS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
@@ -204,7 +204,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
         title="Sales Orders"
         sub={`${orders.length} orders`}
         actions={<>
-          <Button variant="secondary" onClick={exportCsv}>⬇ Export CSV</Button>
+          <Button variant="secondary" onClick={exportCsv}><Download size={14} /> Export CSV</Button>
           {canEdit && (
             <Button onClick={() => { setShowNew(true); setError(""); }}>
               <Plus size={16} /> New Sales Order
@@ -371,7 +371,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                 <div style={{ color: "var(--muted)", fontSize: 14 }}>{detail.buyer.name}</div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <Button variant="secondary" size="sm" onClick={() => printSO(detail)}>🖨 Print</Button>
+                <Button variant="secondary" size="sm" onClick={() => printSO(detail)}><Printer size={14} /> Print</Button>
                 <button onClick={() => { setDetail(null); setError(""); }}
                   style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}>×</button>
               </div>

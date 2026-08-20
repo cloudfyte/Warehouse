@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { ArrowLeftRight } from "lucide-react";
 import type { StockTransfer, WarehouseLocation, RawClothBatch, FinishedProduct } from "@/app/types";
 import Button from "@/app/components/atoms/Button";
 import Pagination from "@/app/components/atoms/Pagination";
@@ -130,7 +131,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "64px 24px" }}>
-            <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>🔄</div>
+            <div style={{ marginBottom: 12, opacity: 0.3, display: "flex", justifyContent: "center" }}><ArrowLeftRight size={36} /></div>
             <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
               {filter === "ALL" ? "No transfers yet" : `No ${filter.replace(/_/g, " ").toLowerCase()} transfers`}
             </div>

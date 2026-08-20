@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { Printer } from "lucide-react";
 import { Quotation, Buyer, WarehouseLocation, FinishedProduct, SystemSettings } from "@/app/types";
 import { QUOTATION_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { showToast } from "@/app/lib/toast";
@@ -321,7 +322,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="secondary" size="sm" onClick={() => printQuotation(selected)} title="Print / Save as PDF">
-                  🖨 Print
+                  <Printer size={14} /> Print
                 </Button>
                 <button onClick={() => { setSelected(null); setConvertMode(null); }} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
