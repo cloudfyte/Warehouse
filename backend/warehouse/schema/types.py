@@ -353,7 +353,7 @@ class StockTransferType(DjangoObjectType):
         if not self.created_by_id:
             return None
         try:
-            return self.created_by.employeeprofile
+            return self.created_by.profile
         except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 
@@ -361,7 +361,7 @@ class StockTransferType(DjangoObjectType):
         if not self.received_by_id:
             return None
         try:
-            return self.received_by.employeeprofile
+            return self.received_by.profile
         except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 

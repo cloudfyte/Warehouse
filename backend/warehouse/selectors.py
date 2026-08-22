@@ -702,8 +702,8 @@ def get_stock_transfers(user, status=None, limit=100):
         "from_warehouse", "to_warehouse",
         "raw_cloth_batch__cloth_category", "raw_cloth_batch__cloth_color",
         "finished_product__item_type",
-        "created_by__employeeprofile",
-        "received_by__employeeprofile",
+        "created_by__profile",
+        "received_by__profile",
     )
     if status:
         qs = qs.filter(status=status.upper())
