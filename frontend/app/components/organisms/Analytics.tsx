@@ -77,9 +77,11 @@ const TOOLTIP_STYLE = { borderRadius: 8, border: "1px solid var(--line)", backgr
 export default function Analytics({ gql }: { gql: (q: string) => Promise<AnalyticsData> }) {
   const [data, setData] = useState<AnalyticsStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [period, setPeriod] = useState(12);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true); setError("");
     gql(`{
       analyticsStats {
         monthlyRevenue { month revenue orderCount }
@@ -96,12 +98,20 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
       }
     }`)
       .then(d => setData(d.analyticsStats))
-      .catch(() => {})
+      .catch(e => setError(e?.message || "Failed to load analytics"))
       .finally(() => setLoading(false));
-  }, [gql]);
+  };
+
+  useEffect(() => { load(); }, [gql]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <div style={{ padding: 40, color: "var(--muted)", textAlign: "center" }}>Loading analytics…</div>;
-  if (!data) return <div style={{ padding: 40, color: "var(--muted)", textAlign: "center" }}>Failed to load analytics</div>;
+  if (error) return (
+    <div style={{ padding: 40, textAlign: "center" }}>
+      <div style={{ color: "var(--danger, #ef4444)", marginBottom: 16 }}>{error}</div>
+      <Button size="sm" variant="secondary" onClick={load}>Retry</Button>
+    </div>
+  );
+  if (!data) return null;
 
   const { monthlyRevenue, monthlyProduction, revenueVsExpenses, stockByCategory, topBuyers, topSuppliers, clothWastagePct, supplierTotalPending, sizeSalesBreakdown, tailorProductivity, cuttingMasterStats } = data;
 

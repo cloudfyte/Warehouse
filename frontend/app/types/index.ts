@@ -298,11 +298,10 @@ export interface AppSettings {
 }
 
 export interface SystemSettings extends AppSettings {
-  smtpHost: string; smtpPort: number; smtpUser: string; smtpPassword: string
-  smtpFromEmail: string; emailEnabled: boolean
-  twilioSid: string; twilioToken: string; twilioFrom: string; smsEnabled: boolean
-  waToken: string; waPhoneNumberId: string; waEnabled: boolean
-  firebaseServiceAccountJson: string; fcmEnabled: boolean
+  smtpHost: string; smtpPort: number; smtpUser: string; smtpFromEmail: string; emailEnabled: boolean
+  twilioAccountSid: string; twilioFromNumber: string; smsEnabled: boolean
+  waPhoneNumberId: string; waEnabled: boolean
+  fcmEnabled: boolean
   otpExpiryMinutes: number; allowOtpLogin: boolean
   companyName: string; companyState: string; currencySymbol: string; taxPercent: number
   printCompanyAddress: string; printBankDetails: string; printTerms: string

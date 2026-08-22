@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToasts, showToast, type ToastItem } from "@/app/lib/toast";
 import { graphql, refreshAccessToken, DASHBOARD_QUERY, SETTINGS_QUERY } from "@/app/lib/graphql";
-import { nameToColorHex } from "@/app/lib/colorUtils";
 import { friendlyError } from "@/app/lib/errors";
 import { applyBrandColors, applyDarkMode } from "@/app/lib/theme";
 import { TAB_TITLES } from "@/app/lib/constants";
@@ -37,6 +36,8 @@ import AuditLogs from "@/app/components/organisms/AuditLogs";
 import Expenses from "@/app/components/organisms/Expenses";
 import StockAdjustments from "@/app/components/organisms/StockAdjustments";
 import StockTransfers from "@/app/components/organisms/StockTransfers";
+import RawCloth from "@/app/components/organisms/RawCloth";
+import ReadymadeStock from "@/app/components/organisms/ReadymadeStock";
 import ReorderPoints from "@/app/components/organisms/ReorderPoints";
 import Quotations from "@/app/components/organisms/Quotations";
 import Reports from "@/app/components/organisms/Reports";
@@ -46,7 +47,6 @@ import QuickSearch from "@/app/components/organisms/QuickSearch";
 import Roles from "@/app/components/organisms/Roles";
 
 import CreatableSelect from "@/app/components/atoms/CreatableSelect";
-import Modal from "@/app/components/atoms/Modal";
 import { PageSkeleton } from "@/app/components/atoms/Skeleton";
 import FcmManager from "@/app/components/atoms/FcmManager";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
@@ -179,11 +179,8 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [rawClothSearch, setRawClothSearch] = useState("");
-  const [readymadeSearch, setReadymadeSearch] = useState("");
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [addToProducts, setAddToProducts] = useState<{ item: any; salePrice: string; qty: string } | null>(null);
-  const [addingToProducts, setAddingToProducts] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -253,12 +250,14 @@ export default function Home() {
     return () => clearInterval(id);
   }, [token, loadData]);
 
-  // Mobile detection — collapse sidebar by default on small screens
+  // Mobile detection — collapse sidebar on mobile, restore on desktop
   useEffect(() => {
     function check() {
       const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (mobile) setSidebarOpen(false);
+      setIsMobile(prev => {
+        if (prev !== mobile) setSidebarOpen(!mobile);
+        return mobile;
+      });
     }
     check();
     window.addEventListener("resize", check);
@@ -309,7 +308,9 @@ export default function Home() {
     setSaving(true);
     try {
       const result = await graphql(query, variables, token);
-      await loadData(token);
+      // Debounce dashboard refresh so rapid mutations don't queue concurrent reloads
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(() => { loadData(token); }, 800);
       return result;
     } finally {
       setSaving(false);
@@ -658,152 +659,14 @@ export default function Home() {
           </div>
         )}
         {currentTab === "raw_cloth" && (
-          <div style={{ padding: 24 }}>
-            <h2 style={{ margin: "0 0 16px" }}>Raw Cloth Batches <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({(data?.rawClothBatches || []).length})</span></h2>
-            <input placeholder="Search batch, category, color or warehouse…" value={rawClothSearch} onChange={e => setRawClothSearch(e.target.value)}
-              style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, width: "100%", boxSizing: "border-box", marginBottom: 16 }} />
-            <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--border)", overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "var(--bg)", fontSize: 12, color: "var(--muted)", textAlign: "left" }}>
-                    {["Batch #", "Category", "Color", "Total m", "Available m", "Cost/m", "Bin", "Warehouse", "Received"].map(h => (
-                      <th key={h} style={{ padding: "10px 14px", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.rawClothBatches || []).filter((b: AppData) => {
-                    const q = rawClothSearch.toLowerCase();
-                    return !q || b.batchNumber?.toLowerCase().includes(q) || b.clothCategory?.name?.toLowerCase().includes(q) || b.clothColor?.name?.toLowerCase().includes(q) || b.warehouse?.name?.toLowerCase().includes(q);
-                  }).map((b: AppData) => (
-                    <tr key={b.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td style={{ padding: "11px 14px", fontWeight: 600 }}>{b.batchNumber}</td>
-                      <td style={{ padding: "11px 14px" }}>{b.clothCategory?.name}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          {b.clothColor && <span style={{ width: 12, height: 12, borderRadius: 3, background: nameToColorHex(b.clothColor.name, b.clothColor.hexCode), display: "inline-block", flexShrink: 0 }} />}
-                          {b.clothColor?.name}
-                        </div>
-                      </td>
-                      <td style={{ padding: "11px 14px" }}>{b.totalMeters}m</td>
-                      <td style={{ padding: "11px 14px", fontWeight: 700, color: b.availableMeters < 5 ? "#f44336" : "inherit" }}>{b.availableMeters}m</td>
-                      <td style={{ padding: "11px 14px" }}>₹{b.costPerMeter}</td>
-                      <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--muted)" }}>{b.binLocation || "—"}</td>
-                      <td style={{ padding: "11px 14px" }}>{b.warehouse?.name}</td>
-                      <td style={{ padding: "11px 14px", fontSize: 12 }}>{b.receivedDate ? new Date(b.receivedDate).toLocaleDateString("en-IN") : "—"}</td>
-                    </tr>
-                  ))}
-                  {!(data?.rawClothBatches?.length) && (
-                    <tr><td colSpan={9} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
-                      No raw cloth batches. Receive a Purchase Order or Purchase Bill to add cloth stock.
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <RawCloth batches={data?.rawClothBatches || []} />
         )}
         {currentTab === "readymade_stock" && (
-          <div style={{ padding: 24 }}>
-            <h2 style={{ margin: "0 0 16px" }}>Readymade Stock <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({(data?.readymadeStock || []).length})</span></h2>
-            <input placeholder="Search item type, fabric, color, size or warehouse…" value={readymadeSearch} onChange={e => setReadymadeSearch(e.target.value)}
-              style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, width: "100%", boxSizing: "border-box", marginBottom: 16 }} />
-            <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--border)", overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "var(--bg)", fontSize: 12, color: "var(--muted)", textAlign: "left" }}>
-                    {["Item Type", "Fabric", "Color", "Size", "Received", "Available", "Cost/pc", "Warehouse", "Date", ""].map(h => (
-                      <th key={h} style={{ padding: "10px 14px", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.readymadeStock || []).filter((s: AppData) => {
-                    const q = readymadeSearch.toLowerCase();
-                    return !q || s.itemType?.name?.toLowerCase().includes(q) || s.clothCategory?.name?.toLowerCase().includes(q) || s.clothColor?.name?.toLowerCase().includes(q) || s.size?.toLowerCase().includes(q) || s.warehouse?.name?.toLowerCase().includes(q);
-                  }).map((s: AppData) => (
-                    <tr key={s.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td style={{ padding: "11px 14px", fontWeight: 600 }}>{s.itemType?.name}</td>
-                      <td style={{ padding: "11px 14px", fontSize: 12, color: "var(--muted)" }}>{s.clothCategory?.name || "—"}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          {s.clothColor && <span style={{ width: 12, height: 12, borderRadius: 3, background: nameToColorHex(s.clothColor.name, s.clothColor.hexCode), display: "inline-block", flexShrink: 0 }} />}
-                          {s.clothColor?.name || "—"}
-                        </div>
-                      </td>
-                      <td style={{ padding: "11px 14px" }}>{s.size || "—"}</td>
-                      <td style={{ padding: "11px 14px" }}>{s.quantityReceived} pcs</td>
-                      <td style={{ padding: "11px 14px", fontWeight: 700, color: s.quantityAvailable < 5 ? "#f44336" : "inherit" }}>{s.quantityAvailable} pcs</td>
-                      <td style={{ padding: "11px 14px" }}>₹{s.costPrice}</td>
-                      <td style={{ padding: "11px 14px" }}>{s.warehouse?.name}</td>
-                      <td style={{ padding: "11px 14px", fontSize: 12 }}>{s.receivedDate ? new Date(s.receivedDate).toLocaleDateString("en-IN") : "—"}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        {canAddStock && s.quantityAvailable > 0 && (
-                          <button onClick={() => setAddToProducts({ item: s, salePrice: "", qty: String(s.quantityAvailable) })}
-                            style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-                            → Add to Products
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {!(data?.readymadeStock?.length) && (
-                    <tr><td colSpan={10} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
-                      No readymade stock. Receive a Purchase Order or Purchase Bill to add readymade items.
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Convert readymade stock → Finished Product modal */}
-            {addToProducts && (
-              <Modal title="Add to Finished Products" subtitle={[addToProducts.item.itemType?.name, addToProducts.item.clothColor?.name, addToProducts.item.size].filter(Boolean).join(" · ")}
-                onClose={() => setAddToProducts(null)} width={420}
-                footer={<div style={{ display: "flex", gap: 10 }}>
-                  <button disabled={addingToProducts || !(parseFloat(addToProducts.salePrice) > 0) || !(parseInt(addToProducts.qty) > 0)}
-                    onClick={async () => {
-                      setAddingToProducts(true);
-                      try {
-                        await mutate(
-                          `mutation A($rsId:ID!,$itId:ID!,$wId:ID!,$qty:Int!,$cp:Float!,$sp:Float!,$cat:ID,$col:ID,$sz:String){createFinishedProducts(readymadeStockId:$rsId,itemTypeId:$itId,warehouseId:$wId,quantity:$qty,costPrice:$cp,salePrice:$sp,clothCategoryId:$cat,clothColorId:$col,size:$sz){finishedProduct{id sku}}}`,
-                          { rsId: addToProducts.item.id, itId: addToProducts.item.itemType?.id, wId: addToProducts.item.warehouse?.id,
-                            qty: parseInt(addToProducts.qty), cp: parseFloat(addToProducts.item.costPrice),
-                            sp: parseFloat(addToProducts.salePrice),
-                            cat: addToProducts.item.clothCategory?.id || undefined,
-                            col: addToProducts.item.clothColor?.id || undefined,
-                            sz: addToProducts.item.size || undefined }
-                        );
-                        setAddToProducts(null);
-                        if (token) loadData(token);
-                      } catch (e: unknown) { showToast(friendlyError(e), "error"); }
-                      finally { setAddingToProducts(false); }
-                    }}
-                    style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
-                    {addingToProducts ? "Adding…" : "Add to Products"}
-                  </button>
-                  <button onClick={() => setAddToProducts(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
-                </div>}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ background: "var(--canvas)", borderRadius: 9, padding: "10px 14px", fontSize: 13, color: "var(--muted)" }}>
-                    Cost price: <strong style={{ color: "var(--ink)" }}>₹{addToProducts.item.costPrice}</strong> · Available: <strong style={{ color: "var(--ink)" }}>{addToProducts.item.quantityAvailable} pcs</strong>
-                  </div>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>
-                    Quantity to add *
-                    <input type="number" min="1" max={addToProducts.item.quantityAvailable} value={addToProducts.qty}
-                      onChange={e => setAddToProducts(p => p ? { ...p, qty: e.target.value } : p)}
-                      style={{ padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, outline: "none" }} />
-                  </label>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.4, textTransform: "uppercase" }}>
-                    Sale Price (₹) *
-                    <input type="number" min="0" step="0.01" placeholder="0.00" value={addToProducts.salePrice}
-                      onChange={e => setAddToProducts(p => p ? { ...p, salePrice: e.target.value } : p)}
-                      style={{ padding: "10px 13px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, outline: "none" }} autoFocus />
-                  </label>
-                </div>
-              </Modal>
-            )}
-          </div>
+          <ReadymadeStock
+            items={data?.readymadeStock || []}
+            canAddStock={canAddStock}
+            onMutate={mutate}
+          />
         )}
         {currentTab === "cutting" && (
           <Cutting

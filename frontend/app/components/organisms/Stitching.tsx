@@ -113,8 +113,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
 
   function openFG(j: StitchingJob) {
     const net = (j.piecesCompleted || 0) - (j.piecesRejected || 0);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ca = j.cuttingAssignment as any;
+    const ca = j.cuttingAssignment;
     const defaultWh = ca?.rawClothBatch?.warehouse?.id || (warehouses[0]?.id ?? "");
     setFgJob(j);
     setFgForm({ qty: String(Math.max(0, net)), warehouseId: defaultWh, costPrice: String(ca?.costPerPiece || ""), salePrice: "" });
@@ -154,8 +153,7 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
       const r = await onMutate(
         `mutation C($u:String!,$p:String!){createEmployee(username:$u,password:$p,role:"TAILOR"){employee{id username}}}`,
         { u: newTailorName.trim(), p: newTailorPass.trim() }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ) as any;
+      );
       const created = r?.createEmployee?.employee;
       if (created) {
         setLocalTailors(p => [...p, created]);

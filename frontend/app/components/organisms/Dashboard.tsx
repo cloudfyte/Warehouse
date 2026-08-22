@@ -231,6 +231,7 @@ export default function Dashboard({
                 {(tp.credit) && <StatCard label="Overdue" value={formatMoney(stats.creditOverdue ?? 0)} color={(stats.creditOverdue ?? 0) > 0 ? "#b71c1c" : "#4caf50"} />}
                 {tp.expenses && <StatCard label="Expenses This Month" value={formatMoney(stats.expensesThisMonth ?? 0)} color="#dc2626" />}
               </div>
+              {(tp.reports || tp.sales_orders) && <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 16 }}>Delivered orders only</div>}
             </>
           )}
           {Object.values(tp).every(v => !v) && (
@@ -398,10 +399,11 @@ export default function Dashboard({
           {!isAuditor && (
             <>
               <SectionLabel>Revenue</SectionLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 8 }}>
                 <StatCard label="Revenue This Month" value={formatMoney(stats.revenueThisMonth ?? 0)} color="var(--accent)" />
                 <StatCard label="Revenue This Year" value={formatMoney(stats.revenueThisYear ?? 0)} color="var(--accent)" />
               </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 20 }}>Delivered orders only</div>
 
               <SectionLabel>Supplier Payments (Purchase Bills)</SectionLabel>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>

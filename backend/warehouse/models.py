@@ -107,7 +107,7 @@ class EmployeeProfile(models.Model):
         related_name="profile",
         on_delete=models.CASCADE,
     )
-    role = models.CharField(max_length=50, choices=Role.choices, default=Role.STORE_KEEPER)
+    role = models.CharField(max_length=50, choices=Role.choices, default=Role.STORE_KEEPER, db_index=True)
     custom_role = models.ForeignKey(
         CustomRole, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="employees",
@@ -115,7 +115,7 @@ class EmployeeProfile(models.Model):
     )
     phone = models.CharField(max_length=20, blank=True)
     locations = models.ManyToManyField(WarehouseLocation, related_name="employees", blank=True)
-    active = models.BooleanField(default=True)
+    active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -406,7 +406,7 @@ class RawClothBatch(models.Model):
     bin_location = models.CharField(max_length=80, blank=True, help_text="Shelf / rack in warehouse")
     received_date = models.DateField(default=timezone.now)
     notes = models.TextField(blank=True)
-    active = models.BooleanField(default=True)
+    active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -561,7 +561,7 @@ class FinishedProduct(models.Model):
     barcode = models.CharField(max_length=60, unique=True, editable=False)
     barcode_svg = models.TextField(blank=True)
     tags_printed = models.BooleanField(default=False)
-    active = models.BooleanField(default=True)
+    active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -663,7 +663,7 @@ class CreditTransaction(models.Model):
     amount_paid = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     amount_due = models.DecimalField(max_digits=14, decimal_places=2)
     due_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OUTSTANDING)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OUTSTANDING, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -928,10 +928,10 @@ class OTPCode(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="otp_codes")
     code = models.CharField(max_length=128)
-    purpose = models.CharField(max_length=20, choices=Purpose.choices)
+    purpose = models.CharField(max_length=20, choices=Purpose.choices, db_index=True)
     channel = models.CharField(max_length=10, choices=Channel.choices, default=Channel.EMAIL)
     expires_at = models.DateTimeField()
-    used = models.BooleanField(default=False)
+    used = models.BooleanField(default=False, db_index=True)
     attempts = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -961,7 +961,7 @@ class Notification(models.Model):
     message = models.TextField()
     level = models.CharField(max_length=20, choices=Level.choices, default=Level.INFO)
     link = models.CharField(max_length=200, blank=True, help_text="Frontend tab/anchor to navigate on click")
-    read = models.BooleanField(default=False)
+    read = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1200,8 +1200,17 @@ class SystemSettings(models.Model):
 
     @classmethod
     def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
+        from django.core.cache import cache
+        obj = cache.get("system_settings")
+        if obj is None:
+            obj, _ = cls.objects.get_or_create(pk=1)
+            cache.set("system_settings", obj, 300)
         return obj
+
+    def save(self, *args, **kwargs):
+        from django.core.cache import cache
+        super().save(*args, **kwargs)
+        cache.delete("system_settings")
 
     def __str__(self):
         return f"System settings — {self.app_name}"

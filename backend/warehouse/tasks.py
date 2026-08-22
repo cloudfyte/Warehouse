@@ -54,12 +54,20 @@ def send_push_task(self, user_id: int, title: str, body: str, data: dict | None 
 
 # ─── Scheduled tasks ──────────────────────────────────────────────────────────
 
-@shared_task
-def check_reorder_points():
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def check_reorder_points(self):
     """
     Runs daily — checks all active ReorderPoints against current stock.
     Creates in-app notifications for managers when stock falls below threshold.
     """
+    try:
+      _run_reorder_check()
+    except Exception as exc:
+        logger.warning("check_reorder_points failed: %s, retrying…", exc)
+        raise self.retry(exc=exc)
+
+
+def _run_reorder_check():
     from django.db.models import Sum
     from warehouse.models import ReorderPoint, RawClothBatch, FinishedProduct
     from warehouse.services.notify import notify_managers
@@ -112,6 +120,17 @@ def check_reorder_points():
     logger.info("Reorder check: %d alerts sent", len(alerts))
 
 
+@shared_task
+def cleanup_expired_otps():
+    """Weekly — removes OTPCode rows older than 24 h to keep the table small."""
+    from django.utils import timezone
+    from datetime import timedelta
+    from warehouse.models import OTPCode
+    cutoff = timezone.now() - timedelta(hours=24)
+    deleted, _ = OTPCode.objects.filter(created_at__lt=cutoff).delete()
+    logger.info("OTP cleanup: %d rows deleted", deleted)
+
+
 # ─── WhatsApp order notifications ─────────────────────────────────────────────
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=30)
@@ -128,8 +147,8 @@ def send_whatsapp_order_notification(self, phone: str, message: str):
 
 # ─── Payment reminder task ─────────────────────────────────────────────────────
 
-@shared_task
-def send_payment_reminders():
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def send_payment_reminders(self):
     """
     Runs daily. Sends WhatsApp reminders to buyers with outstanding credit:
       • 3 days before due date
@@ -137,6 +156,14 @@ def send_payment_reminders():
       • 7 days after due date (overdue)
     Uses due_date on CreditTransaction. Falls back to created_at + buyer.credit_days.
     """
+    try:
+        _run_payment_reminders()
+    except Exception as exc:
+        logger.warning("send_payment_reminders failed: %s, retrying…", exc)
+        raise self.retry(exc=exc)
+
+
+def _run_payment_reminders():
     from datetime import date, timedelta
     from warehouse.models import CreditTransaction, SystemSettings
 
@@ -161,7 +188,7 @@ def send_payment_reminders():
             due = ct.created_at.date() + timedelta(days=days)
 
         days_diff = (today - due).days  # positive = overdue, negative = upcoming
-        if days_diff not in {-3, 0, 7}:
+        if days_diff not in trigger_days:
             continue
 
         phone = ct.buyer.whatsapp or ct.buyer.phone

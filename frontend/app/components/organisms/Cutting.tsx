@@ -114,8 +114,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       const r = await onMutate(
         `mutation C($n:String!){createItemType(name:$n,category:"OTHER",clothLengthPerPiece:1.0){itemType{id name}}}`,
         { n: newItemTypeName.trim() }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ) as any;
+      );
       const created = r?.createItemType?.itemType;
       if (created) {
         setLocalItemTypes(p => [...p, created]);
@@ -133,8 +132,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       const r = await onMutate(
         `mutation C($u:String!,$p:String!){createEmployee(username:$u,password:$p,role:"CUTTING_MASTER"){employee{id username}}}`,
         { u: newMasterName.trim(), p: newMasterPass.trim() }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ) as any;
+      );
       const created = r?.createEmployee?.employee;
       if (created) {
         setLocalMasters(p => [...p, created]);

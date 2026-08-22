@@ -370,7 +370,7 @@ def get_dashboard_stats(user):
             warehouse__in=warehouses, status__in=["PLACED", "DISPATCHED"]
         ).count(),
         active_sales_orders=sales.filter(status__in=["REQUESTED", "PROCESSING", "READY"]).count(),
-        cutting_in_progress=cutting.filter(status__in=["PENDING", "IN_PROGRESS"]).count(),
+        cutting_in_progress=cutting.filter(status="IN_PROGRESS").count(),
         stitching_in_progress=stitching.filter(status__in=["RECEIVED", "PROCESSING", "QC_CHECK"]).count(),
         credit_outstanding=float(credit_outstanding),
         revenue_this_month=float(revenue_month),

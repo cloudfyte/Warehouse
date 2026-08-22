@@ -25,10 +25,17 @@ class Command(BaseCommand):
             day_of_week="*", day_of_month="*", month_of_year="*",
             timezone="Asia/Kolkata",
         )
+        # Weekly Sunday at 2:00 AM IST
+        weekly_cleanup, _ = CrontabSchedule.objects.get_or_create(
+            minute="0", hour="2",
+            day_of_week="0", day_of_month="*", month_of_year="*",
+            timezone="Asia/Kolkata",
+        )
 
         tasks = [
             ("Daily Low-Stock Alert",    "warehouse.tasks.check_reorder_points",    morning),
             ("Daily Payment Reminders",  "warehouse.tasks.send_payment_reminders",  mid_morning),
+            ("Weekly OTP Cleanup",       "warehouse.tasks.cleanup_expired_otps",    weekly_cleanup),
         ]
         for name, task_path, schedule in tasks:
             _, created = PeriodicTask.objects.update_or_create(
