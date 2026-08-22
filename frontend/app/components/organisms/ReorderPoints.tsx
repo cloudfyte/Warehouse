@@ -15,6 +15,7 @@ interface Props {
   categories: ClothCategory[]
   colors: ClothColor[]
   itemTypes: ItemType[]
+  isSuperAdmin?: boolean
   isAdmin: boolean
   isManager: boolean
   gql: (q: string, v?: Record<string, unknown>) => Promise<unknown>
@@ -34,7 +35,7 @@ const empty = (): Form => ({
   itemTypeId: "", size: "", thresholdPieces: "",
 });
 
-export default function ReorderPoints({ reorderPoints, warehouses, categories, colors, itemTypes, isAdmin, isManager, gql, onRefresh }: Props) {
+export default function ReorderPoints({ reorderPoints, warehouses, categories, colors, itemTypes, isSuperAdmin, isAdmin, isManager, gql, onRefresh }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ReorderPoint | null>(null);
   const [form, setForm] = useState<Form>(empty());
@@ -42,7 +43,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
   const [err, setErr] = useState("");
   const [pendingDel, setPendingDel] = useState<string | null>(null);
 
-  const canEdit = isAdmin || isManager;
+  const canEdit = isSuperAdmin || isAdmin || isManager;
 
   function openCreate() { setForm(empty()); setEditing(null); setErr(""); setShowForm(true); }
   function openEdit(rp: ReorderPoint) {

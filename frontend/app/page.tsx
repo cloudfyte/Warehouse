@@ -885,7 +885,7 @@ export default function Home() {
             categories={data?.clothCategories || []}
             colors={data?.clothColors || []}
             itemTypes={data?.itemTypes || []}
-            isAdmin={isAdmin} isManager={isManager}
+            isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} isManager={isManager}
             gql={(q, v) => graphql(q, v || {}, token!)}
             onRefresh={() => loadData(token!)}
           />
