@@ -27,8 +27,8 @@ jobs:
             git fetch origin
             git reset --hard origin/main
 
-            echo "=== Build images ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+            echo "=== Build images (no cache — ensures latest code is compiled) ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
 
             echo "=== Stop and remove stale app containers (compose-aware) ==="
             docker compose -f docker-compose.yml -f docker-compose.prod.yml rm -sf backend frontend celery celery-beat 2>/dev/null || true
