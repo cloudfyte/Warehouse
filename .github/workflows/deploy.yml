@@ -30,8 +30,8 @@ jobs:
             echo "=== Build images (no cache — ensures latest code is compiled) ==="
             docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
 
-            echo "=== Stop and remove stale app containers (compose-aware) ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml rm -sf backend frontend celery celery-beat 2>/dev/null || true
+            echo "=== Remove stale app containers ==="
+            docker rm -f warehouse_frontend warehouse_backend warehouse_celery warehouse_celery_beat 2>/dev/null || true
 
             echo "=== Start all services ==="
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
