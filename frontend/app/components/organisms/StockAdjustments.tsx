@@ -11,6 +11,8 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import ConfirmDialog from "@/app/components/molecules/ConfirmDialog";
+import type { ConfirmState } from "@/app/types";
 import { downloadCsv } from "@/app/lib/csv";
 import Pagination from "@/app/components/atoms/Pagination";
 import { showToast } from "@/app/lib/toast";
@@ -67,6 +69,7 @@ export default function StockAdjustments({
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -137,12 +140,6 @@ export default function StockAdjustments({
   }
 
   async function handleDelete(id: string) {
-    if (deleting !== id + "_confirm") {
-      setDeleting(id + "_confirm");
-      showToast("Click delete again to confirm — the stock change will be reversed.", "warn");
-      setTimeout(() => setDeleting(prev => prev === id + "_confirm" ? null : prev), 4000);
-      return;
-    }
     setDeleting(id);
     try {
       await onMutate(
@@ -272,8 +269,8 @@ export default function StockAdjustments({
                     <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--muted)" }}>{formatDate(adj.createdAt)}</td>
                     {canDelete && (
                       <td style={{ padding: "10px 14px" }}>
-                        <Button variant="danger" size="sm" onClick={() => handleDelete(adj.id)} disabled={deleting === adj.id}>
-                          {deleting === adj.id ? "…" : deleting === adj.id + "_confirm" ? "Confirm?" : "Delete"}
+                        <Button variant="danger" size="sm" onClick={() => setConfirmDelete(adj.id)} disabled={deleting === adj.id}>
+                          {deleting === adj.id ? "…" : "Delete"}
                         </Button>
                       </td>
                     )}
@@ -404,6 +401,19 @@ export default function StockAdjustments({
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDelete !== null && (
+        <ConfirmDialog
+          state={{
+            open: true,
+            title: "Delete Adjustment",
+            message: "This will permanently delete the adjustment and reverse the stock change. This action cannot be undone.",
+            confirmLabel: "Delete",
+            onConfirm: () => handleDelete(confirmDelete),
+          } satisfies ConfirmState}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import type { ReorderPoint, WarehouseLocation, ClothCategory, ClothColor, ItemType } from "@/app/types";
+import type { ReorderPoint, WarehouseLocation, ClothCategory, ClothColor, ItemType, ConfirmState } from "@/app/types";
+import ConfirmDialog from "@/app/components/molecules/ConfirmDialog";
 import { showToast } from "@/app/lib/toast";
 import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
@@ -41,7 +42,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
   const [form, setForm] = useState<Form>(empty());
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [pendingDel, setPendingDel] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const canEdit = isSuperAdmin || isAdmin || isManager;
 
@@ -94,13 +95,6 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
   }
 
   async function del(id: string) {
-    if (pendingDel !== id) {
-      setPendingDel(id);
-      showToast("Click delete again to confirm.", "warn");
-      setTimeout(() => setPendingDel(prev => prev === id ? null : prev), 4000);
-      return;
-    }
-    setPendingDel(null);
     try {
       await gql(`mutation D($id:ID!){deleteReorderPoint(id:$id){ok}}`, { id });
       showToast("Reorder threshold deleted.", "success");
@@ -174,7 +168,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
                     {canEdit && (
                       <div style={{ display: "flex", gap: 6 }}>
                         <Button variant="secondary" size="sm" onClick={() => openEdit(rp)}>Edit</Button>
-                        <Button variant="danger" size="sm" onClick={() => del(rp.id)}>{pendingDel === rp.id ? "Confirm?" : "Delete"}</Button>
+                        <Button variant="danger" size="sm" onClick={() => setConfirmDelete(rp.id)}>Delete</Button>
                       </div>
                     )}
                   </div>
@@ -264,6 +258,19 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDelete !== null && (
+        <ConfirmDialog
+          state={{
+            open: true,
+            title: "Delete Reorder Threshold",
+            message: "This will permanently delete this reorder threshold. This action cannot be undone.",
+            confirmLabel: "Delete",
+            onConfirm: () => { del(confirmDelete); setConfirmDelete(null); },
+          } satisfies ConfirmState}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

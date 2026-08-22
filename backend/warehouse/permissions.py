@@ -11,12 +11,13 @@ PRODUCTION_ROLES = {
 
 
 def get_profile(user):
-    profile, _ = EmployeeProfile.objects.get_or_create(
-        user=user,
-        defaults={
-            "role": EmployeeProfile.Role.SUPER_ADMIN if user.is_superuser else EmployeeProfile.Role.STORE_KEEPER
-        },
-    )
+    profile = EmployeeProfile.objects.filter(user=user).first()
+    if profile is None:
+        if user.is_superuser:
+            # Auto-provision profile for Django superusers only
+            profile = EmployeeProfile.objects.create(user=user, role=EmployeeProfile.Role.SUPER_ADMIN)
+        else:
+            raise GraphQLError("No employee profile found for this account. Contact an administrator.")
     if not profile.active:
         raise GraphQLError("Your account has been deactivated. Contact an administrator.")
     return profile

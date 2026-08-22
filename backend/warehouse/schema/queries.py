@@ -145,7 +145,9 @@ class Query(graphene.ObjectType):
 
     @login_required
     def resolve_custom_roles(self, info):
-        from warehouse.models import CustomRole
+        from warehouse.models import CustomRole, EmployeeProfile
+        from warehouse.permissions import require_role
+        require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
         return CustomRole.objects.all()
 
     @login_required

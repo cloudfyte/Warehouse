@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from django.db.models import Q
 from django.db import models, transaction
 from django.utils import timezone
 
@@ -643,6 +644,11 @@ class SalesOrderItem(models.Model):
     total_price = models.DecimalField(max_digits=12, decimal_places=2)
     notes = models.CharField(max_length=200, blank=True)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(quantity__gt=0), name="salesorderitem_quantity_positive"),
+        ]
+
     def save(self, *args, **kwargs):
         self.total_price = self.unit_price * self.quantity
         super().save(*args, **kwargs)
@@ -694,6 +700,9 @@ class CreditPayment(models.Model):
 
     class Meta:
         ordering = ["-payment_date"]
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name="creditpayment_amount_positive"),
+        ]
 
 
 # ─── OTP authentication ───────────────────────────────────────────────────────
@@ -812,6 +821,9 @@ class Expense(models.Model):
 
     class Meta:
         ordering = ["-expense_date", "-created_at"]
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name="expense_amount_positive"),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.expense_number:

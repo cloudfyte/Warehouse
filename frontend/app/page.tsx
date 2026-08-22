@@ -616,7 +616,7 @@ export default function Home() {
         )}
 
         {/* ── Tab content ── */}
-        <div key={currentTab} className="tab-content">
+        <div className="tab-content">
         {currentTab === "analytics" && (
           <Analytics gql={(q) => graphql(q, {}, token!)} />
         )}

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Download, ClipboardList } from "lucide-react";
 import type { AuditLog } from "@/app/types";
 import { downloadCsv } from "@/app/lib/csv";
@@ -32,7 +32,7 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function AuditLogs({ logs }: Props) {
+function AuditLogs({ logs }: Props) {
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState("");
   const [detail, setDetail] = useState<AuditLog | null>(null);
@@ -154,3 +154,5 @@ export default function AuditLogs({ logs }: Props) {
     </div>
   );
 }
+
+export default memo(AuditLogs);

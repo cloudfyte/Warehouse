@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import Button from "@/app/components/atoms/Button";
 import StatCard from "@/app/components/molecules/StatCard";
 import PageHeader from "@/app/components/molecules/PageHeader";
@@ -74,7 +74,7 @@ const TOOLTIP_STYLE = { borderRadius: 8, border: "1px solid var(--line)", backgr
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function Analytics({ gql }: { gql: (q: string) => Promise<AnalyticsData> }) {
+function Analytics({ gql }: { gql: (q: string) => Promise<AnalyticsData> }) {
   const [data, setData] = useState<AnalyticsStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -387,3 +387,5 @@ export default function Analytics({ gql }: { gql: (q: string) => Promise<Analyti
     </div>
   );
 }
+
+export default memo(Analytics);

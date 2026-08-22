@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, memo } from "react";
 import { X, ExternalLink, CheckCircle2, MailOpen, Bell, Info, AlertTriangle, AlertOctagon } from "lucide-react";
 import type { Notification } from "@/app/types";
 import { formatDateShort } from "@/app/lib/formatters";
@@ -39,7 +39,7 @@ const LEVEL_LABELS: Record<string, string> = {
 
 type Filter = "all" | "unread" | "read";
 
-export default function Notifications({ notifications, onMutate, onNavigate }: Props) {
+function Notifications({ notifications, onMutate, onNavigate }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
   const [detail, setDetail] = useState<Notification | null>(null);
@@ -252,3 +252,5 @@ export default function Notifications({ notifications, onMutate, onNavigate }: P
     </div>
   );
 }
+
+export default memo(Notifications);

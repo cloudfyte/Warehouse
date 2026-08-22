@@ -290,7 +290,16 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 <div style={{ fontWeight: 700 }}>{p.quantity} pcs</div>
               </div>
             </div>
-            {!p.tagsPrinted && <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#c07020", fontWeight: 600, background: "#fff3e0", borderRadius: 4, padding: "2px 7px" }}>Tag pending</div>}
+            {!p.tagsPrinted && (
+              <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#c07020", fontWeight: 600, background: "#fff3e0", borderRadius: 4, padding: "2px 7px" }}>Tag pending</div>
+                <button
+                  onClick={e => { e.stopPropagation(); printTag(p, systemSettings || {}); markPrinted(p.id); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, padding: "2px 8px", borderRadius: 4, border: "1px solid #c07020", background: "transparent", color: "#c07020", fontWeight: 600, cursor: "pointer" }}>
+                  Print Tag
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {filtered.length === 0 && (

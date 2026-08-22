@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { X, Truck, Receipt, Package, Scissors, Shirt, Tag, ShoppingCart, Landmark, AlertTriangle, AlertOctagon } from "lucide-react";
 import type { CustomRole, DashboardStats, Employee, Tab } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
@@ -92,7 +92,7 @@ function WorkflowGuide({ stats, onNavigate }: { stats: DashboardStats; onNavigat
   );
 }
 
-export default function Dashboard({
+function Dashboard({
   stats, profile, rawBatches = [], readymadeStock = [], reorderPoints = [], role = "STORE_KEEPER",
   cuttingAssignments = [], stitchingJobs = [], onNavigate,
 }: {
@@ -465,3 +465,5 @@ export default function Dashboard({
     </div>
   );
 }
+
+export default memo(Dashboard);
