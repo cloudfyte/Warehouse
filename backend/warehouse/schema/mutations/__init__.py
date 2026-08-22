@@ -29,6 +29,7 @@ from .parcel_inspection import CreateParcelInspection, UpdateParcelInspection
 from .quotation import CreateQuotation, UpdateQuotationStatus, ConvertQuotationToSO
 from .custom_role import CreateCustomRole, UpdateCustomRole, DeleteCustomRole
 from .admin import ResetAllData
+from .returns import CreateBuyerReturn, CreateSupplierReturn
 
 
 class Mutation(graphene.ObjectType):
@@ -134,6 +135,10 @@ class Mutation(graphene.ObjectType):
     # Misc
     mark_notifications_read = MarkNotificationsRead.Field()
     update_system_settings = UpdateSystemSettings.Field()
+
+    # Returns
+    create_buyer_return = CreateBuyerReturn.Field()
+    create_supplier_return = CreateSupplierReturn.Field()
 
     # Admin utilities
     reset_all_data = ResetAllData.Field()

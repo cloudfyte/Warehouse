@@ -164,6 +164,7 @@ class Query(graphene.ObjectType):
     def resolve_expenses(self, info, limit=200):
         return selectors.get_expenses(info.context.user, limit=limit)
 
+    @login_required
     def resolve_purchase_bills(self, info, limit=50):
         return selectors.get_purchase_bills(info.context.user, limit=limit)
 

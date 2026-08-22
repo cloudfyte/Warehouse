@@ -70,13 +70,14 @@ def create_purchase_order(*, user, supplier_id, order_type, warehouse_id,
         from warehouse.tasks import send_whatsapp_order_notification
         from warehouse.models import SystemSettings
         settings = SystemSettings.load()
-        msg = (
-            f"Hello {supplier.name},\n"
-            f"A new purchase order *{po.po_number}* has been placed with you by *{settings.company_name}*.\n"
-            f"Order value: {settings.currency_symbol}{po.total_amount:.2f}\n"
-            f"Please confirm and dispatch at the earliest. Thank you!"
-        )
-        send_whatsapp_order_notification.delay(supplier_phone, msg)
+        if settings.wa_enabled:
+            msg = (
+                f"Hello {supplier.name},\n"
+                f"A new purchase order *{po.po_number}* has been placed with you by *{settings.company_name}*.\n"
+                f"Order value: {settings.currency_symbol}{po.total_amount:.2f}\n"
+                f"Please confirm and dispatch at the earliest. Thank you!"
+            )
+            send_whatsapp_order_notification.delay(supplier_phone, msg)
 
     return po
 

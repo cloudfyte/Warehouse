@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Plus, Trash2, Download, Printer } from "lucide-react";
-import type { SalesOrder, Buyer, WarehouseLocation, FinishedProduct } from "@/app/types";
+import type { SalesOrder, Buyer, WarehouseLocation, FinishedProduct, ConfirmState } from "@/app/types";
+import ConfirmDialog from "@/app/components/molecules/ConfirmDialog";
 import { SO_STATUS_LABELS, STATUS_BADGE_COLORS, PAYMENT_MODE_LABELS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
@@ -64,6 +65,8 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
   const [discount, setDiscount] = useState("0");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<SOItem[]>([emptyItem()]);
+
+  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [search, statusFilter, dateFrom, dateTo]);
@@ -426,7 +429,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
               </Button>
             )}
             {canEdit && !["DELIVERED", "CANCELLED"].includes(detail.status) && (
-              <Button variant="danger" onClick={() => updateStatus(detail.id, "CANCELLED")} disabled={loading} style={{ width: "100%" }}>
+              <Button variant="danger" onClick={() => setConfirmCancel(detail.id)} disabled={loading} style={{ width: "100%" }}>
                 Cancel Order
               </Button>
             )}
@@ -467,6 +470,19 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
         </table>
       </div>
       <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
+
+      {confirmCancel !== null && (
+        <ConfirmDialog
+          state={{
+            open: true,
+            title: "Cancel Order",
+            message: "This will permanently cancel the order. This action cannot be undone.",
+            confirmLabel: "Cancel Order",
+            onConfirm: () => updateStatus(confirmCancel, "CANCELLED"),
+          } satisfies ConfirmState}
+          onCancel={() => setConfirmCancel(null)}
+        />
+      )}
     </div>
   );
 }

@@ -353,16 +353,16 @@ class StockTransferType(DjangoObjectType):
         if not self.created_by_id:
             return None
         try:
-            return EmployeeProfile.objects.get(user_id=self.created_by_id)
-        except EmployeeProfile.DoesNotExist:
+            return self.created_by.employeeprofile
+        except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 
     def resolve_received_by(self, info):
         if not self.received_by_id:
             return None
         try:
-            return EmployeeProfile.objects.get(user_id=self.received_by_id)
-        except EmployeeProfile.DoesNotExist:
+            return self.received_by.employeeprofile
+        except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 
 

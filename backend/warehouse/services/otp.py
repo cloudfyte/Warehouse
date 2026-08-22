@@ -84,6 +84,8 @@ def request_otp(*, username: str, purpose: str, channel: str) -> dict:
     user = resolve_identifier(username)
 
     cfg = SystemSettings.load()
+    if not cfg.allow_otp_login:
+        raise GraphQLError("OTP login is not enabled on this system.")
 
     # Rate-limit: max 3 valid unused OTPs per user per hour
     recent = OTPCode.objects.filter(
@@ -94,11 +96,12 @@ def request_otp(*, username: str, purpose: str, channel: str) -> dict:
         raise GraphQLError("Too many OTP requests. Please wait before trying again.")
 
     code = _generate_code()
+    from django.contrib.auth.hashers import make_password
     expiry = timezone.now() + timedelta(minutes=cfg.otp_expiry_minutes)
 
     otp = OTPCode.objects.create(
         user=user,
-        code=code,
+        code=make_password(code),
         purpose=purpose,
         channel=channel,
         expires_at=expiry,
@@ -134,7 +137,8 @@ def verify_otp_and_login(*, username: str, code: str, purpose: str):
             raise GraphQLError("OTP has expired or is invalid. Please request a new one.")
 
         otp.attempts += 1
-        if otp.code != code:
+        from django.contrib.auth.hashers import check_password
+        if not check_password(code, otp.code):
             otp.save(update_fields=["attempts"])
             raise GraphQLError("Incorrect OTP.")
 

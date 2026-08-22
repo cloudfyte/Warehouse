@@ -108,7 +108,7 @@ def get_purchase_orders(user, status=None, limit=50):
         return PurchaseOrder.objects.none()
     qs = (
         PurchaseOrder.objects
-        .select_related("supplier", "warehouse", "created_by")
+        .select_related("supplier", "warehouse", "created_by", "parcel_inspection")
         .prefetch_related("items")
         .filter(warehouse__in=accessible_warehouses(user))
     )
@@ -702,6 +702,8 @@ def get_stock_transfers(user, status=None, limit=100):
         "from_warehouse", "to_warehouse",
         "raw_cloth_batch__cloth_category", "raw_cloth_batch__cloth_color",
         "finished_product__item_type",
+        "created_by__employeeprofile",
+        "received_by__employeeprofile",
     )
     if status:
         qs = qs.filter(status=status.upper())

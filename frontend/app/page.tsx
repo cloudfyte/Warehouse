@@ -848,7 +848,18 @@ export default function Home() {
           <Credit credits={data?.creditTransactions || []} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} onMutate={mutate} />
         )}
         {currentTab === "returns" && (
-          <Returns buyerReturns={data?.buyerReturns || []} supplierReturns={data?.supplierReturns || []} />
+          <Returns
+            buyerReturns={data?.buyerReturns || []}
+            supplierReturns={data?.supplierReturns || []}
+            buyers={data?.buyers || []}
+            suppliers={data?.suppliers || []}
+            finishedProducts={data?.finishedProducts || []}
+            rawClothBatches={data?.rawClothBatches || []}
+            readymadeStock={data?.readymadeStock || []}
+            warehouses={data?.warehouseLocations || []}
+            isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager}
+            onMutate={mutate}
+          />
         )}
         {currentTab === "expenses" && (
           <Expenses

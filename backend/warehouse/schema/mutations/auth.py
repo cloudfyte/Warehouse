@@ -62,15 +62,23 @@ class LoginWithCredentials(graphene.Mutation):
     message = graphene.String()
 
     def mutate(self, info, identifier, password):
+        from django.core.cache import cache
         from graphql_jwt.refresh_token.shortcuts import create_refresh_token
         from warehouse.services.auth import resolve_identifier
 
+        cache_key = f"login_fail:{identifier.lower()}"
+        failures = cache.get(cache_key, 0)
+        if failures >= 5:
+            raise GraphQLError("Too many failed login attempts. Please wait 15 minutes before trying again.")
+
         user = resolve_identifier(identifier)
         if not user.check_password(password):
+            cache.set(cache_key, failures + 1, 900)  # 900 seconds = 15 minutes
             raise GraphQLError("Incorrect password.")
         if not user.is_active:
             raise GraphQLError("This account is disabled.")
 
+        cache.delete(cache_key)
         token = get_token(user)
         try:
             rt = create_refresh_token(user)

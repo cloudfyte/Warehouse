@@ -4,13 +4,12 @@ Covers: cloth master data, supplier/buyer registry, purchase & sales orders,
 raw cloth batches, cutting assignments, stitching jobs, finished products,
 barcode tags, credit transactions, OTP auth, notifications, and system settings.
 """
-import random
-import string
+import secrets as _secrets
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 
@@ -30,13 +29,15 @@ class AgeGroup(models.TextChoices):
 def _serial(prefix: str, model) -> str:
     """Generate next sequential number like PO-202406-0042."""
     stamp = timezone.now().strftime("%Y%m")
-    last = (
-        model.objects.filter(**{f"{model._meta.pk.name}__isnull": False})
-        .order_by("-pk")
-        .values_list("pk", flat=True)
-        .first()
-    )
-    seq = (last or 0) + 1
+    with transaction.atomic():
+        last = (
+            model.objects
+            .select_for_update()
+            .order_by("-pk")
+            .values_list("pk", flat=True)
+            .first()
+        )
+        seq = (last or 0) + 1
     return f"{prefix}-{stamp}-{seq:04d}"
 
 
@@ -571,7 +572,7 @@ class FinishedProduct(models.Model):
         if not self.sku:
             self.sku = _serial("FP", FinishedProduct)
         if not self.barcode:
-            self.barcode = f"GRM{timezone.now().strftime('%y%m%d')}" + "".join(random.choices(string.digits, k=6))
+            self.barcode = f"GRM{timezone.now().strftime('%y%m%d')}{_secrets.randbelow(1_000_000):06d}"
         super().save(*args, **kwargs)
 
     @property
@@ -926,7 +927,7 @@ class OTPCode(models.Model):
         WHATSAPP = "WHATSAPP", "WhatsApp"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="otp_codes")
-    code = models.CharField(max_length=6)
+    code = models.CharField(max_length=128)
     purpose = models.CharField(max_length=20, choices=Purpose.choices)
     channel = models.CharField(max_length=10, choices=Channel.choices, default=Channel.EMAIL)
     expires_at = models.DateTimeField()
