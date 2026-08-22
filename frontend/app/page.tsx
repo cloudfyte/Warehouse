@@ -620,7 +620,7 @@ export default function Home() {
           <Analytics gql={(q) => graphql(q, {}, token!)} />
         )}
         {currentTab === "dashboard" && (
-          <Dashboard stats={data?.dashboardStats} profile={data?.employeeProfile} rawBatches={data?.rawClothBatches || []} readymadeStock={data?.readymadeStock || []} role={role} cuttingAssignments={data?.cuttingAssignments || []} stitchingJobs={data?.stitchingJobs || []} onNavigate={t => navigateTo(t)} />
+          <Dashboard stats={data?.dashboardStats} profile={data?.employeeProfile} rawBatches={data?.rawClothBatches || []} readymadeStock={data?.readymadeStock || []} reorderPoints={data?.reorderPoints || []} role={role} cuttingAssignments={data?.cuttingAssignments || []} stitchingJobs={data?.stitchingJobs || []} onNavigate={t => navigateTo(t)} />
         )}
         {currentTab === "suppliers" && (
           <Suppliers suppliers={data?.suppliers || []} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} purchaseBills={data?.purchaseBills || []} purchaseOrders={data?.purchaseOrders || []} supplierReturns={data?.supplierReturns || []} onMutate={mutate} />

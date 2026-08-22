@@ -5,13 +5,11 @@ import type { CustomRole, DashboardStats, Employee, Tab } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import StatCard from "@/app/components/molecules/StatCard";
 
-interface RawBatch { id: string; batchNumber: string; availableMeters: number; clothCategory: { name: string }; clothColor: { name: string; hexCode?: string }; warehouse: { name: string } }
-interface ReadymadeItem { id: string; quantityAvailable: number; size: string; itemType: { name: string }; warehouse: { name: string } }
+interface RawBatch { id: string; batchNumber: string; availableMeters: number; clothCategory: { id: string; name: string }; clothColor: { id: string; name: string; hexCode?: string }; warehouse: { id: string; name: string } }
+interface ReadymadeItem { id: string; quantityAvailable: number; size: string; itemType: { id: string; name: string }; warehouse: { id: string; name: string } }
 interface CuttingJob { id: string; status: string; piecesCompleted: number; targetPieces: number; clothUsed: number; metersAssigned: number; itemType: { name: string } }
 interface StitchingJob { id: string; status: string; piecesCompleted: number; piecesAssigned: number; piecesRejected: number }
-
-const LOW_RAW_THRESHOLD = 50;
-const LOW_RMD_THRESHOLD = 10;
+interface ReorderPoint { id: string; itemKind: string; active: boolean; warehouse: { id: string; name: string }; clothCategory?: { id: string; name: string } | null; clothColor?: { id: string; name: string } | null; thresholdMeters?: number | null; itemType?: { id: string; name: string } | null; size?: string; thresholdPieces?: number | null }
 
 
 function SectionLabel({ children }: { children: string }) {
@@ -95,11 +93,11 @@ function WorkflowGuide({ stats, onNavigate }: { stats: DashboardStats; onNavigat
 }
 
 export default function Dashboard({
-  stats, profile, rawBatches = [], readymadeStock = [], role = "STORE_KEEPER",
+  stats, profile, rawBatches = [], readymadeStock = [], reorderPoints = [], role = "STORE_KEEPER",
   cuttingAssignments = [], stitchingJobs = [], onNavigate,
 }: {
   stats?: DashboardStats; profile?: Employee; role?: string;
-  rawBatches?: RawBatch[]; readymadeStock?: ReadymadeItem[];
+  rawBatches?: RawBatch[]; readymadeStock?: ReadymadeItem[]; reorderPoints?: ReorderPoint[];
   cuttingAssignments?: CuttingJob[]; stitchingJobs?: StitchingJob[];
   onNavigate?: (tab: Tab) => void;
 }) {
@@ -118,10 +116,30 @@ export default function Dashboard({
     );
   }
 
-  const lowRaw = rawBatches.filter(b => b.availableMeters > 0 && b.availableMeters < LOW_RAW_THRESHOLD);
   const outRaw = rawBatches.filter(b => b.availableMeters <= 0);
-  const lowRmd = readymadeStock.filter(r => r.quantityAvailable > 0 && r.quantityAvailable < LOW_RMD_THRESHOLD);
+  const lowRaw = rawBatches.flatMap(b => {
+    if (b.availableMeters <= 0) return [];
+    const rp = reorderPoints.find(r =>
+      r.itemKind === "RAW_CLOTH" && r.active &&
+      r.clothCategory?.id === b.clothCategory.id &&
+      r.warehouse.id === b.warehouse.id &&
+      (!r.clothColor || r.clothColor.id === b.clothColor.id)
+    );
+    if (!rp || rp.thresholdMeters == null || b.availableMeters >= rp.thresholdMeters) return [];
+    return [{ batch: b, threshold: rp.thresholdMeters }];
+  });
   const outRmd = readymadeStock.filter(r => r.quantityAvailable <= 0);
+  const lowRmd = readymadeStock.flatMap(r => {
+    if (r.quantityAvailable <= 0) return [];
+    const rp = reorderPoints.find(p =>
+      p.itemKind === "FINISHED" && p.active &&
+      p.itemType?.id === r.itemType.id &&
+      p.warehouse.id === r.warehouse.id &&
+      (!p.size || p.size === r.size)
+    );
+    if (!rp || rp.thresholdPieces == null || r.quantityAvailable >= rp.thresholdPieces) return [];
+    return [{ item: r, threshold: rp.thresholdPieces }];
+  });
   const totalAlerts = lowRaw.length + outRaw.length + lowRmd.length + outRmd.length;
 
   const isCustomRole = !!customRole;
@@ -323,15 +341,15 @@ export default function Dashboard({
               </div>
               <div style={{ background: "var(--paper)", border: "1px solid #f59e0b55", borderRadius: 12, overflow: "hidden" }}>
                 {outRaw.map(b => <AlertRow key={b.id} critical color="#dc2626" title={`OUT OF STOCK: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name}`} />)}
-                {lowRaw.map(b => <AlertRow key={b.id} color="#b45309" title={`Low raw cloth: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · ${b.availableMeters.toFixed(1)}m left`} />)}
+                {lowRaw.map(({ batch: b, threshold }) => <AlertRow key={b.id} color="#b45309" title={`Low raw cloth: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · ${b.availableMeters.toFixed(1)}m left (reorder at ${threshold}m)`} />)}
                 {outRmd.map(r => <AlertRow key={r.id} critical color="#dc2626" title={`OUT OF STOCK: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name}`} />)}
-                {lowRmd.map(r => <AlertRow key={r.id} color="#b45309" title={`Low readymade: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · ${r.quantityAvailable} pcs left`} />)}
+                {lowRmd.map(({ item: r, threshold }) => <AlertRow key={r.id} color="#b45309" title={`Low readymade: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · ${r.quantityAvailable} pcs left (reorder at ${threshold} pcs)`} />)}
               </div>
             </div>
           )}
           <SectionLabel>Inventory Snapshot</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
-            <StatCard label="Raw Cloth Available" value={`${(stats.totalRawMeters ?? 0).toFixed(1)} m`} color={lowRaw.length > 0 || outRaw.length > 0 ? "#f59e0b" : "var(--primary)"} />
+            <StatCard label="Raw Cloth Available" value={`${(stats.totalRawMeters ?? 0).toFixed(1)} m`} color={outRaw.length > 0 || lowRaw.length > 0 ? "#f59e0b" : "var(--primary)"} />
             <StatCard label="Finished Pieces" value={stats.totalFinishedPieces ?? 0} sub={`${stats.inhousePieces ?? 0} stitched · ${stats.readymadePieces ?? 0} imported`} />
             <StatCard label="Cutting In Progress" value={stats.cuttingInProgress ?? 0} color="#ff9800" />
             <StatCard label="Stitching In Progress" value={stats.stitchingInProgress ?? 0} color="#ff9800" />
@@ -353,20 +371,17 @@ export default function Dashboard({
                 </button>
               </div>
               <div style={{ background: "var(--paper)", border: "1px solid #f59e0b55", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(245,158,11,0.08)" }}>
-                <div style={{ background: "#fffbeb", padding: "10px 14px", borderBottom: "1px solid #f59e0b44", fontSize: 12, color: "#92400e", fontWeight: 600 }}>
-                  Low stock threshold: raw cloth &lt; {LOW_RAW_THRESHOLD}m · readymade &lt; {LOW_RMD_THRESHOLD} pcs
-                </div>
                 {outRaw.map(b => <AlertRow key={b.id} critical color="#dc2626" title={`OUT OF STOCK: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · 0m remaining`} />)}
-                {lowRaw.map(b => <AlertRow key={b.id} color="#b45309" title={`Low raw cloth: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · ${b.availableMeters.toFixed(1)}m remaining`} />)}
+                {lowRaw.map(({ batch: b, threshold }) => <AlertRow key={b.id} color="#b45309" title={`Low raw cloth: ${b.clothCategory.name} — ${b.clothColor.name}`} sub={`${b.batchNumber} · ${b.warehouse.name} · ${b.availableMeters.toFixed(1)}m remaining (reorder at ${threshold}m)`} />)}
                 {outRmd.map(r => <AlertRow key={r.id} critical color="#dc2626" title={`OUT OF STOCK: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · 0 pcs remaining`} />)}
-                {lowRmd.map(r => <AlertRow key={r.id} color="#b45309" title={`Low readymade stock: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · ${r.quantityAvailable} pcs remaining`} />)}
+                {lowRmd.map(({ item: r, threshold }) => <AlertRow key={r.id} color="#b45309" title={`Low readymade stock: ${r.itemType.name}${r.size ? ` · ${r.size}` : ""}`} sub={`${r.warehouse.name} · ${r.quantityAvailable} pcs remaining (reorder at ${threshold} pcs)`} />)}
               </div>
             </div>
           )}
 
           <SectionLabel>Inventory Snapshot</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
-            <StatCard label="Raw Cloth Available" value={`${(stats.totalRawMeters ?? 0).toFixed(1)} m`} color={lowRaw.length > 0 || outRaw.length > 0 ? "#f59e0b" : "var(--primary)"} />
+            <StatCard label="Raw Cloth Available" value={`${(stats.totalRawMeters ?? 0).toFixed(1)} m`} color={outRaw.length > 0 || lowRaw.length > 0 ? "#f59e0b" : "var(--primary)"} />
             <StatCard label="Finished Pieces" value={stats.totalFinishedPieces ?? 0} sub={`${stats.inhousePieces ?? 0} stitched · ${stats.readymadePieces ?? 0} imported`} />
             <StatCard label="Suppliers" value={stats.totalSuppliers ?? 0} />
             <StatCard label="Buyers" value={stats.totalBuyers ?? 0} />
