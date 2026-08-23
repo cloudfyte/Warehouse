@@ -2,6 +2,7 @@
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Sum
 from django.utils import timezone
 from graphql import GraphQLError
 
@@ -252,7 +253,11 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
         fp.save(update_fields=["barcode_svg"])
 
         if sj:
-            sj.status = StitchingJob.Status.MOVED
+            eligible = (sj.pieces_completed or 0) - (sj.pieces_rejected or 0)
+            already_moved = FinishedProduct.objects.filter(stitching_job=sj).exclude(pk=fp.pk).aggregate(t=Sum("quantity"))["t"] or 0
+            if already_moved + quantity >= eligible:
+                sj.status = StitchingJob.Status.MOVED
+            # else keep READY — more pieces still to be moved
             sj.save(update_fields=["status"])
 
         return fp

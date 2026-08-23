@@ -192,8 +192,8 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
 
       {/* Detail / tag print panel */}
       {selected && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
-          <div style={{ background: "var(--paper)", width: "min(460px, 100vw)", height: "100vh", overflowY: "auto", padding: 28, border: "1px solid var(--border)" }}>
+        <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--paper)", width: "min(460px, 100vw)", height: "100vh", overflowY: "auto", padding: 28, border: "1px solid var(--border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{selected.sku}</div>

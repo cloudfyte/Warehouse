@@ -272,10 +272,14 @@ export function buildTagEscPos(tag: TagEscData): Uint8Array {
   b.push(0x1B, 0x45, 0x00, 0x1D, 0x21, 0x00);
 
   if (tag.showBarcode !== false) {
-    // Barcode (CODE39 — widely supported)
+    // Set barcode text below, height 60 dots, module width 2
+    b.push(0x1D, 0x48, 0x02); // GS H 2 — text below
+    b.push(0x1D, 0x68, 0x3C); // GS h 60 — height 60 dots
+    b.push(0x1D, 0x77, 0x02); // GS w 2 — module width
+    // GS k format-1: type byte then data then NUL (no length byte)
     b.push(0x1D, 0x6B, 0x04); // CODE39
-    b.push(tag.barcode.length);
     b.push(...encodeText(tag.barcode));
+    b.push(0x00); // NUL terminator
   }
 
   if (tag.footerText) {
