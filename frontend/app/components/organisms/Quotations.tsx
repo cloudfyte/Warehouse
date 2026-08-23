@@ -474,28 +474,39 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                 <h4 className="text-sm font-semibold">Items</h4>
                 <Button variant="secondary" size="sm" onClick={addItem}>+ Add Item</Button>
               </div>
-              {form.items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_80px_100px_32px] gap-2 mb-2">
-                  <Select value={item.finishedProductId}
-                    onChange={e => setItemField(idx, "finishedProductId", e.target.value)}
-                    style={{ fontSize: 11 }}>
-                    <option value="">Select product</option>
-                    {finishedProducts.filter(p => p.quantity > 0).map(p => (
-                      <option key={p.id} value={p.id}>{p.sku} — {p.itemType.name} ({p.quantity} in stock)</option>
-                    ))}
-                  </Select>
-                  <Input type="number" placeholder="Qty" value={item.quantity}
-                    onChange={e => setItemField(idx, "quantity", e.target.value)}
-                    style={{ fontSize: 11 }} min="1" />
-                  <Input type="number" placeholder="Price" value={item.unitPrice}
-                    onChange={e => setItemField(idx, "unitPrice", e.target.value)}
-                    style={{ fontSize: 11 }} min="0" />
-                  {form.items.length > 1 && (
-                    <button onClick={() => removeItem(idx)}
-                      className="text-red-500 font-bold text-lg leading-none self-center">×</button>
-                  )}
-                </div>
-              ))}
+              {form.items.map((item, idx) => {
+                const fp = finishedProducts.find(p => p.id === item.finishedProductId);
+                const qtyOver = fp && parseInt(item.quantity) > fp.quantity;
+                return (
+                  <div key={idx} className="mb-2">
+                    <div className="grid grid-cols-[1fr_80px_100px_32px] gap-2">
+                      <Select value={item.finishedProductId}
+                        onChange={e => setItemField(idx, "finishedProductId", e.target.value)}
+                        style={{ fontSize: 11 }}>
+                        <option value="">Select product</option>
+                        {finishedProducts.filter(p => p.quantity > 0).map(p => (
+                          <option key={p.id} value={p.id}>{p.sku} — {p.itemType.name} ({p.quantity} in stock)</option>
+                        ))}
+                      </Select>
+                      <Input type="number" placeholder="Qty" value={item.quantity}
+                        onChange={e => setItemField(idx, "quantity", e.target.value)}
+                        style={{ fontSize: 11, borderColor: qtyOver ? "#f59e0b" : undefined }} min="1" />
+                      <Input type="number" placeholder="Price" value={item.unitPrice}
+                        onChange={e => setItemField(idx, "unitPrice", e.target.value)}
+                        style={{ fontSize: 11 }} min="0" />
+                      {form.items.length > 1 && (
+                        <button onClick={() => removeItem(idx)}
+                          className="text-red-500 font-bold text-lg leading-none self-center">×</button>
+                      )}
+                    </div>
+                    {qtyOver && (
+                      <div style={{ fontSize: 11, color: "#d97706", marginTop: 2 }}>
+                        ⚠ Only {fp!.quantity} in stock — quoting {item.quantity} exceeds current inventory
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex gap-3 pt-2 justify-end">

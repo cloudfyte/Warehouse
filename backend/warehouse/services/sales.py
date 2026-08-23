@@ -2,6 +2,7 @@
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Sum
 from graphql import GraphQLError
 
 from warehouse.models import (
@@ -119,6 +120,14 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
         so.save(update_fields=["subtotal", "discount", "tax_amount", "cgst_amount", "sgst_amount", "igst_amount", "total_amount", "amount_paid", "amount_due"])
 
         if payment_mode.upper() in (SalesOrder.PaymentMode.CREDIT, SalesOrder.PaymentMode.PARTIAL):
+            new_due = total - amount_paid
+            if buyer.credit_limit and buyer.credit_limit > 0:
+                existing_due = CreditTransaction.objects.filter(buyer=buyer).aggregate(t=Sum("amount_due"))["t"] or Decimal("0")
+                if existing_due + new_due > Decimal(str(buyer.credit_limit)):
+                    raise GraphQLError(
+                        f"Order exceeds {buyer.name}'s credit limit of ₹{buyer.credit_limit}. "
+                        f"Current outstanding: ₹{existing_due}, new due: ₹{new_due}."
+                    )
             CreditTransaction.objects.create(
                 sales_order=so,
                 buyer=buyer,
