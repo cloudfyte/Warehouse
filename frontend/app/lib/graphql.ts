@@ -180,7 +180,7 @@ export const DASHBOARD_QUERY = `
       id totalAmount amountPaid amountDue dueDate status createdAt
       buyer { id name phone }
       salesOrder { id orderNumber }
-      payments { id amount paymentDate paymentMethod reference notes }
+      payments { id paymentNumber amount paymentDate paymentMethod reference notes }
     }
     employees {
       id username email role phone active createdAt

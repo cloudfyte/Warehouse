@@ -143,7 +143,7 @@ export interface SalesOrder {
 // ─── credit ───────────────────────────────────────────────────────────────────
 
 export interface CreditPayment {
-  id: string; amount: number; paymentDate: string; paymentMethod: string; reference: string; notes: string
+  id: string; paymentNumber: string; amount: number; paymentDate: string; paymentMethod: string; reference: string; notes: string
 }
 
 export interface CreditTransaction {

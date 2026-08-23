@@ -133,6 +133,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
                 {detail.payments.map((p, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", borderBottom: i < detail.payments.length - 1 ? "1px solid var(--panel-border)" : "none" }}>
                     <div>
+                      <div style={{ fontSize: 11, fontFamily: "monospace", color: "var(--muted)", marginBottom: 2 }}>{p.paymentNumber}</div>
                       <div style={{ fontSize: 13 }}>{formatDateShort(p.paymentDate)} · <span style={{ fontWeight: 600 }}>{p.paymentMethod}</span></div>
                       {p.reference && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Ref: {p.reference}</div>}
                     </div>

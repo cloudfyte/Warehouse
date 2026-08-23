@@ -689,6 +689,7 @@ class CreditPayment(models.Model):
         CHEQUE = "CHEQUE", "Cheque"
         OTHER = "OTHER", "Other"
 
+    payment_number = models.CharField(max_length=40, unique=True, editable=False, default="")
     credit = models.ForeignKey(CreditTransaction, on_delete=models.PROTECT, related_name="payments")
     amount = models.DecimalField(max_digits=14, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
     payment_date = models.DateField(default=timezone.now)
@@ -703,6 +704,11 @@ class CreditPayment(models.Model):
         constraints = [
             models.CheckConstraint(condition=Q(amount__gt=0), name="creditpayment_amount_positive"),
         ]
+
+    def save(self, *args, **kwargs):
+        if not self.payment_number:
+            self.payment_number = _serial("CP", CreditPayment)
+        super().save(*args, **kwargs)
 
 
 # ─── OTP authentication ───────────────────────────────────────────────────────
