@@ -3,6 +3,16 @@
 from django.db import migrations, models
 
 
+def backfill_payment_numbers(apps, schema_editor):
+    CreditPayment = apps.get_model("warehouse", "CreditPayment")
+    from datetime import datetime
+    rows = CreditPayment.objects.order_by("id")
+    month = datetime.now().strftime("%Y%m")
+    for i, row in enumerate(rows, start=1):
+        row.payment_number = f"CP-{month}-{i:04d}"
+        row.save(update_fields=["payment_number"])
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,7 +20,16 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Step 1: add without unique so existing rows (all "") can coexist
         migrations.AddField(
+            model_name='creditpayment',
+            name='payment_number',
+            field=models.CharField(default='', editable=False, max_length=40),
+        ),
+        # Step 2: backfill existing rows with real serials
+        migrations.RunPython(backfill_payment_numbers, migrations.RunPython.noop),
+        # Step 3: now enforce uniqueness
+        migrations.AlterField(
             model_name='creditpayment',
             name='payment_number',
             field=models.CharField(default='', editable=False, max_length=40, unique=True),
