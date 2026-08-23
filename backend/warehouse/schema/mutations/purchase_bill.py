@@ -86,8 +86,7 @@ class GenerateBillFromPO(graphene.Mutation):
     @login_required
     def mutate(self, info, po_id):
         user = info.context.user
-        profile = EmployeeProfile.objects.get(user=user)
-        require_role(profile, "ADMIN", "SUPER_ADMIN", "MANAGER", "STORE_KEEPER")
+        require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.SUPER_ADMIN, EmployeeProfile.Role.MANAGER, EmployeeProfile.Role.STORE_KEEPER)
         bill = generate_bill_from_po(po_id=po_id, user=user)
         try:
             log_action(
