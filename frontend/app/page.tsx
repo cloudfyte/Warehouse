@@ -399,8 +399,8 @@ export default function Home() {
         transform: isMobile && !sidebarOpen ? "translateX(-100%)" : "translateX(0)",
       }}>
         {/* Logo / app name */}
-        <div style={{ padding: "16px 12px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #ffffff22", minHeight: 56 }}>
-          {sidebarOpen && (
+        <div style={{ padding: sidebarOpen ? "16px 12px 12px" : "12px 0 10px", display: "flex", flexDirection: sidebarOpen ? "row" : "column", alignItems: "center", justifyContent: sidebarOpen ? "space-between" : "center", gap: sidebarOpen ? 0 : 6, borderBottom: "1px solid #ffffff22", minHeight: 56 }}>
+          {sidebarOpen ? (
             <div style={{ overflow: "hidden" }}>
               <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: -0.3, whiteSpace: "nowrap" }}>
                 {data?.systemSettings?.appName || "Warehouse ERP"}
@@ -409,10 +409,14 @@ export default function Home() {
                 <div style={{ fontSize: 11, color: "#ffffff88", whiteSpace: "nowrap" }}>{data.systemSettings.companyName}</div>
               )}
             </div>
+          ) : (
+            <div style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15, color: "#fff", flexShrink: 0, userSelect: "none" }}>
+              {(data?.systemSettings?.appName || "W")[0].toUpperCase()}
+            </div>
           )}
           <button onClick={() => setSidebarOpen(o => !o)}
             style={{ background: "none", border: "none", color: "#ffffffaa", cursor: "pointer", padding: 4,
-              marginLeft: sidebarOpen ? 4 : "auto", marginRight: sidebarOpen ? 0 : "auto", flexShrink: 0,
+              marginLeft: sidebarOpen ? 4 : 0, flexShrink: 0,
               display: "flex", alignItems: "center" }}>
             {sidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
           </button>
