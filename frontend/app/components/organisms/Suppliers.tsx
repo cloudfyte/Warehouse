@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import type { Supplier, PurchaseBill, PurchaseOrder, SupplierReturn } from "@/app/types";
-import { SUPPLY_TYPE_LABELS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import { formatMoney } from "@/app/lib/formatters";
@@ -38,9 +37,19 @@ interface Props {
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
 }
 
-const empty = (): Partial<Supplier> => ({ name: "", contactPerson: "", email: "", phone: "", whatsapp: "", address: "", city: "", state: "", gstin: "", supplyType: "RAW_CLOTH", creditDays: 0, notes: "" });
+const empty = (): Partial<Supplier> => ({ name: "", contactPerson: "", email: "", phone: "", whatsapp: "", address: "", city: "", state: "", gstin: "", creditDays: 0, notes: "" });
 
-const SUPPLY_COLORS: Record<string, string> = { RAW_CLOTH: "#2563eb", READYMADE: "#7c3aed", BOTH: "#059669" };
+function deriveSupplyBadge(supplierId: string, purchaseOrders: PurchaseOrder[]): { label: string; color: string } | null {
+  const orders = purchaseOrders.filter(po => po.supplier?.id === supplierId);
+  if (!orders.length) return null;
+  const hasRaw = orders.some(po => po.orderType === "RAW_CLOTH" || po.orderType === "MIXED");
+  const hasReadymade = orders.some(po => po.orderType === "READYMADE" || po.orderType === "MIXED");
+  if (hasRaw && hasReadymade) return { label: "Both", color: "#059669" };
+  if (hasRaw) return { label: "Raw Cloth", color: "#2563eb" };
+  if (hasReadymade) return { label: "Readymade", color: "#7c3aed" };
+  return null;
+}
+
 const BILL_STATUS_COLORS: Record<string, string> = { PENDING: "#f59e0b", PARTIAL: "#2563eb", PAID: "#16a34a" };
 const PO_STATUS_COLORS: Record<string, string> = { DRAFT: "#94a3b8", CONFIRMED: "#2563eb", RECEIVED: "#16a34a", CANCELLED: "#dc2626", PARTIAL: "#f59e0b" };
 
@@ -66,7 +75,7 @@ function SupplierHistory({ supplier, purchaseBills, purchaseOrders, supplierRetu
   const totalPending = bills.reduce((s, b) => s + (b.amountPending || 0), 0);
 
   return (
-    <Modal title={supplier.name} subtitle={`${supplier.contactPerson || ""} · ${supplier.phone || ""} · ${SUPPLY_TYPE_LABELS[supplier.supplyType] || supplier.supplyType}`} onClose={onClose} width={680}>
+    <Modal title={supplier.name} subtitle={`${supplier.contactPerson || ""} · ${supplier.phone || ""}`} onClose={onClose} width={680}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
         <MiniCard label="Total Bills" value={`${bills.length}`} />
         <MiniCard label="Total Purchased" value={formatMoney(totalBilled)} color="#2563eb" />
@@ -181,10 +190,10 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
     setLoading(true); setError("");
     try {
       const m = isNew
-        ? `mutation C($name:String!,$cp:String,$email:String,$phone:String,$wa:String,$addr:String,$city:String,$state:String,$gstin:String,$st:String,$cd:Int,$notes:String){createSupplier(name:$name,contactPerson:$cp,email:$email,phone:$phone,whatsapp:$wa,address:$addr,city:$city,state:$state,gstin:$gstin,supplyType:$st,creditDays:$cd,notes:$notes){supplier{id}}}`
-        : `mutation U($id:ID!,$name:String,$cp:String,$email:String,$phone:String,$wa:String,$addr:String,$city:String,$state:String,$gstin:String,$st:String,$cd:Int,$notes:String,$active:Boolean){updateSupplier(id:$id,name:$name,contactPerson:$cp,email:$email,phone:$phone,whatsapp:$wa,address:$addr,city:$city,state:$state,gstin:$gstin,supplyType:$st,creditDays:$cd,notes:$notes,active:$active){supplier{id}}}`;
+        ? `mutation C($name:String!,$cp:String,$email:String,$phone:String,$wa:String,$addr:String,$city:String,$state:String,$gstin:String,$cd:Int,$notes:String){createSupplier(name:$name,contactPerson:$cp,email:$email,phone:$phone,whatsapp:$wa,address:$addr,city:$city,state:$state,gstin:$gstin,creditDays:$cd,notes:$notes){supplier{id}}}`
+        : `mutation U($id:ID!,$name:String,$cp:String,$email:String,$phone:String,$wa:String,$addr:String,$city:String,$state:String,$gstin:String,$cd:Int,$notes:String,$active:Boolean){updateSupplier(id:$id,name:$name,contactPerson:$cp,email:$email,phone:$phone,whatsapp:$wa,address:$addr,city:$city,state:$state,gstin:$gstin,creditDays:$cd,notes:$notes,active:$active){supplier{id}}}`;
       const cd = editing.creditDays != null ? parseInt(String(editing.creditDays), 10) : undefined;
-      await onMutate(m, { id: editing.id, name: editing.name, cp: editing.contactPerson, email: editing.email, phone: editing.phone, wa: editing.whatsapp, addr: editing.address, city: editing.city, state: editing.state, gstin: editing.gstin, st: editing.supplyType, cd: Number.isFinite(cd as number) ? cd : undefined, notes: editing.notes, active: editing.active });
+      await onMutate(m, { id: editing.id, name: editing.name, cp: editing.contactPerson, email: editing.email, phone: editing.phone, wa: editing.whatsapp, addr: editing.address, city: editing.city, state: editing.state, gstin: editing.gstin, cd: Number.isFinite(cd as number) ? cd : undefined, notes: editing.notes, active: editing.active });
       setEditing(null);
       showToast(isNew ? "Supplier created." : "Supplier updated.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
@@ -301,11 +310,6 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
               style={{ minHeight: 64 }} />
           </Field>
           <FormGrid style={{ marginTop: 14 }}>
-            <Field label="Supply Type">
-              <Select value={editing.supplyType ?? "RAW_CLOTH"} onChange={e => setEditing(p => ({ ...p, supplyType: e.target.value }))}>
-                {Object.entries(SUPPLY_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </Select>
-            </Field>
             <Field label="Credit Days">
               <Input type="number" value={editing.creditDays ?? 0} onChange={e => setEditing(p => ({ ...p, creditDays: +e.target.value }))} />
             </Field>
@@ -361,7 +365,7 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
                   )}
                 </td>
                 <td style={{ padding: "13px 16px" }}>
-                  <Badge label={SUPPLY_TYPE_LABELS[s.supplyType] || s.supplyType} color={SUPPLY_COLORS[s.supplyType] || "#666"} />
+                  {(() => { const b = deriveSupplyBadge(s.id, purchaseOrders); return b ? <Badge label={b.label} color={b.color} /> : <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>; })()}
                 </td>
                 <td style={{ padding: "13px 16px", fontSize: 12, color: "var(--muted)", fontFamily: "monospace" }}>{s.gstin || "—"}</td>
                 <td style={{ padding: "13px 16px" }}>
