@@ -3,7 +3,7 @@ from graphql_jwt.decorators import login_required
 
 from warehouse.models import EmployeeProfile
 from warehouse.permissions import require_role
-from warehouse.services.returns import create_buyer_return, create_supplier_return
+from warehouse.services.returns import create_buyer_return, create_supplier_return, process_buyer_return
 from warehouse.schema.types import BuyerReturnType, SupplierReturnType
 
 _R = EmployeeProfile.Role
@@ -36,6 +36,20 @@ class CreateBuyerReturn(graphene.Mutation):
             sales_order_id=sales_order_id,
         )
         return CreateBuyerReturn(buyer_return=ret)
+
+
+class ProcessBuyerReturn(graphene.Mutation):
+    class Arguments:
+        id = graphene.ID(required=True)
+        status = graphene.String(required=True)
+
+    buyer_return = graphene.Field(BuyerReturnType)
+
+    @login_required
+    def mutate(self, info, id, status):
+        require_role(info.context.user, _R.ADMIN, _R.MANAGER, _R.STORE_KEEPER)
+        ret = process_buyer_return(id=id, status=status)
+        return ProcessBuyerReturn(buyer_return=ret)
 
 
 class CreateSupplierReturn(graphene.Mutation):

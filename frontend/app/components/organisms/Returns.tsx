@@ -21,6 +21,9 @@ const CREATE_BUYER_RETURN = `mutation CreateBuyerReturn($buyerId:ID!,$finishedPr
   createBuyerReturn(buyerId:$buyerId,finishedProductId:$finishedProductId,quantity:$quantity,condition:$condition,reason:$reason,warehouseId:$warehouseId,salesOrderId:$salesOrderId){
     buyerReturn{id returnNumber}}}`;
 
+const PROCESS_BUYER_RETURN = `mutation ProcessBuyerReturn($id:ID!,$status:String!){
+  processBuyerReturn(id:$id,status:$status){buyerReturn{id status}}}`;
+
 const CREATE_SUPPLIER_RETURN = `mutation CreateSupplierReturn($supplierId:ID!,$returnKind:String!,$reason:String!,$warehouseId:ID!,$rawClothBatchId:ID,$metersReturned:Float,$readymadeStockId:ID,$quantityReturned:Int){
   createSupplierReturn(supplierId:$supplierId,returnKind:$returnKind,reason:$reason,warehouseId:$warehouseId,rawClothBatchId:$rawClothBatchId,metersReturned:$metersReturned,readymadeStockId:$readymadeStockId,quantityReturned:$quantityReturned){
     supplierReturn{id returnNumber}}}`;
@@ -73,6 +76,20 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
   const [supplierErr, setSupplierErr] = useState("");
 
   const canEdit = isSuperAdmin || isAdmin || isManager;
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  async function processReturn(id: string, status: string) {
+    setProcessingId(id);
+    try {
+      await onMutate(PROCESS_BUYER_RETURN, { id, status });
+      const labels: Record<string, string> = { RECEIVED: "Marked as received", RESTOCKED: "Restocked to inventory", DISCARDED: "Discarded" };
+      showToast(labels[status] || "Updated", "success");
+    } catch (e) {
+      showToast(friendlyError(e), "error");
+    } finally {
+      setProcessingId(null);
+    }
+  }
 
   const pagedBuyer = buyerReturns.slice((buyerPage - 1) * PER_PAGE, buyerPage * PER_PAGE);
   const pagedSupplier = supplierReturns.slice((supplierPage - 1) * PER_PAGE, supplierPage * PER_PAGE);
@@ -140,7 +157,7 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--bg)", fontSize: 12, color: "var(--muted)", textAlign: "left" }}>
-                {["Return #", "Buyer", "Item", "Qty", "Condition", "Reason", "Date", "Status"].map(h => (
+                {["Return #", "Buyer", "Item", "Qty", "Condition", "Reason", "Date", "Status", ""].map(h => (
                   <th key={h} style={{ padding: "10px 14px", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -156,10 +173,21 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
                   <td style={{ padding: "12px 14px", fontSize: 13, maxWidth: 200, color: "var(--muted)" }}>{r.reason}</td>
                   <td style={{ padding: "12px 14px", fontSize: 13, color: "var(--muted)", whiteSpace: "nowrap" }}>{formatDateShort(r.createdAt)}</td>
                   <td style={{ padding: "12px 14px" }}><Badge label={r.status} color={STATUS_BADGE_COLORS[r.status] || "#888"} /></td>
+                  <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                    {canEdit && r.status === "PENDING" && (
+                      <Button size="sm" variant="secondary" disabled={processingId === r.id} onClick={() => processReturn(r.id, "RECEIVED")}>Receive</Button>
+                    )}
+                    {canEdit && r.status === "RECEIVED" && r.condition === "RESTOCKABLE" && (
+                      <Button size="sm" variant="primary" disabled={processingId === r.id} onClick={() => processReturn(r.id, "RESTOCKED")}>Restock</Button>
+                    )}
+                    {canEdit && r.status === "RECEIVED" && r.condition === "DAMAGED" && (
+                      <Button size="sm" variant="danger" disabled={processingId === r.id} onClick={() => processReturn(r.id, "DISCARDED")}>Discard</Button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {buyerReturns.length === 0 && (
-                <EmptyTable colSpan={8} icon="↩️" title="No customer returns" hint="Log a return when a buyer sends goods back" />
+                <EmptyTable colSpan={9} icon="↩️" title="No customer returns" hint="Log a return when a buyer sends goods back" />
               )}
             </tbody>
           </table>

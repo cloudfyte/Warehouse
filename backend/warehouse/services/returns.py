@@ -49,6 +49,33 @@ def create_buyer_return(*, user, buyer_id, finished_product_id, quantity, condit
     return ret
 
 
+def process_buyer_return(*, id, status):
+    """Advance a buyer return: PENDING→RECEIVED, RECEIVED→RESTOCKED or DISCARDED.
+    RESTOCKED puts the quantity back into finished product stock."""
+    status = status.upper()
+    valid = (BuyerReturn.Status.RECEIVED, BuyerReturn.Status.RESTOCKED, BuyerReturn.Status.DISCARDED)
+    if status not in valid:
+        raise GraphQLError(f"Invalid status '{status}'. Must be one of: RECEIVED, RESTOCKED, DISCARDED.")
+    try:
+        ret = BuyerReturn.objects.get(pk=id)
+    except BuyerReturn.DoesNotExist as exc:
+        raise GraphQLError("Return not found.") from exc
+
+    if ret.status == BuyerReturn.Status.PENDING and status != BuyerReturn.Status.RECEIVED:
+        raise GraphQLError("A pending return must be marked RECEIVED before restocking or discarding.")
+    if ret.status in (BuyerReturn.Status.RESTOCKED, BuyerReturn.Status.DISCARDED):
+        raise GraphQLError("This return is already completed.")
+
+    with transaction.atomic():
+        if status == BuyerReturn.Status.RESTOCKED:
+            fp = FinishedProduct.objects.select_for_update().get(pk=ret.finished_product_id)
+            fp.quantity += ret.quantity
+            fp.save(update_fields=["quantity", "updated_at"])
+        ret.status = status
+        ret.save(update_fields=["status", "updated_at"])
+    return ret
+
+
 def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_id,
                             raw_cloth_batch_id=None, meters_returned=None,
                             readymade_stock_id=None, quantity_returned=None):
