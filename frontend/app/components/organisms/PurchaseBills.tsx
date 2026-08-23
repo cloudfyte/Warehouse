@@ -21,7 +21,7 @@ import Pagination from "@/app/components/atoms/Pagination";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
-interface Supplier { id: string; name: string }
+interface Supplier { id: string; name: string; active?: boolean }
 interface Warehouse { id: string; name: string }
 interface ClothCategory { id: string; name: string }
 interface ClothColor { id: string; name: string; hexCode?: string }
