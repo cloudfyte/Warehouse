@@ -13,6 +13,8 @@ from warehouse.services.notify import notify_managers, notify_user
 def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, item_type_id,
                               meters_assigned, target_pieces, age_group="", size="", assigned_date=None, due_date=None, notes=""):
     meters = Decimal(str(meters_assigned))
+    if meters <= 0:
+        raise GraphQLError("Meters assigned must be greater than 0.")
 
     try:
         master = EmployeeProfile.objects.get(pk=cutting_master_id, role=EmployeeProfile.Role.CUTTING_MASTER, active=True)
@@ -80,7 +82,7 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
         assignment.pieces_completed = pieces_completed
     if cloth_used is not None:
         cloth_used_dec = Decimal(str(cloth_used))
-        if cloth_used_dec > assignment.meters_assigned:
+        if assignment.meters_assigned > 0 and cloth_used_dec > assignment.meters_assigned:
             raise GraphQLError(
                 f"Cloth used ({cloth_used_dec}m) cannot exceed meters assigned ({assignment.meters_assigned}m)."
             )
