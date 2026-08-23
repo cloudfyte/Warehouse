@@ -51,8 +51,11 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
   const [editing, setEditing] = useState<Partial<Expense> & { warehouseId?: string } | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [filterCat, setFilterCat] = useState("ALL");
+  const [quickDate, setQuickDate] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH" | "CUSTOM">("ALL");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [filterCat]);
+  useEffect(() => { setPage(1); }, [filterCat, quickDate, fromDate, toDate]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -78,7 +81,23 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
     reader.readAsDataURL(file);
   }
 
-  const filtered = filterCat === "ALL" ? expenses : expenses.filter(e => e.category === filterCat);
+  const todayStr = today();
+  function dateInRange(dateStr: string) {
+    if (quickDate === "ALL") return true;
+    if (quickDate === "TODAY") return dateStr === todayStr;
+    if (quickDate === "WEEK") {
+      const d = new Date(todayStr); d.setDate(d.getDate() - 6);
+      return dateStr >= d.toISOString().slice(0, 10) && dateStr <= todayStr;
+    }
+    if (quickDate === "MONTH") return dateStr.slice(0, 7) === todayStr.slice(0, 7);
+    if (quickDate === "CUSTOM") {
+      if (fromDate && dateStr < fromDate) return false;
+      if (toDate && dateStr > toDate) return false;
+      return true;
+    }
+    return true;
+  }
+  const filtered = expenses.filter(e => (filterCat === "ALL" || e.category === filterCat) && dateInRange(e.expenseDate));
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const totalFiltered = filtered.reduce((s, e) => s + (e.amount || 0), 0);
@@ -145,10 +164,40 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
         })}
       </div>
 
+      {/* Date filter bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        {(["ALL", "TODAY", "WEEK", "MONTH", "CUSTOM"] as const).map(q => {
+          const labels = { ALL: "All time", TODAY: "Today", WEEK: "This week", MONTH: "This month", CUSTOM: "Custom" };
+          return (
+            <button key={q} onClick={() => setQuickDate(q)}
+              style={{ padding: "5px 13px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                border: `1.5px solid ${quickDate === q ? "var(--primary)" : "var(--line)"}`,
+                background: quickDate === q ? "var(--primary)" : "var(--paper)",
+                color: quickDate === q ? "#fff" : "var(--ink)" }}>
+              {labels[q]}
+            </button>
+          );
+        })}
+        {quickDate === "CUSTOM" && (
+          <>
+            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+              style={{ border: "1px solid var(--line)", borderRadius: 6, padding: "4px 8px", fontSize: 12, background: "var(--paper)", color: "var(--ink)" }} />
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>to</span>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+              style={{ border: "1px solid var(--line)", borderRadius: 6, padding: "4px 8px", fontSize: 12, background: "var(--paper)", color: "var(--ink)" }} />
+          </>
+        )}
+        {(quickDate !== "ALL" || filterCat !== "ALL") && (
+          <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 4 }}>
+            {filtered.length} record{filtered.length !== 1 ? "s" : ""} · {formatMoney(totalFiltered)}
+          </span>
+        )}
+      </div>
+
       {filterCat !== "ALL" && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <span style={{ fontSize: 13, color: "var(--muted)" }}>Showing: <strong>{CATEGORIES[filterCat]}</strong> — {formatMoney(totalFiltered)}</span>
-          <button onClick={() => setFilterCat("ALL")} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Clear filter</button>
+          <span style={{ fontSize: 13, color: "var(--muted)" }}>Category: <strong>{CATEGORIES[filterCat]}</strong></span>
+          <button onClick={() => setFilterCat("ALL")} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Clear</button>
         </div>
       )}
 
