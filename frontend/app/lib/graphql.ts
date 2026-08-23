@@ -102,7 +102,7 @@ export const DASHBOARD_QUERY = `
     clothCategories { id name description active }
     clothColors { id name hexCode active }
     itemTypes { id name category clothLengthPerPiece hsnCode gstRate active }
-    suppliers { id name contactPerson email phone whatsapp address city state gstin supplyType creditDays notes active }
+    suppliers(includeArchived: true) { id name contactPerson email phone whatsapp address city state gstin supplyType creditDays notes active }
     buyers { id name contactPerson email phone whatsapp address city state gstin buyerType creditLimit notes active }
     purchaseOrders(limit: 100) {
       id poNumber orderType status orderDate expectedDelivery actualDelivery totalAmount notes createdAt

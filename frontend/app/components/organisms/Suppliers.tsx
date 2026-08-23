@@ -168,9 +168,11 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
   const [waIsSameAsPhone, setWaIsSameAsPhone] = useState(false);
 
   const canEdit = isSuperAdmin || isAdmin || isManager;
+  const [showArchived, setShowArchived] = useState(false);
   const filtered = suppliers.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.contactPerson?.toLowerCase().includes(search.toLowerCase())
+    s.active !== showArchived &&
+    (s.name.toLowerCase().includes(search.toLowerCase()) ||
+    s.contactPerson?.toLowerCase().includes(search.toLowerCase()))
   );
 
   async function save() {
@@ -204,16 +206,34 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
     if (checked) setEditing(p => ({ ...p, whatsapp: p?.phone || "" }));
   }
 
+  async function archiveOrRestore(s: Supplier) {
+    const next = !s.active;
+    try {
+      await onMutate(
+        `mutation A($id:ID!,$active:Boolean!){updateSupplier(id:$id,active:$active){supplier{id}}}`,
+        { id: s.id, active: next }
+      );
+      showToast(next ? `${s.name} restored.` : `${s.name} archived.`, "success");
+    } catch (e: unknown) { showToast(friendlyError(e), "error"); }
+  }
+
   return (
     <div style={{ padding: 24 }}>
       <PageHeader
-        title="Suppliers"
-        sub={`${suppliers.length} suppliers`}
-        actions={canEdit && <Button variant="primary" onClick={openNew}>+ Add Supplier</Button>}
+        title={showArchived ? "Archived Suppliers" : "Suppliers"}
+        sub={showArchived
+          ? `${suppliers.filter(s => !s.active).length} archived`
+          : `${suppliers.filter(s => s.active).length} active`}
+        actions={canEdit && !showArchived && <Button variant="primary" onClick={openNew}>+ Add Supplier</Button>}
       />
 
       <FilterBar>
         <Input placeholder="Search suppliers…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
+        <button
+          onClick={() => setShowArchived(v => !v)}
+          style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${showArchived ? "#dc2626" : "var(--line)"}`, background: showArchived ? "#fef2f2" : "transparent", color: showArchived ? "#dc2626" : "var(--muted)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+          {showArchived ? "← Active Suppliers" : "View Archived"}
+        </button>
       </FilterBar>
 
       {historySupplier && (
@@ -297,25 +317,13 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
             </Field>
             <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, color: (editing.notes?.length ?? 0) > 170 ? "#e07" : "var(--muted)", pointerEvents: "none" }}>{editing.notes?.length ?? 0}/200</span>
           </div>
-          {!isNew && (
-            <label style={{
-              display: "flex", alignItems: "center", gap: 10, marginTop: 16,
-              padding: "10px 14px", borderRadius: 9, border: "1px solid var(--line)",
-              background: (editing.active ?? true) ? "#f0fdf4" : "#fff8f8",
-              cursor: "pointer", userSelect: "none",
-            }}>
-              <input type="checkbox" checked={editing.active ?? true}
-                onChange={e => setEditing(p => ({ ...p, active: e.target.checked }))}
-                style={{ accentColor: "var(--primary)", width: 16, height: 16, cursor: "pointer" }} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: (editing.active ?? true) ? "#166534" : "#991b1b" }}>
-                  {(editing.active ?? true) ? "Active supplier" : "Inactive supplier"}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>
-                  {(editing.active ?? true) ? "Supplier is available for purchase orders and bills" : "Supplier will be hidden from selection lists"}
-                </div>
+          {!isNew && !(editing.active ?? true) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16, padding: "10px 14px", borderRadius: 9, border: "1px solid #fca5a5", background: "#fef2f2" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>Archived supplier</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>This supplier is archived and hidden from selection lists.</div>
               </div>
-            </label>
+            </div>
           )}
         </Modal>
       )}
@@ -331,11 +339,12 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
           </thead>
           <tbody>
             {filtered.map(s => (
-              <tr key={s.id} style={{ borderBottom: "1px solid var(--panel-border)", opacity: s.active ? 1 : 0.5 }}>
+              <tr key={s.id} style={{ borderBottom: "1px solid var(--panel-border)" }}>
                 <td style={{ padding: "13px 16px" }}>
                   <button onClick={() => setHistorySupplier(s)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
                     <div style={{ fontWeight: 700, fontSize: 13, color: "var(--primary)", textDecoration: "underline", textDecorationStyle: "dotted" }}>{s.name}</div>
                     {s.city && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{s.city}, {s.state}</div>}
+                    {!s.active && <div style={{ fontSize: 10, fontWeight: 700, color: "#991b1b", background: "#fef2f2", borderRadius: 4, padding: "1px 5px", display: "inline-block", marginTop: 3 }}>Archived</div>}
                   </button>
                 </td>
                 <td style={{ padding: "13px 16px" }}>
@@ -356,11 +365,16 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
                 </td>
                 <td style={{ padding: "13px 16px", fontSize: 12, color: "var(--muted)", fontFamily: "monospace" }}>{s.gstin || "—"}</td>
                 <td style={{ padding: "13px 16px" }}>
-                  {canEdit && <Button variant="secondary" size="sm" onClick={() => openEdit(s)}>Edit</Button>}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {canEdit && s.active && <Button variant="secondary" size="sm" onClick={() => openEdit(s)}>Edit</Button>}
+                    {canEdit && s.active && <Button variant="danger" size="sm" onClick={() => archiveOrRestore(s)}>Archive</Button>}
+                    {canEdit && !s.active && <Button variant="secondary" size="sm" onClick={() => openEdit(s)}>Edit</Button>}
+                    {canEdit && !s.active && <Button variant="primary" size="sm" onClick={() => archiveOrRestore(s)}>Restore</Button>}
+                  </div>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && <tr><td colSpan={6} style={{ padding: "56px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>No suppliers found</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={6} style={{ padding: "56px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>{showArchived ? "No archived suppliers" : "No suppliers found"}</td></tr>}
           </tbody>
         </table>
       </div>

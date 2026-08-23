@@ -720,7 +720,7 @@ export default function PurchaseBills({
                 <Field label="Supplier" required>
                   <Select value={supplierId} onChange={e => setSupplierId(e.target.value)}>
                     <option value="">Select supplier…</option>
-                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    {suppliers.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </Select>
                 </Field>
                 <Field label="Warehouse" required>

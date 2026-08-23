@@ -82,8 +82,8 @@ def get_employees(user):
 
 # ─── suppliers & buyers ───────────────────────────────────────────────────────
 
-def get_suppliers(search=None, supply_type=None):
-    qs = Supplier.objects.filter(active=True)
+def get_suppliers(search=None, supply_type=None, include_archived=False):
+    qs = Supplier.objects.all() if include_archived else Supplier.objects.filter(active=True)
     if supply_type:
         qs = qs.filter(Q(supply_type=supply_type) | Q(supply_type="BOTH"))
     if search:

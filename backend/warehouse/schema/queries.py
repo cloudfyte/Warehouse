@@ -56,7 +56,7 @@ class Query(graphene.ObjectType):
     custom_roles = graphene.List(CustomRoleType)
 
     # Suppliers & buyers
-    suppliers = graphene.List(SupplierType, search=graphene.String(), supply_type=graphene.String())
+    suppliers = graphene.List(SupplierType, search=graphene.String(), supply_type=graphene.String(), include_archived=graphene.Boolean())
     buyers = graphene.List(BuyerType, search=graphene.String(), buyer_type=graphene.String())
 
     # Inventory
@@ -151,8 +151,8 @@ class Query(graphene.ObjectType):
         return CustomRole.objects.all()
 
     @login_required
-    def resolve_suppliers(self, info, search=None, supply_type=None):
-        return selectors.get_suppliers(search=search, supply_type=supply_type)
+    def resolve_suppliers(self, info, search=None, supply_type=None, include_archived=False):
+        return selectors.get_suppliers(search=search, supply_type=supply_type, include_archived=include_archived)
 
     @login_required
     def resolve_buyers(self, info, search=None, buyer_type=None):
