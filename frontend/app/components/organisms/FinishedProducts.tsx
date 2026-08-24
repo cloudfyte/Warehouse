@@ -68,9 +68,9 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     } else if (key === "age-group" && ts.tagShowAgeGroup !== false && product.ageGroup) {
       blocks.push(`<div class="desc">${cap(product.ageGroup)}</div>`);
     } else if (key === "price" && ts.tagShowPrice !== false) {
-      blocks.push(`<div class="bottom"><div><div class="mrp-label">MRP (incl. taxes)</div><div class="mrp">₹${mrp}</div></div></div>`);
+      blocks.push(`<div class="mrp-label">MRP : ₹${mrp}/-</div>`);
     } else if (key === "sku" && ts.tagShowSku !== false) {
-      blocks.push(`<div class="sku"><div>SKU</div><div>${product.sku}</div></div>`);
+      blocks.push(`<div class="sku">${product.sku}</div>`);
     } else if (key === "footer" && ts.tagFooterText) {
       blocks.push(`<div class="footer">${ts.tagFooterText}</div>`);
     }
@@ -79,21 +79,22 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, Helvetica, sans-serif; background: #fff; }
-    .page { display: flex; flex-wrap: wrap; gap: 6mm; padding: 6mm; }
-    .tag { width: ${tagW}; min-height: 48mm; border: 1.5px solid #222; border-radius: 3mm; padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1.5mm; page-break-inside: avoid; }
-    .brand { font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; }
-    .tagline { font-size: 6pt; color: #888; }
-    .name { font-size: 13pt; font-weight: 800; line-height: 1.1; color: #111; }
-    .desc { font-size: 8pt; color: #444; }
-    .barcode-wrap { width: 100%; display: flex; justify-content: center; margin: 1mm 0; }
-    .barcode-wrap svg { max-width: 100%; height: 14mm; }
-    .barcode-text { font-family: monospace; font-size: 7pt; color: #555; text-align: center; }
-    .bottom { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 1mm; border-top: 1px solid #ddd; }
-    .mrp-label { font-size: 7pt; color: #555; font-weight: 600; }
-    .mrp { font-size: 18pt; font-weight: 900; color: #111; line-height: 1; }
-    .sku { font-size: 7pt; color: #666; font-family: monospace; text-align: right; }
-    .footer { font-size: 6pt; color: #999; text-align: center; margin-top: 1.5mm; }
+    body { font-family: "Courier New", Courier, monospace; background: #fff; }
+    .page { display: flex; flex-wrap: wrap; gap: 4mm; padding: 4mm; }
+    /* No border — physical pre-printed card provides the border */
+    .tag { width: ${tagW}; padding: 3mm 4mm; display: flex; flex-direction: column; gap: 2mm; page-break-inside: avoid; text-align: center; }
+    .brand { font-size: ${brandPt}pt; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 2px; }
+    .tagline { font-size: 7pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .name { font-size: 12pt; font-weight: 900; line-height: 1.15; color: #000; text-transform: uppercase; letter-spacing: 1px; }
+    .desc { font-size: 9pt; font-weight: 700; color: #222; text-transform: uppercase; }
+    .barcode-wrap { width: 100%; display: flex; justify-content: center; margin: 1.5mm 0 0; }
+    .barcode-wrap svg { width: 100%; height: 22mm; }
+    .barcode-text { font-family: "Courier New", Courier, monospace; font-size: 10pt; font-weight: 700; color: #000; letter-spacing: 2px; }
+    .bottom { text-align: left; padding-top: 1mm; }
+    .mrp-label { font-size: 9pt; font-weight: 700; color: #000; text-transform: uppercase; letter-spacing: 1px; }
+    .mrp { font-size: 14pt; font-weight: 900; color: #000; letter-spacing: 1px; }
+    .sku { font-size: 8pt; color: #444; font-family: "Courier New",Courier,monospace; font-weight: 700; }
+    .footer { font-size: 7pt; color: #555; margin-top: 1.5mm; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     @media print { body { margin: 0; } @page { margin: 0; } }
   </style></head><body>
   <div class="page"><div class="tag">${blocks.join("\n")}</div></div>

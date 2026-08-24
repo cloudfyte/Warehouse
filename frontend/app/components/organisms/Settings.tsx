@@ -577,47 +577,46 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
               {/* ── Right: live tag preview ── */}
               <div style={{ flex: "0 0 auto" }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Preview</div>
+                {/* Preview — mirrors actual print output; no border (physical card provides it) */}
                 <div style={{
                   width: (form.tagPrinterWidth || "58mm") === "80mm" ? 150 : 108,
-                  border: "1.5px solid #222", borderRadius: 6, padding: "6px 8px",
-                  background: "#fff", color: "#111", fontFamily: "Arial, sans-serif",
-                  display: "flex", flexDirection: "column", gap: 3, transition: "width 0.2s",
+                  padding: "6px 8px",
+                  background: "#fff", color: "#000",
+                  fontFamily: "'Courier New', Courier, monospace",
+                  display: "flex", flexDirection: "column", gap: 3,
+                  textAlign: "center", transition: "width 0.2s",
+                  boxShadow: "0 0 0 1.5px #bbb",
                 }}>
                   {tagOrder.map(key => {
-                    const fs = form.tagBrandFontSize ?? 14;
+                    const fs = form.tagBrandFontSize ?? 7;
                     const logoH = form.tagLogoSize ?? 30;
                     if (key === "logo" && form.tagLogoData) return (
-                      <img key={key} src={form.tagLogoData} alt="" style={{ height: logoH, objectFit: "contain", alignSelf: "center" }} />
+                      <img key={key} src={form.tagLogoData} alt="" style={{ height: logoH * 0.35, objectFit: "contain", alignSelf: "center" }} />
                     );
                     if (key === "brand") return (
                       <div key={key}>
-                        <div style={{ fontSize: fs * 0.6, fontWeight: 700, color: "#333", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        <div style={{ fontSize: fs * 0.75, fontWeight: 900, color: "#000", textTransform: "uppercase", letterSpacing: "1px" }}>
                           {form.tagBrandName || form.companyName || "Brand Name"}
                         </div>
-                        {form.tagTagline && <div style={{ fontSize: 7, color: "#888" }}>{form.tagTagline}</div>}
+                        {form.tagTagline && <div style={{ fontSize: 6, fontWeight: 700, color: "#555", textTransform: "uppercase" }}>{form.tagTagline}</div>}
                       </div>
                     );
                     if (key === "barcode") return (
-                      <div key={key} style={{ background: "#f0f0f0", height: 20, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <svg width="70" height="14" viewBox="0 0 70 14">
-                          {Array.from({ length: 18 }).map((_, i) => (
-                            <rect key={i} x={i * 4} y={0} width={i % 3 === 0 ? 3 : 2} height={14} fill="#000" />
+                      <div key={key} style={{ display: "flex", justifyContent: "center" }}>
+                        <svg width="96" height="28" viewBox="0 0 96 28">
+                          {Array.from({ length: 22 }).map((_, i) => (
+                            <rect key={i} x={i * 4.2} y={0} width={i % 4 === 0 ? 3.5 : i % 3 === 0 ? 2.5 : 1.8} height={28} fill="#000" />
                           ))}
                         </svg>
                       </div>
                     );
-                    if (key === "barcode-text") return <div key={key} style={{ fontSize: 7, fontFamily: "monospace", textAlign: "center", color: "#555" }}>FP-20260001</div>;
-                    if (key === "item-info") return <div key={key} style={{ fontSize: 9, fontWeight: 700, color: "#111" }}>Cotton Shirt · Red</div>;
-                    if (key === "size") return <div key={key} style={{ fontSize: 8, color: "#444" }}>Size: M</div>;
-                    if (key === "age-group") return <div key={key} style={{ fontSize: 8, color: "#444" }}>Adult</div>;
-                    if (key === "price") return (
-                      <div key={key} style={{ borderTop: "1px solid #ddd", paddingTop: 3, marginTop: 2 }}>
-                        <div style={{ fontSize: 7, color: "#555" }}>MRP</div>
-                        <div style={{ fontSize: 14, fontWeight: 900, color: "#111", lineHeight: 1 }}>₹499</div>
-                      </div>
-                    );
-                    if (key === "sku") return <div key={key} style={{ fontSize: 7, fontFamily: "monospace", color: "#666" }}>SKU: FP-001</div>;
-                    if (key === "footer" && form.tagFooterText) return <div key={key} style={{ fontSize: 7, color: "#999", textAlign: "center" }}>{form.tagFooterText}</div>;
+                    if (key === "barcode-text") return <div key={key} style={{ fontSize: 8, fontFamily: "'Courier New',monospace", fontWeight: 700, letterSpacing: "1.5px" }}>9833925</div>;
+                    if (key === "item-info") return <div key={key} style={{ fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>KID OPEN JACKET</div>;
+                    if (key === "size") return <div key={key} style={{ fontSize: 7, fontWeight: 700, textTransform: "uppercase" }}>SIZE: M</div>;
+                    if (key === "age-group") return <div key={key} style={{ fontSize: 7, fontWeight: 700, textTransform: "uppercase" }}>ADULT</div>;
+                    if (key === "price") return <div key={key} style={{ fontSize: 9, fontWeight: 900, textAlign: "left", letterSpacing: "0.5px" }}>MRP : ₹3799/-</div>;
+                    if (key === "sku") return <div key={key} style={{ fontSize: 7, fontFamily: "'Courier New',monospace", fontWeight: 700, color: "#444" }}>FP-001</div>;
+                    if (key === "footer" && form.tagFooterText) return <div key={key} style={{ fontSize: 6, fontWeight: 700, color: "#555", textTransform: "uppercase" }}>{form.tagFooterText}</div>;
                     return null;
                   })}
                 </div>
