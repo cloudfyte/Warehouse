@@ -42,7 +42,8 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   if (!win) return;
   const cap = (s: string | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   const brandName = ts.tagBrandName || ts.companyName || "Garment Tag";
-  const mrp = Number(product.salePrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const unitPrice = product.quantity > 1 ? Number(product.salePrice) / product.quantity : Number(product.salePrice);
+  const mrp = unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const tagW = ts.tagPrinterWidth === "80mm" ? "90mm" : "72mm";
   const tagH = `${ts.tagHeightMm ?? 80}mm`;
   const brandPt = ts.tagBrandFontSize ?? 7;
@@ -215,7 +216,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                   ["Source", selected.source === "IN_HOUSE" ? "Stitched" : "Imported"],
                   ["Quantity", `${selected.quantity} pcs`],
                   ["Cost Price", formatMoney(selected.costPrice)],
-                  ["Sale Price", formatMoney(selected.salePrice)],
+                  ["Unit Price", formatMoney(selected.quantity > 1 ? selected.salePrice / selected.quantity : selected.salePrice)],
                   ["Profit", formatMoney(selected.profitMargin)],
                   ["Warehouse", selected.warehouse.name],
                   ["Tags Printed", selected.tagsPrinted ? "Yes" : "No"],
@@ -246,7 +247,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 itemName: selected.itemType.name,
                 size: selected.size,
                 ageGroup: selected.ageGroup || undefined,
-                salePrice: selected.salePrice,
+                salePrice: selected.quantity > 1 ? selected.salePrice / selected.quantity : selected.salePrice,
                 barcode: selected.barcode,
                 companyName: systemSettings?.tagBrandName || systemSettings?.companyName || "Sri Warehouse",
                 tagline: systemSettings?.tagTagline || undefined,
