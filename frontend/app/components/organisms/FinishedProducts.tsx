@@ -20,7 +20,7 @@ interface TagSettings {
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
   tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
-  tagLogoData?: string; tagComponentOrder?: string[]
+  tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number
   companyName?: string
 }
 
@@ -44,6 +44,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   const brandName = ts.tagBrandName || ts.companyName || "Garment Tag";
   const mrp = Number(product.salePrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const tagW = ts.tagPrinterWidth === "80mm" ? "90mm" : "72mm";
+  const tagH = `${ts.tagHeightMm ?? 80}mm`;
   const brandPt = ts.tagBrandFontSize ?? 7;
   const logoH = ts.tagLogoSize ?? 30;
   const order = (ts.tagComponentOrder && ts.tagComponentOrder.length) ? ts.tagComponentOrder : DEFAULT_TAG_ORDER;
@@ -82,7 +83,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     body { font-family: "Courier New", Courier, monospace; background: #fff; }
     .page { display: flex; flex-wrap: wrap; gap: 4mm; padding: 4mm; }
     /* No border — physical pre-printed card provides the border */
-    .tag { width: ${tagW}; padding: 3mm 4mm; display: flex; flex-direction: column; gap: 2mm; page-break-inside: avoid; text-align: center; }
+    .tag { width: ${tagW}; height: ${tagH}; padding: 3mm 4mm; display: flex; flex-direction: column; gap: 2mm; page-break-inside: avoid; text-align: center; overflow: hidden; }
     .brand { font-size: ${brandPt}pt; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 7pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .name { font-size: 12pt; font-weight: 900; line-height: 1.15; color: #000; text-transform: uppercase; letter-spacing: 1px; }
@@ -95,7 +96,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     .mrp { font-size: 14pt; font-weight: 900; color: #000; letter-spacing: 1px; }
     .sku { font-size: 8pt; color: #444; font-family: "Courier New",Courier,monospace; font-weight: 700; }
     .footer { font-size: 7pt; color: #555; margin-top: 1.5mm; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    @media print { body { margin: 0; } @page { margin: 0; } }
+    @media print { body { margin: 0; } @page { margin: 0; size: ${tagW} ${tagH}; } }
   </style></head><body>
   <div class="page"><div class="tag">${blocks.join("\n")}</div></div>
   <script>window.onload=()=>{window.print();}<\/script>

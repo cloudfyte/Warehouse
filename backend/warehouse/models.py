@@ -1213,6 +1213,7 @@ class SystemSettings(models.Model):
     tag_logo_size = models.IntegerField(default=30, help_text="Logo height on tag (px)")
     tag_logo_data = models.TextField(blank=True, help_text="Base64 logo for tags (b&w, small)")
     tag_component_order = models.JSONField(default=list, blank=True, help_text="Ordered list of tag component keys")
+    tag_height_mm = models.IntegerField(default=80, help_text="Tag print area height in mm (white section only)")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="settings_updates"

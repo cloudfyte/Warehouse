@@ -26,7 +26,7 @@ interface SettingsData {
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
   tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
-  tagLogoData?: string; tagComponentOrder?: string[]
+  tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -182,7 +182,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean,
           $gstOnPurchases:Boolean,$gstin:String,
           $tagBrand:String,$tagTagline:String,$tagShowBarcode:Boolean,$tagShowSku:Boolean,$tagShowColor:Boolean,$tagShowAgeGroup:Boolean,$tagFooter:String,$tagWidth:String,
-          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String]
+          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String],$tagHeightMm:Int
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -194,7 +194,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo,
           gstOnPurchases:$gstOnPurchases,gstin:$gstin,
           tagBrandName:$tagBrand,tagTagline:$tagTagline,tagShowBarcode:$tagShowBarcode,tagShowSku:$tagShowSku,tagShowColor:$tagShowColor,tagShowAgeGroup:$tagShowAgeGroup,tagFooterText:$tagFooter,tagPrinterWidth:$tagWidth,
-          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder
+          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder,tagHeightMm:$tagHeightMm
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -222,6 +222,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagLogoSize: form.tagLogoSize ? +form.tagLogoSize : undefined,
           tagLogoData: form.tagLogoData || undefined,
           tagComponentOrder: form.tagComponentOrder,
+          tagHeightMm: form.tagHeightMm ? +form.tagHeightMm : undefined,
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -470,6 +471,14 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                       </button>
                     ))}
                   </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>Height</span>
+                    <input type="range" min={40} max={150} step={5}
+                      value={form.tagHeightMm ?? 80}
+                      onChange={e => setForm(p => ({ ...p, tagHeightMm: +e.target.value }))}
+                      style={{ flex: 1, accentColor: "var(--brand)" }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", width: 38 }}>{form.tagHeightMm ?? 80}mm</span>
+                  </div>
                   <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} style={{ marginBottom: 8 }} />
                   <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Tagline (e.g. Quality Garments)" style={{ marginBottom: 8 }} />
                   <Input value={form.tagFooterText || ""} onChange={e => set("tagFooterText")(e.target.value)} placeholder="Footer (e.g. 100% Cotton · Made in India)" />
@@ -580,6 +589,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                 {/* Preview — mirrors actual print output; no border (physical card provides it) */}
                 <div style={{
                   width: (form.tagPrinterWidth || "58mm") === "80mm" ? 150 : 108,
+                  minHeight: (form.tagHeightMm ?? 80) * 0.95,
                   padding: "6px 8px",
                   background: "#fff", color: "#000",
                   fontFamily: "'Courier New', Courier, monospace",

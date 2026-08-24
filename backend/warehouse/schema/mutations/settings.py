@@ -57,6 +57,7 @@ class UpdateSystemSettings(graphene.Mutation):
         tag_logo_size = graphene.Int()
         tag_logo_data = graphene.String()
         tag_component_order = graphene.List(graphene.String)
+        tag_height_mm = graphene.Int()
 
     settings = graphene.Field(SystemSettingsType)
 
