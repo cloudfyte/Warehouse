@@ -1207,6 +1207,12 @@ class SystemSettings(models.Model):
     tag_show_age_group = models.BooleanField(default=True, help_text="Show age group on printed tags")
     tag_footer_text = models.CharField(max_length=120, blank=True, help_text="Footer text on tags (e.g. '100% Cotton · Made in India')")
     tag_printer_width = models.CharField(max_length=5, default="58mm", help_text="Thermal paper width: 58mm or 80mm")
+    tag_show_price = models.BooleanField(default=True, help_text="Show sale price on printed tags")
+    tag_show_size = models.BooleanField(default=True, help_text="Show size on printed tags")
+    tag_brand_font_size = models.IntegerField(default=14, help_text="Brand name font size on tag (pt)")
+    tag_logo_size = models.IntegerField(default=30, help_text="Logo height on tag (px)")
+    tag_logo_data = models.TextField(blank=True, help_text="Base64 logo for tags (b&w, small)")
+    tag_component_order = models.JSONField(default=list, blank=True, help_text="Ordered list of tag component keys")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="settings_updates"

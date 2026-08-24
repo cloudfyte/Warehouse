@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { applyBrandColors } from "@/app/lib/theme";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
@@ -25,6 +25,8 @@ interface SettingsData {
   gstOnPurchases?: boolean; gstin?: string
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
+  tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
+  tagLogoData?: string; tagComponentOrder?: string[]
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -73,6 +75,21 @@ function InfoBox({ children }: { children: React.ReactNode }) {
 
 const RESET_PHRASE = "RESET ALL DATA";
 
+const DEFAULT_COMPONENT_ORDER = ["logo", "brand", "barcode", "barcode-text", "item-info", "size", "age-group", "price", "sku", "footer"];
+
+const COMPONENT_LABELS: Record<string, { label: string; desc: string }> = {
+  logo:         { label: "Logo",          desc: "Brand logo image" },
+  brand:        { label: "Brand Name",    desc: "Brand + tagline text" },
+  barcode:      { label: "Barcode",       desc: "Barcode strip graphic" },
+  "barcode-text": { label: "Barcode No.", desc: "Barcode number in text" },
+  "item-info":  { label: "Item Type",     desc: "Product name + colour" },
+  size:         { label: "Size",          desc: "Size label (S/M/L etc.)" },
+  "age-group":  { label: "Age Group",     desc: "Kids / Adult etc." },
+  price:        { label: "MRP Price",     desc: "Sale price" },
+  sku:          { label: "SKU Code",      desc: "Internal SKU reference" },
+  footer:       { label: "Footer Text",   desc: "Custom footer line" },
+};
+
 export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
   const [tab, setTab] = useState<Tab>("general");
   const [form, setForm] = useState<SettingsData>({ ...settings });
@@ -85,6 +102,47 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
   const [resetError, setResetError] = useState("");
   const [resetDone, setResetDone] = useState(false);
   const resetInputRef = useRef<HTMLInputElement>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  const tagOrder: string[] = (form.tagComponentOrder && form.tagComponentOrder.length)
+    ? form.tagComponentOrder
+    : DEFAULT_COMPONENT_ORDER;
+
+  // Toggle a component in/out of the order
+  const tagToggle = useCallback((key: string) => {
+    setForm(p => {
+      const order = (p.tagComponentOrder && p.tagComponentOrder.length) ? p.tagComponentOrder : DEFAULT_COMPONENT_ORDER;
+      return { ...p, tagComponentOrder: order.includes(key) ? order.filter(k => k !== key) : [...order, key] };
+    });
+  }, []);
+
+  // Handle logo upload — resize to ≤150px, convert B&W, store as base64
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  function handleLogoUpload(file: File) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 150;
+        const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < d.data.length; i += 4) {
+          const g = 0.299 * d.data[i] + 0.587 * d.data[i + 1] + 0.114 * d.data[i + 2];
+          d.data[i] = d.data[i + 1] = d.data[i + 2] = g < 128 ? 0 : 255; d.data[i + 3] = 255;
+        }
+        ctx.putImageData(d, 0, 0);
+        setForm(p => ({ ...p, tagLogoData: canvas.toDataURL("image/png") }));
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
 
   if (!isSuperAdmin) {
     return (
@@ -123,7 +181,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $otpExpiry:Int,$allowOtp:Boolean,
           $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean,
           $gstOnPurchases:Boolean,$gstin:String,
-          $tagBrand:String,$tagTagline:String,$tagShowBarcode:Boolean,$tagShowSku:Boolean,$tagShowColor:Boolean,$tagShowAgeGroup:Boolean,$tagFooter:String,$tagWidth:String
+          $tagBrand:String,$tagTagline:String,$tagShowBarcode:Boolean,$tagShowSku:Boolean,$tagShowColor:Boolean,$tagShowAgeGroup:Boolean,$tagFooter:String,$tagWidth:String,
+          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String]
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -134,7 +193,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           otpExpiryMinutes:$otpExpiry,allowOtpLogin:$allowOtp,
           printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo,
           gstOnPurchases:$gstOnPurchases,gstin:$gstin,
-          tagBrandName:$tagBrand,tagTagline:$tagTagline,tagShowBarcode:$tagShowBarcode,tagShowSku:$tagShowSku,tagShowColor:$tagShowColor,tagShowAgeGroup:$tagShowAgeGroup,tagFooterText:$tagFooter,tagPrinterWidth:$tagWidth
+          tagBrandName:$tagBrand,tagTagline:$tagTagline,tagShowBarcode:$tagShowBarcode,tagShowSku:$tagShowSku,tagShowColor:$tagShowColor,tagShowAgeGroup:$tagShowAgeGroup,tagFooterText:$tagFooter,tagPrinterWidth:$tagWidth,
+          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -157,6 +217,11 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagShowBarcode: form.tagShowBarcode, tagShowSku: form.tagShowSku,
           tagShowColor: form.tagShowColor, tagShowAgeGroup: form.tagShowAgeGroup,
           tagFooter: form.tagFooterText || undefined, tagWidth: form.tagPrinterWidth || undefined,
+          tagShowPrice: form.tagShowPrice, tagShowSize: form.tagShowSize,
+          tagBrandFontSize: form.tagBrandFontSize ? +form.tagBrandFontSize : undefined,
+          tagLogoSize: form.tagLogoSize ? +form.tagLogoSize : undefined,
+          tagLogoData: form.tagLogoData || undefined,
+          tagComponentOrder: form.tagComponentOrder,
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -379,32 +444,187 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
             <Toggle label="Show Company Logo on Printed Documents" description="Display the logo URL image in the header of all print outputs" checked={form.printShowLogo !== false} onChange={tog("printShowLogo")} />
           </Section>
 
-          <Section title="Product Tag Layout" badge="New">
-            <InfoBox>Controls what appears on printed product tags and Bluetooth thermal prints from Finished Goods.</InfoBox>
-            <Field label="Brand Name on Tag">
-              <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} />
-            </Field>
-            <Field label="Tagline under Brand">
-              <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Quality Garments · Since 2010" />
-            </Field>
-            <Field label="Tag Footer Text">
-              <Input value={form.tagFooterText || ""} onChange={e => set("tagFooterText")(e.target.value)} placeholder="100% Cotton · Made in India" />
-            </Field>
-            <Field label="Thermal Printer Width">
-              <select
-                value={form.tagPrinterWidth || "58mm"}
-                onChange={e => set("tagPrinterWidth")(e.target.value)}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", fontSize: 14 }}
-              >
-                <option value="58mm">58mm (compact)</option>
-                <option value="80mm">80mm (wide)</option>
-              </select>
-            </Field>
-            <Toggle label="Show Barcode" description="Print barcode stripe on tag" checked={form.tagShowBarcode !== false} onChange={tog("tagShowBarcode")} />
-            <Toggle label="Show SKU Code" description="Print SKU number on tag" checked={form.tagShowSku !== false} onChange={tog("tagShowSku")} />
-            <Toggle label="Show Cloth Color" description="Print colour name on tag" checked={form.tagShowColor !== false} onChange={tog("tagShowColor")} />
-            <Toggle label="Show Age Group" description="Print age group (e.g. Kids / Adult) on tag" checked={form.tagShowAgeGroup !== false} onChange={tog("tagShowAgeGroup")} />
-          </Section>
+          {/* ── Tag Designer ── */}
+          <div style={{ gridColumn: "1 / -1", background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 14, padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: "var(--ink)" }}>Product Tag Designer</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>Drag rows to reorder · toggle to include/exclude · live preview on right</div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+
+              {/* ── Left: controls ── */}
+              <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Paper & Text</div>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    {(["58mm","80mm"] as const).map(w => (
+                      <button key={w} onClick={() => setForm(p => ({ ...p, tagPrinterWidth: w }))}
+                        style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1.5px solid", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "all 0.15s",
+                          borderColor: (form.tagPrinterWidth || "58mm") === w ? "var(--brand)" : "var(--line)",
+                          background: (form.tagPrinterWidth || "58mm") === w ? "color-mix(in srgb,var(--brand) 10%,transparent)" : "var(--canvas)",
+                          color: (form.tagPrinterWidth || "58mm") === w ? "var(--brand)" : "var(--ink)" }}>
+                        {w}
+                      </button>
+                    ))}
+                  </div>
+                  <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} style={{ marginBottom: 8 }} />
+                  <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Tagline (e.g. Quality Garments)" style={{ marginBottom: 8 }} />
+                  <Input value={form.tagFooterText || ""} onChange={e => set("tagFooterText")(e.target.value)} placeholder="Footer (e.g. 100% Cotton · Made in India)" />
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Brand Font Size</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input type="range" min={8} max={22} step={1}
+                      value={form.tagBrandFontSize ?? 14}
+                      onChange={e => setForm(p => ({ ...p, tagBrandFontSize: +e.target.value }))}
+                      style={{ flex: 1, accentColor: "var(--brand)" }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", width: 30 }}>{form.tagBrandFontSize ?? 14}pt</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Tag Logo</div>
+                  {form.tagLogoData ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <img src={form.tagLogoData} alt="tag logo" style={{ height: 32, borderRadius: 4, border: "1px solid var(--line)" }} />
+                      <button onClick={() => setForm(p => ({ ...p, tagLogoData: "" }))}
+                        style={{ fontSize: 11, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => logoInputRef.current?.click()}
+                      style={{ width: "100%", padding: "8px 0", borderRadius: 8, border: "1.5px dashed var(--line)", background: "var(--canvas)", color: "var(--muted)", fontSize: 12, cursor: "pointer" }}>
+                      + Upload B&W Logo
+                    </button>
+                  )}
+                  <input ref={logoInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); e.target.value = ""; }} />
+                  {form.tagLogoData && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>Logo height: {form.tagLogoSize ?? 30}px</div>
+                      <input type="range" min={16} max={60} step={2}
+                        value={form.tagLogoSize ?? 30}
+                        onChange={e => setForm(p => ({ ...p, tagLogoSize: +e.target.value }))}
+                        style={{ width: "100%", accentColor: "var(--brand)" }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Center: drag-and-drop order ── */}
+              <div style={{ flex: "1 1 200px" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Component Order</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {tagOrder.map((key, idx) => {
+                    const info = COMPONENT_LABELS[key];
+                    if (!info) return null;
+                    return (
+                      <div key={key} draggable
+                        onDragStart={() => setDragIdx(idx)}
+                        onDragOver={e => { e.preventDefault(); }}
+                        onDrop={() => {
+                          if (dragIdx === null || dragIdx === idx) return;
+                          const next = [...tagOrder];
+                          const [moved] = next.splice(dragIdx, 1);
+                          next.splice(idx, 0, moved);
+                          setForm(p => ({ ...p, tagComponentOrder: next }));
+                          setDragIdx(null);
+                        }}
+                        onDragEnd={() => setDragIdx(null)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "7px 10px", borderRadius: 8, border: "1px solid var(--line)",
+                          background: dragIdx === idx ? "color-mix(in srgb,var(--brand) 8%,transparent)" : "var(--canvas)",
+                          cursor: "grab", userSelect: "none", transition: "background 0.1s",
+                        }}>
+                        <span style={{ color: "var(--muted)", fontSize: 13 }}>⠿</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>{info.label}</div>
+                          <div style={{ fontSize: 10, color: "var(--muted)" }}>{info.desc}</div>
+                        </div>
+                        <button onClick={() => tagToggle(key)}
+                          style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, border: "none", cursor: "pointer",
+                            background: "color-mix(in srgb,#ef4444 12%,transparent)", color: "#ef4444", fontWeight: 600 }}>
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Add back removed components */}
+                {DEFAULT_COMPONENT_ORDER.filter(k => !tagOrder.includes(k)).length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>Hidden (click to re-add):</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {DEFAULT_COMPONENT_ORDER.filter(k => !tagOrder.includes(k)).map(k => (
+                        <button key={k} onClick={() => tagToggle(k)}
+                          style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px dashed var(--line)", background: "var(--canvas)", color: "var(--muted)", cursor: "pointer" }}>
+                          + {COMPONENT_LABELS[k]?.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button onClick={() => setForm(p => ({ ...p, tagComponentOrder: [...DEFAULT_COMPONENT_ORDER] }))}
+                  style={{ marginTop: 10, fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--muted)", cursor: "pointer" }}>
+                  Reset to default order
+                </button>
+              </div>
+
+              {/* ── Right: live tag preview ── */}
+              <div style={{ flex: "0 0 auto" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Preview</div>
+                <div style={{
+                  width: (form.tagPrinterWidth || "58mm") === "80mm" ? 150 : 108,
+                  border: "1.5px solid #222", borderRadius: 6, padding: "6px 8px",
+                  background: "#fff", color: "#111", fontFamily: "Arial, sans-serif",
+                  display: "flex", flexDirection: "column", gap: 3, transition: "width 0.2s",
+                }}>
+                  {tagOrder.map(key => {
+                    const fs = form.tagBrandFontSize ?? 14;
+                    const logoH = form.tagLogoSize ?? 30;
+                    if (key === "logo" && form.tagLogoData) return (
+                      <img key={key} src={form.tagLogoData} alt="" style={{ height: logoH, objectFit: "contain", alignSelf: "center" }} />
+                    );
+                    if (key === "brand") return (
+                      <div key={key}>
+                        <div style={{ fontSize: fs * 0.6, fontWeight: 700, color: "#333", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          {form.tagBrandName || form.companyName || "Brand Name"}
+                        </div>
+                        {form.tagTagline && <div style={{ fontSize: 7, color: "#888" }}>{form.tagTagline}</div>}
+                      </div>
+                    );
+                    if (key === "barcode") return (
+                      <div key={key} style={{ background: "#f0f0f0", height: 20, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <svg width="70" height="14" viewBox="0 0 70 14">
+                          {Array.from({ length: 18 }).map((_, i) => (
+                            <rect key={i} x={i * 4} y={0} width={i % 3 === 0 ? 3 : 2} height={14} fill="#000" />
+                          ))}
+                        </svg>
+                      </div>
+                    );
+                    if (key === "barcode-text") return <div key={key} style={{ fontSize: 7, fontFamily: "monospace", textAlign: "center", color: "#555" }}>FP-20260001</div>;
+                    if (key === "item-info") return <div key={key} style={{ fontSize: 9, fontWeight: 700, color: "#111" }}>Cotton Shirt · Red</div>;
+                    if (key === "size") return <div key={key} style={{ fontSize: 8, color: "#444" }}>Size: M</div>;
+                    if (key === "age-group") return <div key={key} style={{ fontSize: 8, color: "#444" }}>Adult</div>;
+                    if (key === "price") return (
+                      <div key={key} style={{ borderTop: "1px solid #ddd", paddingTop: 3, marginTop: 2 }}>
+                        <div style={{ fontSize: 7, color: "#555" }}>MRP</div>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: "#111", lineHeight: 1 }}>₹499</div>
+                      </div>
+                    );
+                    if (key === "sku") return <div key={key} style={{ fontSize: 7, fontFamily: "monospace", color: "#666" }}>SKU: FP-001</div>;
+                    if (key === "footer" && form.tagFooterText) return <div key={key} style={{ fontSize: 7, color: "#999", textAlign: "center" }}>{form.tagFooterText}</div>;
+                    return null;
+                  })}
+                </div>
+              </div>
+
+            </div>
+          </div>
         </>
       )}
 

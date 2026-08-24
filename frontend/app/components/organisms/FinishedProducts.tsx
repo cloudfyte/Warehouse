@@ -19,8 +19,12 @@ import { buildTagEscPos } from "@/app/lib/useBluetooth";
 interface TagSettings {
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
+  tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
+  tagLogoData?: string; tagComponentOrder?: string[]
   companyName?: string
 }
+
+const DEFAULT_TAG_ORDER = ["logo","brand","barcode","barcode-text","item-info","size","age-group","price","sku","footer"];
 
 interface Props {
   products: FinishedProduct[]
@@ -38,62 +42,61 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   if (!win) return;
   const cap = (s: string | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   const brandName = ts.tagBrandName || ts.companyName || "Garment Tag";
-  const descParts = [
-    ts.tagShowColor !== false ? (product.clothColor?.name || undefined) : undefined,
-    ts.tagShowAgeGroup !== false ? (product.ageGroup || undefined) : undefined,
-    product.size || undefined,
-  ].filter((v): v is string => !!v).map(cap);
-  const desc = descParts.join(" · ");
   const mrp = Number(product.salePrice).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const tagW = ts.tagPrinterWidth === "80mm" ? "90mm" : "72mm";
+  const brandPt = ts.tagBrandFontSize ?? 7;
+  const logoH = ts.tagLogoSize ?? 30;
+  const order = (ts.tagComponentOrder && ts.tagComponentOrder.length) ? ts.tagComponentOrder : DEFAULT_TAG_ORDER;
+
+  const blocks: string[] = [];
+  for (const key of order) {
+    if (key === "logo" && ts.tagLogoData) {
+      blocks.push(`<img src="${ts.tagLogoData}" style="height:${logoH}px;display:block;margin:0 auto;" />`);
+    } else if (key === "brand") {
+      blocks.push(`<div class="brand" style="font-size:${brandPt}pt">${brandName}</div>`);
+      if (ts.tagTagline) blocks.push(`<div class="tagline">${ts.tagTagline}</div>`);
+    } else if (key === "barcode" && ts.tagShowBarcode !== false) {
+      blocks.push(`<div class="barcode-wrap">${product.barcodeSvg || `<span style="font-family:monospace;font-size:9pt;">${product.barcode}</span>`}</div>`);
+    } else if (key === "barcode-text" && ts.tagShowBarcode !== false) {
+      blocks.push(`<div class="barcode-text">${product.barcode}</div>`);
+    } else if (key === "item-info") {
+      const color = ts.tagShowColor !== false ? (product.clothColor?.name || "") : "";
+      const label = [cap(product.itemType.name), color ? cap(color) : ""].filter(Boolean).join(" · ");
+      if (label) blocks.push(`<div class="name">${cap(product.itemType.name)}</div>${color ? `<div class="desc">${cap(color)}</div>` : ""}`);
+    } else if (key === "size" && ts.tagShowSize !== false && product.size) {
+      blocks.push(`<div class="desc">Size: ${cap(product.size)}</div>`);
+    } else if (key === "age-group" && ts.tagShowAgeGroup !== false && product.ageGroup) {
+      blocks.push(`<div class="desc">${cap(product.ageGroup)}</div>`);
+    } else if (key === "price" && ts.tagShowPrice !== false) {
+      blocks.push(`<div class="bottom"><div><div class="mrp-label">MRP (incl. taxes)</div><div class="mrp">₹${mrp}</div></div></div>`);
+    } else if (key === "sku" && ts.tagShowSku !== false) {
+      blocks.push(`<div class="sku"><div>SKU</div><div>${product.sku}</div></div>`);
+    } else if (key === "footer" && ts.tagFooterText) {
+      blocks.push(`<div class="footer">${ts.tagFooterText}</div>`);
+    }
+  }
+
   win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, Helvetica, sans-serif; background: #fff; }
     .page { display: flex; flex-wrap: wrap; gap: 6mm; padding: 6mm; }
-    .tag {
-      width: ${tagW}; min-height: 48mm;
-      border: 1.5px solid #222; border-radius: 3mm;
-      padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1.5mm;
-      page-break-inside: avoid;
-    }
-    .brand { font-size: 7pt; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; }
-    .tagline { font-size: 6pt; color: #888; margin-top: -1mm; }
+    .tag { width: ${tagW}; min-height: 48mm; border: 1.5px solid #222; border-radius: 3mm; padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1.5mm; page-break-inside: avoid; }
+    .brand { font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+    .tagline { font-size: 6pt; color: #888; }
     .name { font-size: 13pt; font-weight: 800; line-height: 1.1; color: #111; }
     .desc { font-size: 8pt; color: #444; }
     .barcode-wrap { width: 100%; display: flex; justify-content: center; margin: 1mm 0; }
     .barcode-wrap svg { max-width: 100%; height: 14mm; }
     .barcode-text { font-family: monospace; font-size: 7pt; color: #555; text-align: center; }
-    .bottom { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding-top: 1mm; border-top: 1px solid #ddd; }
+    .bottom { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 1mm; border-top: 1px solid #ddd; }
     .mrp-label { font-size: 7pt; color: #555; font-weight: 600; }
     .mrp { font-size: 18pt; font-weight: 900; color: #111; line-height: 1; }
     .sku { font-size: 7pt; color: #666; font-family: monospace; text-align: right; }
     .footer { font-size: 6pt; color: #999; text-align: center; margin-top: 1.5mm; }
     @media print { body { margin: 0; } @page { margin: 0; } }
   </style></head><body>
-  <div class="page">
-    <div class="tag">
-      <div class="brand">${brandName}</div>
-      ${ts.tagTagline ? `<div class="tagline">${ts.tagTagline}</div>` : ""}
-      <div class="name">${cap(product.itemType.name)}</div>
-      ${desc ? `<div class="desc">${desc}</div>` : ""}
-      ${ts.tagShowBarcode !== false ? `<div class="barcode-wrap">
-        ${product.barcodeSvg ? product.barcodeSvg : `<span style="font-family:monospace;font-size:9pt;">${product.barcode}</span>`}
-      </div>
-      <div class="barcode-text">${product.barcode}</div>` : ""}
-      <div class="bottom">
-        <div>
-          <div class="mrp-label">MRP (incl. taxes)</div>
-          <div class="mrp">₹${mrp}</div>
-        </div>
-        ${ts.tagShowSku !== false ? `<div class="sku">
-          <div>SKU</div>
-          <div>${product.sku}</div>
-        </div>` : ""}
-      </div>
-      ${ts.tagFooterText ? `<div class="footer">${ts.tagFooterText}</div>` : ""}
-    </div>
-  </div>
+  <div class="page"><div class="tag">${blocks.join("\n")}</div></div>
   <script>window.onload=()=>{window.print();}<\/script>
   </body></html>`);
   win.document.close();
