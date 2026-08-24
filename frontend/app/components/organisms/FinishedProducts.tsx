@@ -80,26 +80,28 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
 
   win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
   <style>
+    @page { size: ${tagW} ${tagH}; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Courier New", Courier, monospace; background: #fff; }
-    .page { display: flex; flex-wrap: wrap; gap: 4mm; padding: 4mm; }
-    /* No border — physical pre-printed card provides the border */
-    .tag { width: ${tagW}; height: ${tagH}; padding: 3mm 4mm; display: flex; flex-direction: column; gap: 2mm; page-break-inside: avoid; text-align: center; overflow: hidden; }
+    html, body {
+      width: ${tagW}; height: ${tagH}; overflow: hidden;
+      font-family: "Courier New", Courier, monospace;
+      background: #fff; color: #000;
+      display: flex; flex-direction: column; gap: 2mm;
+      padding: 3mm 4mm;
+      text-align: center;
+    }
     .brand { font-size: ${brandPt}pt; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 2px; }
-    .tagline { font-size: 7pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .name { font-size: 12pt; font-weight: 900; line-height: 1.15; color: #000; text-transform: uppercase; letter-spacing: 1px; }
-    .desc { font-size: 9pt; font-weight: 700; color: #222; text-transform: uppercase; }
-    .barcode-wrap { width: 100%; display: flex; justify-content: center; margin: 1.5mm 0 0; }
-    .barcode-wrap svg { width: 100%; height: 22mm; }
-    .barcode-text { font-family: "Courier New", Courier, monospace; font-size: 10pt; font-weight: 700; color: #000; letter-spacing: 2px; }
-    .bottom { text-align: left; padding-top: 1mm; }
-    .mrp-label { font-size: 9pt; font-weight: 700; color: #000; text-transform: uppercase; letter-spacing: 1px; }
-    .mrp { font-size: 14pt; font-weight: 900; color: #000; letter-spacing: 1px; }
-    .sku { font-size: 8pt; color: #444; font-family: "Courier New",Courier,monospace; font-weight: 700; }
-    .footer { font-size: 7pt; color: #555; margin-top: 1.5mm; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    @media print { body { margin: 0; } @page { margin: 0; size: ${tagW} ${tagH}; } }
+    .tagline { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .name { font-size: 11pt; font-weight: 900; line-height: 1.1; color: #000; text-transform: uppercase; letter-spacing: 1px; }
+    .desc { font-size: 8pt; font-weight: 700; color: #222; text-transform: uppercase; }
+    .barcode-wrap { width: 100%; display: flex; justify-content: center; }
+    .barcode-wrap svg { width: 100%; height: 18mm; }
+    .barcode-text { font-size: 9pt; font-weight: 700; color: #000; letter-spacing: 2px; }
+    .mrp-label { font-size: 9pt; font-weight: 900; color: #000; text-align: left; letter-spacing: 1px; }
+    .sku { font-size: 7pt; color: #444; font-weight: 700; }
+    .footer { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
   </style></head><body>
-  <div class="page"><div class="tag">${blocks.join("\n")}</div></div>
+  ${blocks.join("\n")}
   <script>window.onload=()=>{window.print();}<\/script>
   </body></html>`);
   win.document.close();
