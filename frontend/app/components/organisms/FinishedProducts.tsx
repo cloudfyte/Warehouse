@@ -20,7 +20,7 @@ interface TagSettings {
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
   tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
-  tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number
+  tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number; tagWidthMm?: number
   companyName?: string
 }
 
@@ -44,8 +44,8 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   const brandName = ts.tagBrandName || ts.companyName || "Garment Tag";
   const unitPrice = product.quantity > 1 ? Number(product.salePrice) / product.quantity : Number(product.salePrice);
   const mrp = unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const tagW = ts.tagPrinterWidth === "80mm" ? "90mm" : "72mm";
-  const tagH = `${ts.tagHeightMm ?? 80}mm`;
+  const tagW = `${ts.tagWidthMm ?? 54}mm`;
+  const tagH = `${ts.tagHeightMm ?? 65}mm`;
   const brandPt = ts.tagBrandFontSize ?? 7;
   const logoH = ts.tagLogoSize ?? 30;
   const order = (ts.tagComponentOrder && ts.tagComponentOrder.length) ? ts.tagComponentOrder : DEFAULT_TAG_ORDER;

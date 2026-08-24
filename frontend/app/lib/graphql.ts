@@ -84,7 +84,7 @@ export const DASHBOARD_QUERY = `
       printCompanyAddress printBankDetails printTerms printSignatureLabel printShowLogo
       gstOnPurchases gstin
       tagBrandName tagTagline tagShowBarcode tagShowSku tagShowColor tagShowAgeGroup tagFooterText tagPrinterWidth
-      tagShowPrice tagShowSize tagBrandFontSize tagLogoSize tagLogoData tagComponentOrder tagHeightMm
+      tagShowPrice tagShowSize tagBrandFontSize tagLogoSize tagLogoData tagComponentOrder tagHeightMm tagWidthMm
     }
     employeeProfile { id role phone active username email locations { id name code locationType }
       customRole { id name displayName color backendLevel tabPermissions isSystem } }

@@ -26,7 +26,7 @@ interface SettingsData {
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
   tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
-  tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number
+  tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number; tagWidthMm?: number
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -182,7 +182,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean,
           $gstOnPurchases:Boolean,$gstin:String,
           $tagBrand:String,$tagTagline:String,$tagShowBarcode:Boolean,$tagShowSku:Boolean,$tagShowColor:Boolean,$tagShowAgeGroup:Boolean,$tagFooter:String,$tagWidth:String,
-          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String],$tagHeightMm:Int
+          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String],$tagHeightMm:Int,$tagWidthMm:Int
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -194,7 +194,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo,
           gstOnPurchases:$gstOnPurchases,gstin:$gstin,
           tagBrandName:$tagBrand,tagTagline:$tagTagline,tagShowBarcode:$tagShowBarcode,tagShowSku:$tagShowSku,tagShowColor:$tagShowColor,tagShowAgeGroup:$tagShowAgeGroup,tagFooterText:$tagFooter,tagPrinterWidth:$tagWidth,
-          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder,tagHeightMm:$tagHeightMm
+          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder,tagHeightMm:$tagHeightMm,tagWidthMm:$tagWidthMm
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -223,6 +223,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagLogoData: form.tagLogoData || undefined,
           tagComponentOrder: form.tagComponentOrder,
           tagHeightMm: form.tagHeightMm ? +form.tagHeightMm : undefined,
+          tagWidthMm: form.tagWidthMm ? +form.tagWidthMm : undefined,
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -459,25 +460,25 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
               {/* ── Left: controls ── */}
               <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Paper & Text</div>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    {(["58mm","80mm"] as const).map(w => (
-                      <button key={w} onClick={() => setForm(p => ({ ...p, tagPrinterWidth: w }))}
-                        style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1.5px solid", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "all 0.15s",
-                          borderColor: (form.tagPrinterWidth || "58mm") === w ? "var(--brand)" : "var(--line)",
-                          background: (form.tagPrinterWidth || "58mm") === w ? "color-mix(in srgb,var(--brand) 10%,transparent)" : "var(--canvas)",
-                          color: (form.tagPrinterWidth || "58mm") === w ? "var(--brand)" : "var(--ink)" }}>
-                        {w}
-                      </button>
-                    ))}
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Print Area (white section only)</div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, background: "color-mix(in srgb,var(--brand) 8%,transparent)", borderRadius: 6, padding: "6px 10px" }}>
+                    Sri Wedding default: <strong>54mm × 65mm</strong> — measure your tag's white section
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", width: 40 }}>Width</span>
+                    <input type="range" min={40} max={110} step={1}
+                      value={form.tagWidthMm ?? 54}
+                      onChange={e => setForm(p => ({ ...p, tagWidthMm: +e.target.value }))}
+                      style={{ flex: 1, accentColor: "var(--brand)" }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", width: 38 }}>{form.tagWidthMm ?? 54}mm</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>Height</span>
-                    <input type="range" min={40} max={150} step={5}
-                      value={form.tagHeightMm ?? 80}
+                    <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", width: 40 }}>Height</span>
+                    <input type="range" min={40} max={150} step={1}
+                      value={form.tagHeightMm ?? 65}
                       onChange={e => setForm(p => ({ ...p, tagHeightMm: +e.target.value }))}
                       style={{ flex: 1, accentColor: "var(--brand)" }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", width: 38 }}>{form.tagHeightMm ?? 80}mm</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", width: 38 }}>{form.tagHeightMm ?? 65}mm</span>
                   </div>
                   <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} style={{ marginBottom: 8 }} />
                   <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Tagline (e.g. Quality Garments)" style={{ marginBottom: 8 }} />
@@ -588,8 +589,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Preview</div>
                 {/* Preview — mirrors actual print output; no border (physical card provides it) */}
                 <div style={{
-                  width: (form.tagPrinterWidth || "58mm") === "80mm" ? 150 : 108,
-                  minHeight: (form.tagHeightMm ?? 80) * 0.95,
+                  width: (form.tagWidthMm ?? 54) * 1.5,
+                  minHeight: (form.tagHeightMm ?? 65) * 0.95,
                   padding: "6px 8px",
                   background: "#fff", color: "#000",
                   fontFamily: "'Courier New', Courier, monospace",
