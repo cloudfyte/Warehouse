@@ -38,14 +38,19 @@ interface Props {
 const PER_PAGE = 20;
 
 function printTag(product: FinishedProduct, ts: TagSettings = {}) {
-  const win = window.open("", "_blank");
+  const wMm = ts.tagWidthMm ?? 54;
+  const hMm = ts.tagHeightMm ?? 65;
+  // Open popup at exact label size (px at 96dpi) so the viewport = the tag = 1 print page
+  const pxW = Math.round(wMm * 96 / 25.4);
+  const pxH = Math.round(hMm * 96 / 25.4);
+  const win = window.open("", "_blank", `width=${pxW},height=${pxH},menubar=no,toolbar=no,scrollbars=no,resizable=no,status=no,location=no`);
   if (!win) return;
   const cap = (s: string | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   const brandName = ts.tagBrandName || ts.companyName || "Garment Tag";
   const unitPrice = product.quantity > 1 ? Number(product.salePrice) / product.quantity : Number(product.salePrice);
   const mrp = unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const tagW = `${ts.tagWidthMm ?? 54}mm`;
-  const tagH = `${ts.tagHeightMm ?? 65}mm`;
+  const tagW = `${wMm}mm`;
+  const tagH = `${hMm}mm`;
   const brandPt = ts.tagBrandFontSize ?? 7;
   const logoH = ts.tagLogoSize ?? 30;
   const order = (ts.tagComponentOrder && ts.tagComponentOrder.length) ? ts.tagComponentOrder : DEFAULT_TAG_ORDER;
@@ -78,14 +83,19 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     }
   }
 
-  win.document.write(`<!DOCTYPE html><html><head><title>Tag — ${product.sku}</title>
+  win.document.write(`<!DOCTYPE html><html><head>
+  <meta charset="UTF-8">
+  <title>Tag — ${product.sku}</title>
   <style>
     @page { size: ${tagW} ${tagH}; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      width: ${tagW}; height: ${tagH}; overflow: hidden;
+    html, body { width: 100%; height: 100%; background: #fff; overflow: hidden; }
+    .tag {
+      position: fixed; top: 0; left: 0;
+      width: ${tagW}; height: ${tagH};
+      overflow: hidden;
       font-family: "Courier New", Courier, monospace;
-      background: #fff; color: #000;
+      color: #000;
       display: flex; flex-direction: column; gap: 2mm;
       padding: 3mm 4mm;
       text-align: center;
@@ -101,7 +111,9 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     .sku { font-size: 7pt; color: #444; font-weight: 700; }
     .footer { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
   </style></head><body>
+  <div class="tag">
   ${blocks.join("\n")}
+  </div>
   <script>window.onload=()=>{window.print();}<\/script>
   </body></html>`);
   win.document.close();
