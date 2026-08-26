@@ -109,18 +109,22 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: ${wMm}mm; height: ${hMm}mm; overflow: hidden; }
     body { font-family: "Courier New", Courier, monospace; background: #fff; color: #000; }
-    .tag { padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1mm; text-align: center; }
+    /* Fill the card's white window and centre the stack vertically, so the
+       content sits evenly instead of crowding the top. */
+    .tag { height: 100%; padding: 3mm 4mm; display: flex; flex-direction: column;
+           justify-content: center; gap: 1.2mm; text-align: center; }
     .brand { font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .barcode-wrap { width: 100%; overflow: hidden; }
     /* SVG has no viewBox, so its mm coordinates are absolute — don't scale it,
        just centre it and crop the empty strip left by the removed label. */
-    .barcode-wrap svg { height: 17mm; display: block; margin: 0 auto; }
-    .barcode-text { font-size: 8pt; font-weight: 700; letter-spacing: 1px; }
-    .name { font-size: 11pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.1; }
-    .desc { font-size: 7pt; font-weight: 700; text-transform: uppercase; }
-    .mrp { font-size: 10pt; font-weight: 900; text-align: left; letter-spacing: 1px; }
-    .sku { font-size: 7pt; font-weight: 700; }
+    .barcode-wrap svg { height: 18mm; display: block; margin: 0 auto; }
+    .barcode-text { font-size: 8.5pt; font-weight: 700; letter-spacing: 1.5px; }
+    .name { font-size: 12pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.15; }
+    .desc { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    /* Centred like every other row — left-aligning pushed it past the window. */
+    .mrp { font-size: 13pt; font-weight: 900; letter-spacing: 1px; margin-top: 0.8mm; }
+    .sku { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.5px; }
     .footer { font-size: 6pt; font-weight: 700; text-transform: uppercase; }
     @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
   </style></head><body>
