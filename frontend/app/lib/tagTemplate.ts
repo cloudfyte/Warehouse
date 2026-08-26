@@ -89,6 +89,9 @@ export function cleanBarcodeSvg(svg?: string): string {
 
 const JUSTIFY: Record<string, string> = { top: "flex-start", center: "center", bottom: "flex-end" };
 const ALIGN_ITEMS: Record<string, string> = { left: "flex-start", center: "center", right: "flex-end" };
+// The barcode wrapper spans the full column, so the SVG needs its own margin to
+// follow the alignment — text-align does not move a block-level <svg>.
+const SVG_MARGIN: Record<string, string> = { left: "0", center: "0 auto", right: "0 0 0 auto" };
 
 /** The tag's CSS, driven entirely by settings. */
 export function tagCss(ts: TagSettings): string {
@@ -110,7 +113,7 @@ export function tagCss(ts: TagSettings): string {
     .brand { font-size: ${brandPt}pt; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .barcode-wrap { width: 100%; overflow: hidden; }
-    .barcode-wrap svg { height: ${ts.tagBarcodeHeightMm ?? 18}mm; display: block; margin: 0; }
+    .barcode-wrap svg { height: ${ts.tagBarcodeHeightMm ?? 18}mm; display: block; margin: ${SVG_MARGIN[align] ?? "0"}; }
     .barcode-text { font-size: ${ts.tagBarcodeTextFontSize ?? 8.5}pt; font-weight: 700; letter-spacing: 1.5px; }
     .name { font-size: ${ts.tagNameFontSize ?? 12}pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.15; }
     .desc { font-size: ${ts.tagDescFontSize ?? 8}pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
