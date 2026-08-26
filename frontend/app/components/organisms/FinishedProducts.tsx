@@ -113,7 +113,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     /* The holographic foil strip runs down the left of the card, so the white
        window is NOT centred on the label — it starts ~9mm in. Pad the left
        accordingly, otherwise centred content drifts onto the foil. */
-    .tag { height: 100%; padding: 3mm 2mm 3mm 11mm; display: flex; flex-direction: column;
+    .tag { height: 100%; padding: 3mm 1.5mm 3mm 13mm; display: flex; flex-direction: column;
            justify-content: center; align-items: flex-start; gap: 1.2mm; text-align: left; }
     .brand { font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
@@ -126,7 +126,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     .desc { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
     /* Widest row on the tag, so it is the first to spill — keep it inside the
        barcode's footprint. Centred; left-aligning pushed it past the window. */
-    .mrp { font-size: 12pt; font-weight: 900; letter-spacing: 0.5px; margin-top: 0.8mm; white-space: nowrap; }
+    .mrp { font-size: 12pt; font-weight: 900; margin-top: 0.8mm; white-space: nowrap; }
     .sku { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.5px; }
     .footer { font-size: 6pt; font-weight: 700; text-transform: uppercase; }
     @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
