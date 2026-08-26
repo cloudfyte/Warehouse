@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
 
+# Several pushes in quick succession used to start several deploys that ran at
+# the same time against the same container names, fighting each other. Queue
+# them instead — a deploy is short, and a superseded one still leaves the
+# server on the newest commit because it re-fetches at the start.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Build & deploy warehouse ERP
@@ -20,27 +28,76 @@ jobs:
           port: 22
           command_timeout: 22m
           script: |
-            set -e
+            set -euo pipefail
             cd /root/ware-house
+
+            COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
             echo "=== Pull latest code ==="
             git fetch origin
             git reset --hard origin/main
+            git log --oneline -1
 
-            echo "=== Build images (no cache — ensures latest code is compiled) ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
+            echo "=== Build images ==="
+            # Deliberately not --no-cache. Docker already invalidates the cached
+            # layers when the copied source changes, so a full rebuild bought
+            # nothing while costing build minutes against the timeout below and
+            # leaving tens of GB of orphaned build cache behind.
+            $COMPOSE build
 
-            echo "=== Remove stale app containers ==="
-            docker rm -f warehouse_frontend warehouse_backend warehouse_celery warehouse_celery_beat 2>/dev/null || true
+            echo "=== Recreate containers ==="
+            # Deliberately NOT `docker rm -f` first. That returns as soon as the
+            # daemon accepts the removal, not when it completes, so the `up`
+            # below could not claim the name and Docker created a hash-prefixed
+            # container instead (e.g. 2315e177ccf5_warehouse_celery). Nginx
+            # proxies by container name, so that silently breaks routing while
+            # the build logs still look green. Compose sequences the teardown
+            # and recreation correctly by itself.
+            $COMPOSE up -d --remove-orphans
 
-            echo "=== Start all services ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+            echo "=== Wait for app containers ==="
+            for name in warehouse_backend warehouse_frontend; do
+              for _ in $(seq 1 30); do
+                [ "$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null || echo missing)" = running ] && break
+                sleep 2
+              done
+              if [ "$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null || echo missing)" != running ]; then
+                echo "FAILED: $name is not running"
+                docker ps -a --filter name=warehouse
+                exit 1
+              fi
+            done
 
             echo "=== Reload nginx to re-resolve container DNS ==="
-            sleep 5
-            docker exec warehouse_nginx nginx -s reload
+            docker exec warehouse_nginx nginx -s reload || echo "WARN: nginx reload failed"
 
-            echo "=== Prune old images ==="
+            echo "=== Health check ==="
+            # Without this the job reported success even when the site was
+            # returning 502, because building an image says nothing about
+            # whether the app came up.
+            ok=0
+            for _ in $(seq 1 30); do
+              if curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:3001/ \
+                 && curl -fsS -o /dev/null --max-time 5 -X POST http://127.0.0.1:8001/graphql/ \
+                      -H 'Content-Type: application/json' \
+                      -d '{"query":"{__typename}"}'; then
+                ok=1
+                break
+              fi
+              sleep 4
+            done
+            if [ "$ok" != 1 ]; then
+              echo "FAILED: frontend or GraphQL did not come up"
+              docker logs --tail 60 warehouse_backend  || true
+              docker logs --tail 60 warehouse_frontend || true
+              exit 1
+            fi
+            echo "frontend and GraphQL are responding"
+
+            echo "=== Reclaim space ==="
+            # image prune alone never touched the build cache, which is where
+            # the wasted tens of GB actually accumulated.
             docker image prune -f
+            docker builder prune -f --filter until=168h
 
-            echo "=== Deploy complete at $(date) ==="
+            echo "=== Deploy complete at $(date -u) ==="
