@@ -175,8 +175,18 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings): string {
 function renderDocument(product: TagProduct, ts: TagSettings, autoPrint: boolean): string {
   const w = ts.tagWidthMm ?? 54;
   const h = ts.tagHeightMm ?? 65;
+  // afterprint must be registered BEFORE print(): print() blocks until the
+  // dialog is dismissed, so registering the handler after it returns means the
+  // event has already fired and the tab is left open on the user's screen. The
+  // timeout is a fallback for browsers that do not fire afterprint at all.
   const script = autoPrint
-    ? `<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>`
+    ? `<script>
+         window.onafterprint = function () { window.close(); };
+         window.onload = function () {
+           window.print();
+           setTimeout(function () { window.close(); }, 500);
+         };
+       <\/script>`
     : "";
   return `<!DOCTYPE html><html><head>
   <meta charset="UTF-8"><title>Tag</title>
