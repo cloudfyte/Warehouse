@@ -15,3 +15,5 @@ django-celery-beat
 django-celery-results
 whitenoise[brotli]
 gunicorn
+django-storages
+boto3
