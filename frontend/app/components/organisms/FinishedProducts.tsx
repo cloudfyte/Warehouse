@@ -113,14 +113,14 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     /* The holographic foil strip runs down the left of the card, so the white
        window is NOT centred on the label — it starts ~9mm in. Pad the left
        accordingly, otherwise centred content drifts onto the foil. */
-    .tag { height: 100%; padding: 3mm 2mm 3mm 10mm; display: flex; flex-direction: column;
-           justify-content: center; gap: 1.2mm; text-align: center; }
+    .tag { height: 100%; padding: 3mm 2mm 3mm 11mm; display: flex; flex-direction: column;
+           justify-content: center; align-items: flex-start; gap: 1.2mm; text-align: left; }
     .brand { font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .barcode-wrap { width: 100%; overflow: hidden; }
     /* SVG has no viewBox, so its mm coordinates are absolute — don't scale it,
-       just centre it and crop the empty strip left by the removed label. */
-    .barcode-wrap svg { height: 18mm; display: block; margin: 0 auto; }
+       just crop the empty strip left by the removed label. */
+    .barcode-wrap svg { height: 18mm; display: block; margin: 0; }
     .barcode-text { font-size: 8.5pt; font-weight: 700; letter-spacing: 1.5px; }
     .name { font-size: 12pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.15; }
     .desc { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
