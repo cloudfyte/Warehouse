@@ -75,6 +75,12 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     }
   }
 
+  // Always include at minimum barcode text + SKU so tag is never blank
+  if (!blocks.length) {
+    blocks.push(`<div class="tp-btext">${product.barcode}</div>`);
+    blocks.push(`<div class="tp-sku">${product.sku}</div>`);
+  }
+
   const div = document.createElement("div");
   div.id = "__tp";
   div.innerHTML = blocks.join("\n");
@@ -85,18 +91,19 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   st.textContent = `
     @media print {
       @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
-      body > *:not(#__tp) { display: none !important; }
-      #__tp { display: block !important; font-family: "Courier New", Courier, monospace; color: #000; padding: 3mm 4mm; text-align: center; box-sizing: border-box; }
+      body { visibility: hidden !important; }
+      #__tp { visibility: visible !important; position: absolute; left: 0; top: 0; width: ${wMm}mm; font-family: "Courier New", Courier, monospace; color: #000 !important; padding: 3mm 4mm; text-align: center; box-sizing: border-box; }
+      #__tp * { visibility: visible !important; color: #000 !important; }
       #__tp .tp-brand { font-size: ${brandPt}pt; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 2mm; }
-      #__tp .tp-tagline { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2mm; }
+      #__tp .tp-tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2mm; }
       #__tp .tp-bwrap { width: 100%; margin-bottom: 1mm; }
       #__tp .tp-bwrap svg { width: 100%; height: 22mm; display: block; }
       #__tp .tp-btext { font-size: 10pt; font-weight: 700; letter-spacing: 2px; margin-bottom: 2mm; }
       #__tp .tp-name { font-size: 13pt; font-weight: 900; line-height: 1.1; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1mm; }
-      #__tp .tp-desc { font-size: 9pt; font-weight: 700; color: #222; text-transform: uppercase; margin-bottom: 1mm; }
+      #__tp .tp-desc { font-size: 9pt; font-weight: 700; text-transform: uppercase; margin-bottom: 1mm; }
       #__tp .tp-mrp { font-size: 12pt; font-weight: 900; text-align: left; letter-spacing: 1px; margin-bottom: 1mm; }
-      #__tp .tp-sku { font-size: 8pt; color: #444; font-weight: 700; }
-      #__tp .tp-footer { font-size: 7pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 1mm; }
+      #__tp .tp-sku { font-size: 8pt; font-weight: 700; }
+      #__tp .tp-footer { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 1mm; }
     }
   `;
   document.head.appendChild(st);
