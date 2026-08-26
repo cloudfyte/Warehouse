@@ -40,14 +40,10 @@ const PER_PAGE = 20;
 function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   const wMm = ts.tagWidthMm ?? 54;
   const hMm = ts.tagHeightMm ?? 65;
-  const win = window.open("", "_blank");
-  if (!win) return;
   const cap = (s: string | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   const brandName = ts.tagBrandName || ts.companyName || "Garment Tag";
   const unitPrice = product.quantity > 1 ? Number(product.salePrice) / product.quantity : Number(product.salePrice);
   const mrp = unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const tagW = `${wMm}mm`;
-  const tagH = `${hMm}mm`;
   const brandPt = ts.tagBrandFontSize ?? 7;
   const logoH = ts.tagLogoSize ?? 30;
   const order = (ts.tagComponentOrder && ts.tagComponentOrder.length) ? ts.tagComponentOrder : DEFAULT_TAG_ORDER;
@@ -57,51 +53,58 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     if (key === "logo" && ts.tagLogoData) {
       blocks.push(`<img src="${ts.tagLogoData}" style="height:${logoH}px;display:block;margin:0 auto;" />`);
     } else if (key === "brand") {
-      blocks.push(`<div class="brand" style="font-size:${brandPt}pt">${brandName}</div>`);
-      if (ts.tagTagline) blocks.push(`<div class="tagline">${ts.tagTagline}</div>`);
+      blocks.push(`<div class="tp-brand" style="font-size:${brandPt}pt">${brandName}</div>`);
+      if (ts.tagTagline) blocks.push(`<div class="tp-tagline">${ts.tagTagline}</div>`);
     } else if (key === "barcode" && ts.tagShowBarcode !== false) {
-      blocks.push(`<div class="barcode-wrap">${product.barcodeSvg || `<span style="font-family:monospace;font-size:9pt;">${product.barcode}</span>`}</div>`);
+      blocks.push(`<div class="tp-bwrap">${product.barcodeSvg || `<span style="font-family:monospace;font-size:9pt;">${product.barcode}</span>`}</div>`);
     } else if (key === "barcode-text" && ts.tagShowBarcode !== false) {
-      blocks.push(`<div class="barcode-text">${product.barcode}</div>`);
+      blocks.push(`<div class="tp-btext">${product.barcode}</div>`);
     } else if (key === "item-info") {
       const color = ts.tagShowColor !== false ? (product.clothColor?.name || "") : "";
-      const label = [cap(product.itemType.name), color ? cap(color) : ""].filter(Boolean).join(" · ");
-      if (label) blocks.push(`<div class="name">${cap(product.itemType.name)}</div>${color ? `<div class="desc">${cap(color)}</div>` : ""}`);
+      if (product.itemType?.name) blocks.push(`<div class="tp-name">${cap(product.itemType.name)}</div>${color ? `<div class="tp-desc">${cap(color)}</div>` : ""}`);
     } else if (key === "size" && ts.tagShowSize !== false && product.size) {
-      blocks.push(`<div class="desc">Size: ${cap(product.size)}</div>`);
+      blocks.push(`<div class="tp-desc">Size: ${cap(product.size)}</div>`);
     } else if (key === "age-group" && ts.tagShowAgeGroup !== false && product.ageGroup) {
-      blocks.push(`<div class="desc">${cap(product.ageGroup)}</div>`);
+      blocks.push(`<div class="tp-desc">${cap(product.ageGroup)}</div>`);
     } else if (key === "price" && ts.tagShowPrice !== false) {
-      blocks.push(`<div class="mrp-label">MRP : ₹${mrp}/-</div>`);
+      blocks.push(`<div class="tp-mrp">MRP : ₹${mrp}/-</div>`);
     } else if (key === "sku" && ts.tagShowSku !== false) {
-      blocks.push(`<div class="sku">${product.sku}</div>`);
+      blocks.push(`<div class="tp-sku">${product.sku}</div>`);
     } else if (key === "footer" && ts.tagFooterText) {
-      blocks.push(`<div class="footer">${ts.tagFooterText}</div>`);
+      blocks.push(`<div class="tp-footer">${ts.tagFooterText}</div>`);
     }
   }
 
-  win.document.write(`<!DOCTYPE html><html><head>
-  <meta charset="UTF-8">
-  <title>Tag — ${product.sku}</title>
-  <style>
-    @page { size: ${tagW} ${tagH}; margin: 0; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Courier New", Courier, monospace; color: #000; background: #fff; padding: 3mm 4mm; text-align: center; }
-    .brand { font-size: ${brandPt}pt; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 2mm; }
-    .tagline { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2mm; }
-    .barcode-wrap { width: 100%; margin-bottom: 1mm; }
-    .barcode-wrap svg { width: 100%; height: 22mm; display: block; }
-    .barcode-text { font-size: 10pt; font-weight: 700; letter-spacing: 2px; margin-bottom: 2mm; }
-    .name { font-size: 13pt; font-weight: 900; line-height: 1.1; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1mm; }
-    .desc { font-size: 9pt; font-weight: 700; color: #222; text-transform: uppercase; margin-bottom: 1mm; }
-    .mrp-label { font-size: 12pt; font-weight: 900; text-align: left; letter-spacing: 1px; margin-bottom: 1mm; }
-    .sku { font-size: 8pt; color: #444; font-weight: 700; }
-    .footer { font-size: 7pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 1mm; }
-  </style></head><body>
-  ${blocks.join("\n")}
-  <script>window.onload=()=>{window.print();}<\/script>
-  </body></html>`);
-  win.document.close();
+  const div = document.createElement("div");
+  div.id = "__tp";
+  div.innerHTML = blocks.join("\n");
+  document.body.appendChild(div);
+
+  const st = document.createElement("style");
+  st.id = "__tp_style";
+  st.textContent = `
+    @media print {
+      @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
+      body > *:not(#__tp) { display: none !important; }
+      #__tp { display: block !important; font-family: "Courier New", Courier, monospace; color: #000; padding: 3mm 4mm; text-align: center; box-sizing: border-box; }
+      #__tp .tp-brand { font-size: ${brandPt}pt; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 2mm; }
+      #__tp .tp-tagline { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2mm; }
+      #__tp .tp-bwrap { width: 100%; margin-bottom: 1mm; }
+      #__tp .tp-bwrap svg { width: 100%; height: 22mm; display: block; }
+      #__tp .tp-btext { font-size: 10pt; font-weight: 700; letter-spacing: 2px; margin-bottom: 2mm; }
+      #__tp .tp-name { font-size: 13pt; font-weight: 900; line-height: 1.1; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1mm; }
+      #__tp .tp-desc { font-size: 9pt; font-weight: 700; color: #222; text-transform: uppercase; margin-bottom: 1mm; }
+      #__tp .tp-mrp { font-size: 12pt; font-weight: 900; text-align: left; letter-spacing: 1px; margin-bottom: 1mm; }
+      #__tp .tp-sku { font-size: 8pt; color: #444; font-weight: 700; }
+      #__tp .tp-footer { font-size: 7pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 1mm; }
+    }
+  `;
+  document.head.appendChild(st);
+
+  window.print();
+
+  document.head.removeChild(st);
+  document.body.removeChild(div);
 }
 
 export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql, systemSettings }: Props) {
