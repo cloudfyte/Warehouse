@@ -58,14 +58,12 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   // python-barcode emits a standalone SVG document with no viewBox and its own
   // <text> label. Strip the document wrapper, the white background rect and the
   // label (we render the number ourselves) so it embeds and crops cleanly.
-  const barcodeInner = product.barcodeSvg
-    ? product.barcodeSvg
-        .replace(/<\?xml[^?]*\?>/g, "")
-        .replace(/<!DOCTYPE[^>]*>/g, "")
-        .replace(/<rect[^>]*fill:white[^>]*\/>/g, "")
-        .replace(/<text[\s\S]*?<\/text>/g, "")
-        .trim()
-    : `<span style="font-family:monospace;font-size:9pt">${product.barcode}</span>`;
+  const barcodeSvg = (product.barcodeSvg || "")
+    .replace(/<\?xml[^?]*\?>/g, "")
+    .replace(/<!DOCTYPE[^>]*>/g, "")
+    .replace(/<rect[^>]*fill:white[^>]*\/>/g, "")
+    .replace(/<text[\s\S]*?<\/text>/g, "")
+    .trim();
 
   const blocks: string[] = [];
   for (const key of order) {
@@ -75,7 +73,10 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
       blocks.push(`<div class="brand" style="font-size:${brandPt}pt">${ts.tagBrandName || ts.companyName}</div>`);
       if (ts.tagTagline) blocks.push(`<div class="tagline">${ts.tagTagline}</div>`);
     } else if (key === "barcode" && ts.tagShowBarcode !== false) {
-      blocks.push(`<div class="barcode-wrap">${barcodeInner}</div>`);
+      // With no SVG this row can only repeat the number that the barcode-text
+      // row already prints, so fall back to text only when that row is absent.
+      if (barcodeSvg) blocks.push(`<div class="barcode-wrap">${barcodeSvg}</div>`);
+      else if (!order.includes("barcode-text")) blocks.push(`<div class="barcode-text">${product.barcode}</div>`);
     } else if (key === "barcode-text" && ts.tagShowBarcode !== false) {
       blocks.push(`<div class="barcode-text">${product.barcode}</div>`);
     } else if (key === "item-info" && product.itemType?.name) {
