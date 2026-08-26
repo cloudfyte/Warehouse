@@ -24,7 +24,7 @@ interface TagSettings {
   companyName?: string
 }
 
-const DEFAULT_TAG_ORDER = ["logo","brand","barcode","barcode-text","item-info","size","age-group","price","sku","footer"];
+const DEFAULT_TAG_ORDER = ["barcode","barcode-text","item-info","size","age-group","price","sku"];
 
 interface Props {
   products: FinishedProduct[]
@@ -102,14 +102,14 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     }
     .brand { font-size: ${brandPt}pt; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .name { font-size: 11pt; font-weight: 900; line-height: 1.1; color: #000; text-transform: uppercase; letter-spacing: 1px; }
-    .desc { font-size: 8pt; font-weight: 700; color: #222; text-transform: uppercase; }
+    .name { font-size: 13pt; font-weight: 900; line-height: 1.15; color: #000; text-transform: uppercase; letter-spacing: 1px; }
+    .desc { font-size: 9pt; font-weight: 700; color: #222; text-transform: uppercase; }
     .barcode-wrap { width: 100%; display: flex; justify-content: center; }
-    .barcode-wrap svg { width: 100%; height: 18mm; }
-    .barcode-text { font-size: 9pt; font-weight: 700; color: #000; letter-spacing: 2px; }
-    .mrp-label { font-size: 9pt; font-weight: 900; color: #000; text-align: left; letter-spacing: 1px; }
-    .sku { font-size: 7pt; color: #444; font-weight: 700; }
-    .footer { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .barcode-wrap svg { width: 100%; height: 22mm; }
+    .barcode-text { font-size: 10pt; font-weight: 700; color: #000; letter-spacing: 2px; }
+    .mrp-label { font-size: 12pt; font-weight: 900; color: #000; text-align: left; letter-spacing: 1px; }
+    .sku { font-size: 8pt; color: #444; font-weight: 700; }
+    .footer { font-size: 7pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
   </style></head><body>
   <div class="tag">
   ${blocks.join("\n")}

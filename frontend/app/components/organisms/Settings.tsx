@@ -75,7 +75,7 @@ function InfoBox({ children }: { children: React.ReactNode }) {
 
 const RESET_PHRASE = "RESET ALL DATA";
 
-const DEFAULT_COMPONENT_ORDER = ["logo", "brand", "barcode", "barcode-text", "item-info", "size", "age-group", "price", "sku", "footer"];
+const DEFAULT_COMPONENT_ORDER = ["barcode", "barcode-text", "item-info", "size", "age-group", "price", "sku"];
 
 const COMPONENT_LABELS: Record<string, { label: string; desc: string }> = {
   logo:         { label: "Logo",          desc: "Brand logo image" },
