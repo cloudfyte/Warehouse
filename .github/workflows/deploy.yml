@@ -99,9 +99,12 @@ jobs:
             echo "frontend and GraphQL are responding"
 
             echo "=== Reclaim space ==="
-            # image prune alone never touched the build cache, which is where
-            # the wasted tens of GB actually accumulated.
-            docker image prune -f
-            docker builder prune -f --filter until=168h
+            # Scoped to this compose project on purpose. The HMS stack shares
+            # this Docker daemon, and a bare `docker image prune` / `builder
+            # prune` is host-wide — it would clear HMS's dangling images and
+            # build cache from a Warehouse deploy. Build cache cannot be
+            # filtered by project at all, so it is left alone entirely; run
+            # `docker builder prune` by hand if the disk ever needs it.
+            docker image prune -f --filter label=com.docker.compose.project=ware-house
 
             echo "=== Deploy complete at $(date -u) ==="
