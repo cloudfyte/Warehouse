@@ -9,6 +9,7 @@ import AtomTextarea from "@/app/components/atoms/Textarea";
 import Button from "@/app/components/atoms/Button";
 import Field from "@/app/components/molecules/Field";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import { tagPreviewDocument, SAMPLE_TAG_PRODUCT, normaliseOrder, DEFAULT_TAG_ORDER } from "@/app/lib/tagTemplate";
 
 interface SettingsData {
   id?: string
@@ -27,6 +28,11 @@ interface SettingsData {
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
   tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
   tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number; tagWidthMm?: number
+  tagAlign?: string; tagVerticalAlign?: string
+  tagPadTop?: number; tagPadRight?: number; tagPadBottom?: number; tagPadLeft?: number
+  tagGapMm?: number; tagBarcodeHeightMm?: number
+  tagBarcodeTextFontSize?: number; tagNameFontSize?: number
+  tagDescFontSize?: number; tagPriceFontSize?: number; tagSkuFontSize?: number
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -75,14 +81,16 @@ function InfoBox({ children }: { children: React.ReactNode }) {
 
 const RESET_PHRASE = "RESET ALL DATA";
 
-const DEFAULT_COMPONENT_ORDER = ["barcode", "barcode-text", "item-info", "size", "age-group", "price", "sku"];
+const DEFAULT_COMPONENT_ORDER = DEFAULT_TAG_ORDER;
 
-// A Django JSONField can arrive as a JSON string ("[]") rather than an array.
-function normaliseOrder(raw: unknown): string[] {
-  let v = raw;
-  if (typeof v === "string") { try { v = JSON.parse(v); } catch { v = null; } }
-  return Array.isArray(v) && v.length ? (v as string[]) : DEFAULT_COMPONENT_ORDER;
-}
+// Blank inputs must send undefined, not NaN, or the server stores garbage.
+const num = (v: unknown) => (v === "" || v === null || v === undefined || isNaN(Number(v)) ? undefined : Number(v));
+
+const inputBox: React.CSSProperties = {
+  width: "100%", marginTop: 2, padding: "5px 7px", fontSize: 12,
+  border: "1px solid var(--line)", borderRadius: 6,
+  background: "var(--canvas)", color: "var(--ink)",
+};
 
 const COMPONENT_LABELS: Record<string, { label: string; desc: string }> = {
   logo:         { label: "Logo",          desc: "Brand logo image" },
@@ -159,7 +167,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
     );
   }
 
-  const set = (field: keyof SettingsData) => (v: string) => setForm(p => ({ ...p, [field]: v }));
+  const set = (field: keyof SettingsData) => (v: string | number) => setForm(p => ({ ...p, [field]: v }));
   const tog = (field: keyof SettingsData) => (v: boolean) => setForm(p => ({ ...p, [field]: v }));
 
   async function handleReset() {
@@ -187,7 +195,10 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean,
           $gstOnPurchases:Boolean,$gstin:String,
           $tagBrand:String,$tagTagline:String,$tagShowBarcode:Boolean,$tagShowSku:Boolean,$tagShowColor:Boolean,$tagShowAgeGroup:Boolean,$tagFooter:String,$tagWidth:String,
-          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String],$tagHeightMm:Int,$tagWidthMm:Int
+          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String],$tagHeightMm:Int,$tagWidthMm:Int,
+          $tagAlign:String,$tagVerticalAlign:String,$tagPadTop:Float,$tagPadRight:Float,$tagPadBottom:Float,$tagPadLeft:Float,
+          $tagGapMm:Float,$tagBarcodeHeightMm:Float,$tagBarcodeTextFontSize:Float,$tagNameFontSize:Float,
+          $tagDescFontSize:Float,$tagPriceFontSize:Float,$tagSkuFontSize:Float
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -199,7 +210,10 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo,
           gstOnPurchases:$gstOnPurchases,gstin:$gstin,
           tagBrandName:$tagBrand,tagTagline:$tagTagline,tagShowBarcode:$tagShowBarcode,tagShowSku:$tagShowSku,tagShowColor:$tagShowColor,tagShowAgeGroup:$tagShowAgeGroup,tagFooterText:$tagFooter,tagPrinterWidth:$tagWidth,
-          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder,tagHeightMm:$tagHeightMm,tagWidthMm:$tagWidthMm
+          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder,tagHeightMm:$tagHeightMm,tagWidthMm:$tagWidthMm,
+          tagAlign:$tagAlign,tagVerticalAlign:$tagVerticalAlign,tagPadTop:$tagPadTop,tagPadRight:$tagPadRight,tagPadBottom:$tagPadBottom,tagPadLeft:$tagPadLeft,
+          tagGapMm:$tagGapMm,tagBarcodeHeightMm:$tagBarcodeHeightMm,tagBarcodeTextFontSize:$tagBarcodeTextFontSize,tagNameFontSize:$tagNameFontSize,
+          tagDescFontSize:$tagDescFontSize,tagPriceFontSize:$tagPriceFontSize,tagSkuFontSize:$tagSkuFontSize
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -229,6 +243,13 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagComponentOrder: normaliseOrder(form.tagComponentOrder),
           tagHeightMm: form.tagHeightMm ? +form.tagHeightMm : undefined,
           tagWidthMm: form.tagWidthMm ? +form.tagWidthMm : undefined,
+          tagAlign: form.tagAlign || undefined, tagVerticalAlign: form.tagVerticalAlign || undefined,
+          tagPadTop: num(form.tagPadTop), tagPadRight: num(form.tagPadRight),
+          tagPadBottom: num(form.tagPadBottom), tagPadLeft: num(form.tagPadLeft),
+          tagGapMm: num(form.tagGapMm), tagBarcodeHeightMm: num(form.tagBarcodeHeightMm),
+          tagBarcodeTextFontSize: num(form.tagBarcodeTextFontSize), tagNameFontSize: num(form.tagNameFontSize),
+          tagDescFontSize: num(form.tagDescFontSize), tagPriceFontSize: num(form.tagPriceFontSize),
+          tagSkuFontSize: num(form.tagSkuFontSize),
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -589,53 +610,89 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                 </button>
               </div>
 
-              {/* ── Right: live tag preview ── */}
-              <div style={{ flex: "0 0 auto" }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Preview</div>
-                {/* Preview — mirrors actual print output; no border (physical card provides it) */}
-                <div style={{
-                  width: (form.tagWidthMm ?? 54) * 1.5,
-                  minHeight: (form.tagHeightMm ?? 65) * 0.95,
-                  padding: "6px 8px",
-                  background: "#fff", color: "#000",
-                  fontFamily: "'Courier New', Courier, monospace",
-                  display: "flex", flexDirection: "column", gap: 3,
-                  textAlign: "center", transition: "width 0.2s",
-                  boxShadow: "0 0 0 1.5px #bbb",
-                }}>
-                  {tagOrder.map(key => {
-                    const fs = form.tagBrandFontSize ?? 7;
-                    const logoH = form.tagLogoSize ?? 30;
-                    if (key === "logo" && form.tagLogoData) return (
-                      <img key={key} src={form.tagLogoData} alt="" style={{ height: logoH * 0.35, objectFit: "contain", alignSelf: "center" }} />
-                    );
-                    if (key === "brand") return (
-                      <div key={key}>
-                        <div style={{ fontSize: fs * 0.75, fontWeight: 900, color: "#000", textTransform: "uppercase", letterSpacing: "1px" }}>
-                          {form.tagBrandName || form.companyName || "Brand Name"}
-                        </div>
-                        {form.tagTagline && <div style={{ fontSize: 6, fontWeight: 700, color: "#555", textTransform: "uppercase" }}>{form.tagTagline}</div>}
-                      </div>
-                    );
-                    if (key === "barcode") return (
-                      <div key={key} style={{ display: "flex", justifyContent: "center" }}>
-                        <svg width="96" height="28" viewBox="0 0 96 28">
-                          {Array.from({ length: 22 }).map((_, i) => (
-                            <rect key={i} x={i * 4.2} y={0} width={i % 4 === 0 ? 3.5 : i % 3 === 0 ? 2.5 : 1.8} height={28} fill="#000" />
-                          ))}
-                        </svg>
-                      </div>
-                    );
-                    if (key === "barcode-text") return <div key={key} style={{ fontSize: 8, fontFamily: "'Courier New',monospace", fontWeight: 700, letterSpacing: "1.5px" }}>9833925</div>;
-                    if (key === "item-info") return <div key={key} style={{ fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.5px" }}>KID OPEN JACKET</div>;
-                    if (key === "size") return <div key={key} style={{ fontSize: 7, fontWeight: 700, textTransform: "uppercase" }}>SIZE: M</div>;
-                    if (key === "age-group") return <div key={key} style={{ fontSize: 7, fontWeight: 700, textTransform: "uppercase" }}>ADULT</div>;
-                    if (key === "price") return <div key={key} style={{ fontSize: 9, fontWeight: 900, textAlign: "left", letterSpacing: "0.5px" }}>MRP : ₹3799/-</div>;
-                    if (key === "sku") return <div key={key} style={{ fontSize: 7, fontFamily: "'Courier New',monospace", fontWeight: 700, color: "#444" }}>FP-001</div>;
-                    if (key === "footer" && form.tagFooterText) return <div key={key} style={{ fontSize: 6, fontWeight: 700, color: "#555", textTransform: "uppercase" }}>{form.tagFooterText}</div>;
-                    return null;
-                  })}
+              {/* ── Right: layout controls + true-to-print preview ── */}
+              <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Layout</div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: "var(--muted)" }}>Align
+                      <select value={form.tagAlign || "left"} onChange={e => set("tagAlign")(e.target.value)}
+                        style={inputBox}>
+                        <option value="left">Left</option>
+                        <option value="center">Centre</option>
+                        <option value="right">Right</option>
+                      </select>
+                    </label>
+                    <label style={{ fontSize: 11, color: "var(--muted)" }}>Vertical
+                      <select value={form.tagVerticalAlign || "center"} onChange={e => set("tagVerticalAlign")(e.target.value)}
+                        style={inputBox}>
+                        <option value="top">Top</option>
+                        <option value="center">Middle</option>
+                        <option value="bottom">Bottom</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 4 }}>
+                    Padding (mm) — a wide left pad keeps text clear of the card&rsquo;s foil strip
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginBottom: 8 }}>
+                    {([["tagPadTop", "Top", 3], ["tagPadRight", "Right", 1.5],
+                       ["tagPadBottom", "Bottom", 3], ["tagPadLeft", "Left", 13]] as const).map(([k, label, dflt]) => (
+                      <label key={k} style={{ fontSize: 10, color: "var(--muted)" }}>{label}
+                        <input type="number" step="0.5" min="0"
+                          value={form[k] ?? dflt}
+                          onChange={e => set(k)(e.target.value === "" ? "" : +e.target.value)}
+                          style={inputBox} />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                    {([["tagGapMm", "Row gap", 1.2, 0.1], ["tagBarcodeHeightMm", "Barcode h", 18, 0.5],
+                       ["tagNameFontSize", "Name pt", 12, 0.5], ["tagPriceFontSize", "MRP pt", 12, 0.5],
+                       ["tagDescFontSize", "Detail pt", 8, 0.5], ["tagBarcodeTextFontSize", "Code pt", 8.5, 0.5],
+                       ["tagSkuFontSize", "SKU pt", 6.5, 0.5]] as const).map(([k, label, dflt, step]) => (
+                      <label key={k} style={{ fontSize: 10, color: "var(--muted)" }}>{label}
+                        <input type="number" step={step} min="0"
+                          value={form[k] ?? dflt}
+                          onChange={e => set(k)(e.target.value === "" ? "" : +e.target.value)}
+                          style={inputBox} />
+                      </label>
+                    ))}
+                  </div>
                 </div>
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    Preview — actual size &times;2
+                  </div>
+                  {/* Renders the exact document that gets printed, so what is shown
+                      here cannot drift from what the printer produces. */}
+                  <div style={{
+                    width: `calc(${form.tagWidthMm ?? 54}mm * 2)`,
+                    height: `calc(${form.tagHeightMm ?? 65}mm * 2)`,
+                    overflow: "hidden", boxShadow: "0 0 0 1.5px #bbb", background: "#fff",
+                  }}>
+                    <iframe
+                      title="Tag preview"
+                      srcDoc={tagPreviewDocument(SAMPLE_TAG_PRODUCT, form)}
+                      scrolling="no"
+                      style={{
+                        width: `${form.tagWidthMm ?? 54}mm`,
+                        height: `${form.tagHeightMm ?? 65}mm`,
+                        border: "none", display: "block",
+                        transform: "scale(2)", transformOrigin: "top left",
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6, maxWidth: 220, lineHeight: 1.5 }}>
+                    Sample data. The white area only &mdash; the brand bands and foil strip are pre-printed on the card.
+                  </div>
+                </div>
+
               </div>
 
             </div>

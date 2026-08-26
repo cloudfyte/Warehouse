@@ -16,23 +16,7 @@ import Pagination from "@/app/components/atoms/Pagination";
 import BluetoothPrintButton from "@/app/components/molecules/BluetoothPrintButton";
 import { buildTagEscPos } from "@/app/lib/useBluetooth";
 
-interface TagSettings {
-  tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
-  tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
-  tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
-  tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number; tagWidthMm?: number
-  companyName?: string
-}
-
-const DEFAULT_TAG_ORDER = ["barcode","barcode-text","item-info","size","age-group","price","sku"];
-
-// A Django JSONField can arrive as a JSON string ("[]") rather than an array.
-// Iterating a string yields characters, which silently produces an empty tag.
-function normaliseOrder(raw: unknown): string[] {
-  let v = raw;
-  if (typeof v === "string") { try { v = JSON.parse(v); } catch { v = null; } }
-  return Array.isArray(v) && v.length ? (v as string[]) : DEFAULT_TAG_ORDER;
-}
+import { tagDocument, type TagSettings } from "@/app/lib/tagTemplate";
 
 interface Props {
   products: FinishedProduct[]
@@ -45,95 +29,12 @@ interface Props {
 
 const PER_PAGE = 20;
 
+// Layout lives in app/lib/tagTemplate.ts so the Settings preview and this
+// printout can never drift apart.
 function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   const win = window.open("", "_blank");
   if (!win) { showToast("Allow popups for this site to print tags", "error"); return; }
-  const cap = (s: string | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
-  const unitPrice = product.quantity > 1 ? Number(product.salePrice) / product.quantity : Number(product.salePrice);
-  const mrp = unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const brandPt = ts.tagBrandFontSize ?? 7;
-  const logoH = ts.tagLogoSize ?? 30;
-  const order = normaliseOrder(ts.tagComponentOrder);
-
-  // python-barcode emits a standalone SVG document with no viewBox and its own
-  // <text> label. Strip the document wrapper, the white background rect and the
-  // label (we render the number ourselves) so it embeds and crops cleanly.
-  const barcodeSvg = (product.barcodeSvg || "")
-    .replace(/<\?xml[^?]*\?>/g, "")
-    .replace(/<!DOCTYPE[^>]*>/g, "")
-    .replace(/<rect[^>]*fill:white[^>]*\/>/g, "")
-    .replace(/<text[\s\S]*?<\/text>/g, "")
-    .trim();
-
-  const blocks: string[] = [];
-  for (const key of order) {
-    if (key === "logo" && ts.tagLogoData) {
-      blocks.push(`<img src="${ts.tagLogoData}" style="height:${logoH}px;display:block;margin:0 auto;" />`);
-    } else if (key === "brand" && (ts.tagBrandName || ts.companyName)) {
-      blocks.push(`<div class="brand" style="font-size:${brandPt}pt">${ts.tagBrandName || ts.companyName}</div>`);
-      if (ts.tagTagline) blocks.push(`<div class="tagline">${ts.tagTagline}</div>`);
-    } else if (key === "barcode" && ts.tagShowBarcode !== false) {
-      // With no SVG this row can only repeat the number that the barcode-text
-      // row already prints, so fall back to text only when that row is absent.
-      if (barcodeSvg) blocks.push(`<div class="barcode-wrap">${barcodeSvg}</div>`);
-      else if (!order.includes("barcode-text")) blocks.push(`<div class="barcode-text">${product.barcode}</div>`);
-    } else if (key === "barcode-text" && ts.tagShowBarcode !== false) {
-      blocks.push(`<div class="barcode-text">${product.barcode}</div>`);
-    } else if (key === "item-info" && product.itemType?.name) {
-      const color = ts.tagShowColor !== false ? (product.clothColor?.name || "") : "";
-      blocks.push(`<div class="name">${cap(product.itemType.name)}</div>${color ? `<div class="desc">${cap(color)}</div>` : ""}`);
-    } else if (key === "size" && ts.tagShowSize !== false && product.size) {
-      blocks.push(`<div class="desc">Size: ${cap(product.size)}</div>`);
-    } else if (key === "age-group" && ts.tagShowAgeGroup !== false && product.ageGroup) {
-      blocks.push(`<div class="desc">${cap(product.ageGroup)}</div>`);
-    } else if (key === "price" && ts.tagShowPrice !== false) {
-      blocks.push(`<div class="mrp">MRP &#8377;${mrp}/-</div>`);
-    } else if (key === "sku" && ts.tagShowSku !== false) {
-      blocks.push(`<div class="sku">${product.sku}</div>`);
-    } else if (key === "footer" && ts.tagFooterText) {
-      blocks.push(`<div class="footer">${ts.tagFooterText}</div>`);
-    }
-  }
-  if (!blocks.length) {
-    blocks.push(`<div class="barcode-text">${product.barcode}</div>`);
-    blocks.push(`<div class="sku">${product.sku}</div>`);
-  }
-
-  const htmlBlocks = blocks.join("\n");
-
-  const wMm = ts.tagWidthMm ?? 54;
-  const hMm = ts.tagHeightMm ?? 65;
-
-  win.document.write(`<!DOCTYPE html><html><head>
-  <meta charset="UTF-8"><title>Tag</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: ${wMm}mm; height: ${hMm}mm; overflow: hidden; }
-    body { font-family: "Courier New", Courier, monospace; background: #fff; color: #000; }
-    /* The holographic foil strip runs down the left of the card, so the white
-       window is NOT centred on the label — it starts ~9mm in. Pad the left
-       accordingly, otherwise centred content drifts onto the foil. */
-    .tag { height: 100%; padding: 3mm 1.5mm 3mm 13mm; display: flex; flex-direction: column;
-           justify-content: center; align-items: flex-start; gap: 1.2mm; text-align: left; }
-    .brand { font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
-    .tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .barcode-wrap { width: 100%; overflow: hidden; }
-    /* SVG has no viewBox, so its mm coordinates are absolute — don't scale it,
-       just crop the empty strip left by the removed label. */
-    .barcode-wrap svg { height: 18mm; display: block; margin: 0; }
-    .barcode-text { font-size: 8.5pt; font-weight: 700; letter-spacing: 1.5px; }
-    .name { font-size: 12pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.15; }
-    .desc { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-    /* Widest row on the tag, so it is the first to spill — keep it inside the
-       barcode's footprint. Centred; left-aligning pushed it past the window. */
-    .mrp { font-size: 12pt; font-weight: 900; margin-top: 0.8mm; white-space: nowrap; }
-    .sku { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.5px; }
-    .footer { font-size: 6pt; font-weight: 700; text-transform: uppercase; }
-    @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
-  </style></head><body>
-  <div class="tag">${htmlBlocks}</div>
-  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
-  </body></html>`);
+  win.document.write(tagDocument(product, ts));
   win.document.close();
 }
 

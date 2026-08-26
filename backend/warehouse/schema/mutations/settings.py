@@ -1,4 +1,5 @@
 import graphene
+from graphql import GraphQLError
 from graphql_jwt.decorators import login_required
 
 from warehouse.models import EmployeeProfile, SystemSettings
@@ -8,6 +9,12 @@ from warehouse.services.uploads import save_data_url
 
 # Settings fields that carry an uploaded image, with the folder each lands in.
 _IMAGE_FIELDS = {"logo_url": "branding", "tag_logo_data": "branding"}
+
+# These land directly in CSS, so they are an allowlist rather than free text.
+_CHOICES = {
+    "tag_align": {"left", "center", "right"},
+    "tag_vertical_align": {"top", "center", "bottom"},
+}
 
 
 class UpdateSystemSettings(graphene.Mutation):
@@ -63,6 +70,19 @@ class UpdateSystemSettings(graphene.Mutation):
         tag_component_order = graphene.List(graphene.String)
         tag_height_mm = graphene.Int()
         tag_width_mm = graphene.Int()
+        tag_align = graphene.String()
+        tag_vertical_align = graphene.String()
+        tag_pad_top = graphene.Float()
+        tag_pad_right = graphene.Float()
+        tag_pad_bottom = graphene.Float()
+        tag_pad_left = graphene.Float()
+        tag_gap_mm = graphene.Float()
+        tag_barcode_height_mm = graphene.Float()
+        tag_barcode_text_font_size = graphene.Float()
+        tag_name_font_size = graphene.Float()
+        tag_desc_font_size = graphene.Float()
+        tag_price_font_size = graphene.Float()
+        tag_sku_font_size = graphene.Float()
 
     settings = graphene.Field(SystemSettingsType)
 
@@ -74,6 +94,12 @@ class UpdateSystemSettings(graphene.Mutation):
             if value is not None:
                 if key in _IMAGE_FIELDS:
                     value = save_data_url(value, _IMAGE_FIELDS[key])
+                elif key in _CHOICES:
+                    value = str(value).strip().lower()
+                    if value not in _CHOICES[key]:
+                        raise GraphQLError(
+                            f"{key} must be one of: {', '.join(sorted(_CHOICES[key]))}."
+                        )
                 setattr(cfg, key, value)
         cfg.updated_by = info.context.user
         cfg.save()

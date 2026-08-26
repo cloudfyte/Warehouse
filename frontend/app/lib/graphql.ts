@@ -85,6 +85,9 @@ export const DASHBOARD_QUERY = `
       gstOnPurchases gstin
       tagBrandName tagTagline tagShowBarcode tagShowSku tagShowColor tagShowAgeGroup tagFooterText tagPrinterWidth
       tagShowPrice tagShowSize tagBrandFontSize tagLogoSize tagLogoData tagComponentOrder tagHeightMm tagWidthMm
+      tagAlign tagVerticalAlign tagPadTop tagPadRight tagPadBottom tagPadLeft
+      tagGapMm tagBarcodeHeightMm tagBarcodeTextFontSize tagNameFontSize
+      tagDescFontSize tagPriceFontSize tagSkuFontSize
     }
     employeeProfile { id role phone active username email locations { id name code locationType }
       customRole { id name displayName color backendLevel tabPermissions isSystem } }

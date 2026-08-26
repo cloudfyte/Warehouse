@@ -1215,6 +1215,22 @@ class SystemSettings(models.Model):
     tag_component_order = models.JSONField(default=list, blank=True, help_text="Ordered list of tag component keys")
     tag_height_mm = models.IntegerField(default=65, help_text="Tag print area height in mm (white section only)")
     tag_width_mm = models.IntegerField(default=54, help_text="Tag print area width in mm (white section only)")
+    # Tag layout — tuned from Settings so the print can be matched to the
+    # physical card without a redeploy. Padding defaults clear the holographic
+    # foil strip down the left of the Sri Wedding card.
+    tag_align = models.CharField(max_length=6, default="left", help_text="Tag text alignment: left, center or right")
+    tag_pad_top = models.FloatField(default=3.0, help_text="Tag top padding (mm)")
+    tag_pad_right = models.FloatField(default=1.5, help_text="Tag right padding (mm)")
+    tag_pad_bottom = models.FloatField(default=3.0, help_text="Tag bottom padding (mm)")
+    tag_pad_left = models.FloatField(default=13.0, help_text="Tag left padding (mm) — clears the foil strip")
+    tag_gap_mm = models.FloatField(default=1.2, help_text="Vertical gap between tag rows (mm)")
+    tag_vertical_align = models.CharField(max_length=8, default="center", help_text="Vertical placement: top, center or bottom")
+    tag_barcode_height_mm = models.FloatField(default=18.0, help_text="Barcode height on tag (mm)")
+    tag_barcode_text_font_size = models.FloatField(default=8.5, help_text="Barcode number font size (pt)")
+    tag_name_font_size = models.FloatField(default=12.0, help_text="Item name font size (pt)")
+    tag_desc_font_size = models.FloatField(default=8.0, help_text="Colour / size font size (pt)")
+    tag_price_font_size = models.FloatField(default=12.0, help_text="MRP font size (pt)")
+    tag_sku_font_size = models.FloatField(default=6.5, help_text="SKU font size (pt)")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="settings_updates"
