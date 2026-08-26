@@ -87,7 +87,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     } else if (key === "age-group" && ts.tagShowAgeGroup !== false && product.ageGroup) {
       blocks.push(`<div class="desc">${cap(product.ageGroup)}</div>`);
     } else if (key === "price" && ts.tagShowPrice !== false) {
-      blocks.push(`<div class="mrp">MRP : &#8377;${mrp}/-</div>`);
+      blocks.push(`<div class="mrp">MRP &#8377;${mrp}/-</div>`);
     } else if (key === "sku" && ts.tagShowSku !== false) {
       blocks.push(`<div class="sku">${product.sku}</div>`);
     } else if (key === "footer" && ts.tagFooterText) {
@@ -110,9 +110,10 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: ${wMm}mm; height: ${hMm}mm; overflow: hidden; }
     body { font-family: "Courier New", Courier, monospace; background: #fff; color: #000; }
-    /* Fill the card's white window and centre the stack vertically, so the
-       content sits evenly instead of crowding the top. */
-    .tag { height: 100%; padding: 3mm 4mm; display: flex; flex-direction: column;
+    /* The holographic foil strip runs down the left of the card, so the white
+       window is NOT centred on the label — it starts ~9mm in. Pad the left
+       accordingly, otherwise centred content drifts onto the foil. */
+    .tag { height: 100%; padding: 3mm 2mm 3mm 10mm; display: flex; flex-direction: column;
            justify-content: center; gap: 1.2mm; text-align: center; }
     .brand { font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
@@ -123,8 +124,9 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     .barcode-text { font-size: 8.5pt; font-weight: 700; letter-spacing: 1.5px; }
     .name { font-size: 12pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.15; }
     .desc { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-    /* Centred like every other row — left-aligning pushed it past the window. */
-    .mrp { font-size: 13pt; font-weight: 900; letter-spacing: 1px; margin-top: 0.8mm; }
+    /* Widest row on the tag, so it is the first to spill — keep it inside the
+       barcode's footprint. Centred; left-aligning pushed it past the window. */
+    .mrp { font-size: 12pt; font-weight: 900; letter-spacing: 0.5px; margin-top: 0.8mm; white-space: nowrap; }
     .sku { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.5px; }
     .footer { font-size: 6pt; font-weight: 700; text-transform: uppercase; }
     @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
