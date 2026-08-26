@@ -1,6 +1,7 @@
 import graphene
 from graphene_django import DjangoObjectType
 
+from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
     AuditLog,
     Buyer,
@@ -172,6 +173,7 @@ class PurchaseBillItemType(DjangoObjectType):
 
 
 class PurchaseBillType(DjangoObjectType):
+    bill_image = graphene.String()
     taxable_amount = graphene.Float()
     tax_amount = graphene.Float()
     cgst_amount = graphene.Float()
@@ -185,6 +187,9 @@ class PurchaseBillType(DjangoObjectType):
     class Meta:
         model = PurchaseBill
         fields = "__all__"
+
+    def resolve_bill_image(self, info):
+        return to_url(self.bill_image)
 
     def resolve_source_po(self, info):
         return self.source_po
@@ -368,10 +373,14 @@ class StockTransferType(DjangoObjectType):
 
 class ParcelInspectionType(DjangoObjectType):
     inspected_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+    photos = graphene.String()
 
     class Meta:
         model = ParcelInspection
         fields = "__all__"
+
+    def resolve_photos(self, info):
+        return to_urls_csv(self.photos)
 
     def resolve_inspected_by(self, info):
         if not self.inspected_by_id:
@@ -494,6 +503,7 @@ class StockAdjustmentType(DjangoObjectType):
 
 class ExpenseType(DjangoObjectType):
     amount = graphene.Float()
+    proof_image = graphene.String()
 
     class Meta:
         model = Expense
@@ -502,11 +512,16 @@ class ExpenseType(DjangoObjectType):
     def resolve_amount(self, info):
         return float(self.amount)
 
+    def resolve_proof_image(self, info):
+        return to_url(self.proof_image)
+
 
 class SystemSettingsType(DjangoObjectType):
     # JSONField would otherwise serialise to a JSONString scalar, so the client
     # receives the string "[]" instead of a list — expose it as a real list.
     tag_component_order = graphene.List(graphene.String)
+    logo_url = graphene.String()
+    tag_logo_data = graphene.String()
 
     class Meta:
         model = SystemSettings
@@ -514,6 +529,12 @@ class SystemSettingsType(DjangoObjectType):
 
     def resolve_tag_component_order(self, info):
         return self.tag_component_order or []
+
+    def resolve_logo_url(self, info):
+        return to_url(self.logo_url)
+
+    def resolve_tag_logo_data(self, info):
+        return to_url(self.tag_logo_data)
 
 
 class DashboardStats(graphene.ObjectType):

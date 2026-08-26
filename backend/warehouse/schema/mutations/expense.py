@@ -4,6 +4,7 @@ from graphql_jwt.decorators import login_required
 from warehouse.models import Expense, EmployeeProfile, WarehouseLocation
 from warehouse.permissions import require_role, MANAGEMENT_ROLES
 from warehouse.schema.types import ExpenseType
+from warehouse.services.uploads import save_data_url
 
 _STORE_KEEPER = EmployeeProfile.Role.STORE_KEEPER
 
@@ -33,7 +34,7 @@ class CreateExpense(graphene.Mutation):
             description=description,
             reference=reference,
             payment_method=payment_method.upper(),
-            proof_image=proof_image,
+            proof_image=save_data_url(proof_image, "expense-proofs"),
             warehouse=warehouse,
             created_by=info.context.user,
         )
@@ -59,6 +60,8 @@ class UpdateExpense(graphene.Mutation):
         exp = Expense.objects.get(pk=id)
         if "payment_method" in kwargs and kwargs["payment_method"]:
             kwargs["payment_method"] = kwargs["payment_method"].upper()
+        if kwargs.get("proof_image"):
+            kwargs["proof_image"] = save_data_url(kwargs["proof_image"], "expense-proofs")
         for k, v in kwargs.items():
             if v is not None:
                 setattr(exp, k, v)

@@ -4,6 +4,10 @@ from graphql_jwt.decorators import login_required
 from warehouse.models import EmployeeProfile, SystemSettings
 from warehouse.permissions import require_role
 from warehouse.schema.types import SystemSettingsType
+from warehouse.services.uploads import save_data_url
+
+# Settings fields that carry an uploaded image, with the folder each lands in.
+_IMAGE_FIELDS = {"logo_url": "branding", "tag_logo_data": "branding"}
 
 
 class UpdateSystemSettings(graphene.Mutation):
@@ -68,6 +72,8 @@ class UpdateSystemSettings(graphene.Mutation):
         cfg = SystemSettings.load()
         for key, value in kwargs.items():
             if value is not None:
+                if key in _IMAGE_FIELDS:
+                    value = save_data_url(value, _IMAGE_FIELDS[key])
                 setattr(cfg, key, value)
         cfg.updated_by = info.context.user
         cfg.save()

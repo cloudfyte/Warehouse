@@ -10,6 +10,7 @@ from warehouse.models import (
     RawClothBatch, ReadymadeStock, Supplier,
 )
 from warehouse.permissions import get_warehouse
+from warehouse.services.uploads import save_data_url
 
 
 def create_purchase_bill(
@@ -46,7 +47,7 @@ def create_purchase_bill(
             warehouse=warehouse,
             bill_date=bill_date or timezone.now().date(),
             invoice_ref=invoice_ref.strip(),
-            bill_image=bill_image,
+            bill_image=save_data_url(bill_image, "purchase-bills"),
             notes=notes.strip(),
             created_by=user,
         )

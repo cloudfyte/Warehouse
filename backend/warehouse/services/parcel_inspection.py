@@ -3,6 +3,7 @@ from django.utils import timezone
 from graphql import GraphQLError
 
 from warehouse.models import ParcelInspection, PurchaseOrder
+from warehouse.services.uploads import save_data_urls_csv
 
 
 def create_parcel_inspection(
@@ -28,7 +29,7 @@ def create_parcel_inspection(
         parcel_condition=condition,
         quantity_check_passed=quantity_check_passed,
         discrepancy_notes=discrepancy_notes.strip(),
-        photos=photos.strip(),
+        photos=save_data_urls_csv(photos, "parcel-inspections"),
         notes=notes.strip(),
     )
     return inspection
@@ -57,7 +58,7 @@ def update_parcel_inspection(
         inspection.discrepancy_notes = discrepancy_notes.strip()
         fields.append("discrepancy_notes")
     if photos is not None:
-        inspection.photos = photos.strip()
+        inspection.photos = save_data_urls_csv(photos, "parcel-inspections")
         fields.append("photos")
     if notes is not None:
         inspection.notes = notes.strip()
