@@ -47,6 +47,16 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   const logoH = ts.tagLogoSize ?? 30;
   const order = (ts.tagComponentOrder && ts.tagComponentOrder.length) ? ts.tagComponentOrder : DEFAULT_TAG_ORDER;
 
+  // Clean barcode SVG: strip xml/DOCTYPE, remove white bg rect
+  const barcodeInner = product.barcodeSvg
+    ? product.barcodeSvg
+        .replace(/<\?xml[^?]*\?>/g, "")
+        .replace(/<!DOCTYPE[^>]*>/g, "")
+        .replace(/<rect[^>]*style="fill:white"[^>]*\/>/g, "")
+        .replace(/<svg /, `<svg preserveAspectRatio="none" `)
+        .trim()
+    : `<span style="font-family:monospace;font-size:9pt">${product.barcode}</span>`;
+
   const blocks: string[] = [];
   for (const key of order) {
     if (key === "logo" && ts.tagLogoData) {
@@ -55,7 +65,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
       blocks.push(`<div class="brand" style="font-size:${brandPt}pt">${ts.tagBrandName || ts.companyName}</div>`);
       if (ts.tagTagline) blocks.push(`<div class="tagline">${ts.tagTagline}</div>`);
     } else if (key === "barcode" && ts.tagShowBarcode !== false) {
-      blocks.push(`<div class="barcode-wrap">${product.barcodeSvg || `<span class="barcode-text">${product.barcode}</span>`}</div>`);
+      blocks.push(`<div class="barcode-wrap">${barcodeInner}</div>`);
     } else if (key === "barcode-text" && ts.tagShowBarcode !== false) {
       blocks.push(`<div class="barcode-text">${product.barcode}</div>`);
     } else if (key === "item-info" && product.itemType?.name) {
@@ -78,25 +88,31 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     blocks.push(`<div class="sku">${product.sku}</div>`);
   }
 
+  const htmlBlocks = blocks.join("\n");
+
+  const wMm = ts.tagWidthMm ?? 54;
+  const hMm = ts.tagHeightMm ?? 65;
+
   win.document.write(`<!DOCTYPE html><html><head>
   <meta charset="UTF-8"><title>Tag</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: ${wMm}mm; height: ${hMm}mm; overflow: hidden; }
     body { font-family: "Courier New", Courier, monospace; background: #fff; color: #000; }
-    .tag { padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1.5mm; text-align: center; }
+    .tag { padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1mm; text-align: center; }
     .brand { font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .barcode-wrap { width: 100%; }
-    .barcode-wrap svg { width: 100%; height: 20mm; display: block; }
-    .barcode-text { font-size: 9pt; font-weight: 700; letter-spacing: 2px; }
-    .name { font-size: 12pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.1; }
-    .desc { font-size: 8pt; font-weight: 700; text-transform: uppercase; }
-    .mrp { font-size: 11pt; font-weight: 900; text-align: left; letter-spacing: 1px; }
+    .barcode-wrap svg { width: 100%; height: 18mm; display: block; }
+    .barcode-text { font-size: 8pt; font-weight: 700; letter-spacing: 1px; }
+    .name { font-size: 11pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.1; }
+    .desc { font-size: 7pt; font-weight: 700; text-transform: uppercase; }
+    .mrp { font-size: 10pt; font-weight: 900; text-align: left; letter-spacing: 1px; }
     .sku { font-size: 7pt; font-weight: 700; }
     .footer { font-size: 6pt; font-weight: 700; text-transform: uppercase; }
-    @page { margin: 0; }
+    @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
   </style></head><body>
-  <div class="tag">${blocks.join("\n")}</div>
+  <div class="tag">${htmlBlocks}</div>
   <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
   </body></html>`);
   win.document.close();
