@@ -40,10 +40,7 @@ const PER_PAGE = 20;
 function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   const wMm = ts.tagWidthMm ?? 54;
   const hMm = ts.tagHeightMm ?? 65;
-  // Open popup at exact label size (px at 96dpi) so the viewport = the tag = 1 print page
-  const pxW = Math.round(wMm * 96 / 25.4);
-  const pxH = Math.round(hMm * 96 / 25.4);
-  const win = window.open("", "_blank", `width=${pxW},height=${pxH},menubar=no,toolbar=no,scrollbars=no,resizable=no,status=no,location=no`);
+  const win = window.open("", "_blank");
   if (!win) return;
   const cap = (s: string | undefined) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   const brandName = ts.tagBrandName || ts.companyName || "Garment Tag";
@@ -89,16 +86,12 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   <style>
     @page { size: ${tagW} ${tagH}; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; background: #fff; overflow: hidden; }
-    .tag {
-      position: fixed; top: 0; left: 0;
-      width: ${tagW}; height: ${tagH};
-      overflow: hidden;
+    html, body {
+      width: ${tagW}; height: ${tagH}; overflow: hidden;
       font-family: "Courier New", Courier, monospace;
-      color: #000;
+      background: #fff; color: #000;
       display: flex; flex-direction: column; gap: 2mm;
-      padding: 3mm 4mm;
-      text-align: center;
+      padding: 3mm 4mm; text-align: center;
     }
     .brand { font-size: ${brandPt}pt; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
@@ -111,9 +104,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     .sku { font-size: 8pt; color: #444; font-weight: 700; }
     .footer { font-size: 7pt; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
   </style></head><body>
-  <div class="tag">
   ${blocks.join("\n")}
-  </div>
   <script>window.onload=()=>{window.print();}<\/script>
   </body></html>`);
   win.document.close();
