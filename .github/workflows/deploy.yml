@@ -75,10 +75,14 @@ jobs:
             # Without this the job reported success even when the site was
             # returning 502, because building an image says nothing about
             # whether the app came up.
+            # The Host header is required: Django rejects anything outside
+            # ALLOWED_HOSTS with a 400 before routing, so probing 127.0.0.1
+            # directly fails even when the app is perfectly healthy.
             ok=0
             for _ in $(seq 1 30); do
               if curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:3001/ \
                  && curl -fsS -o /dev/null --max-time 5 -X POST http://127.0.0.1:8001/graphql/ \
+                      -H 'Host: sri-warehouse.hms.rest' \
                       -H 'Content-Type: application/json' \
                       -d '{"query":"{__typename}"}'; then
                 ok=1
