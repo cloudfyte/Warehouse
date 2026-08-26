@@ -32,3 +32,8 @@ ssl/*.crt
 
 # Django collected static files
 backend/staticfiles/
+
+# local scratch / build cache
+frontend/tmp/
+agent-skills/
+erp-guide.html
