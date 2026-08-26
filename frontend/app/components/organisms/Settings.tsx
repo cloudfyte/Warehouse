@@ -77,6 +77,13 @@ const RESET_PHRASE = "RESET ALL DATA";
 
 const DEFAULT_COMPONENT_ORDER = ["barcode", "barcode-text", "item-info", "size", "age-group", "price", "sku"];
 
+// A Django JSONField can arrive as a JSON string ("[]") rather than an array.
+function normaliseOrder(raw: unknown): string[] {
+  let v = raw;
+  if (typeof v === "string") { try { v = JSON.parse(v); } catch { v = null; } }
+  return Array.isArray(v) && v.length ? (v as string[]) : DEFAULT_COMPONENT_ORDER;
+}
+
 const COMPONENT_LABELS: Record<string, { label: string; desc: string }> = {
   logo:         { label: "Logo",          desc: "Brand logo image" },
   brand:        { label: "Brand Name",    desc: "Brand + tagline text" },
@@ -104,14 +111,12 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
   const resetInputRef = useRef<HTMLInputElement>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
 
-  const tagOrder: string[] = (form.tagComponentOrder && form.tagComponentOrder.length)
-    ? form.tagComponentOrder
-    : DEFAULT_COMPONENT_ORDER;
+  const tagOrder: string[] = normaliseOrder(form.tagComponentOrder);
 
   // Toggle a component in/out of the order
   const tagToggle = useCallback((key: string) => {
     setForm(p => {
-      const order = (p.tagComponentOrder && p.tagComponentOrder.length) ? p.tagComponentOrder : DEFAULT_COMPONENT_ORDER;
+      const order = normaliseOrder(p.tagComponentOrder);
       return { ...p, tagComponentOrder: order.includes(key) ? order.filter(k => k !== key) : [...order, key] };
     });
   }, []);
@@ -221,7 +226,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagBrandFontSize: form.tagBrandFontSize ? +form.tagBrandFontSize : undefined,
           tagLogoSize: form.tagLogoSize ? +form.tagLogoSize : undefined,
           tagLogoData: form.tagLogoData || undefined,
-          tagComponentOrder: form.tagComponentOrder,
+          tagComponentOrder: normaliseOrder(form.tagComponentOrder),
           tagHeightMm: form.tagHeightMm ? +form.tagHeightMm : undefined,
           tagWidthMm: form.tagWidthMm ? +form.tagWidthMm : undefined,
         }

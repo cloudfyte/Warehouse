@@ -504,9 +504,16 @@ class ExpenseType(DjangoObjectType):
 
 
 class SystemSettingsType(DjangoObjectType):
+    # JSONField would otherwise serialise to a JSONString scalar, so the client
+    # receives the string "[]" instead of a list — expose it as a real list.
+    tag_component_order = graphene.List(graphene.String)
+
     class Meta:
         model = SystemSettings
         fields = "__all__"
+
+    def resolve_tag_component_order(self, info):
+        return self.tag_component_order or []
 
 
 class DashboardStats(graphene.ObjectType):

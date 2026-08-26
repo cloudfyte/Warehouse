@@ -26,6 +26,14 @@ interface TagSettings {
 
 const DEFAULT_TAG_ORDER = ["barcode","barcode-text","item-info","size","age-group","price","sku"];
 
+// A Django JSONField can arrive as a JSON string ("[]") rather than an array.
+// Iterating a string yields characters, which silently produces an empty tag.
+function normaliseOrder(raw: unknown): string[] {
+  let v = raw;
+  if (typeof v === "string") { try { v = JSON.parse(v); } catch { v = null; } }
+  return Array.isArray(v) && v.length ? (v as string[]) : DEFAULT_TAG_ORDER;
+}
+
 interface Props {
   products: FinishedProduct[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isStoreKeeper: boolean
@@ -45,15 +53,17 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   const mrp = unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const brandPt = ts.tagBrandFontSize ?? 7;
   const logoH = ts.tagLogoSize ?? 30;
-  const order = (ts.tagComponentOrder && ts.tagComponentOrder.length) ? ts.tagComponentOrder : DEFAULT_TAG_ORDER;
+  const order = normaliseOrder(ts.tagComponentOrder);
 
-  // Clean barcode SVG: strip xml/DOCTYPE, remove white bg rect
+  // python-barcode emits a standalone SVG document with no viewBox and its own
+  // <text> label. Strip the document wrapper, the white background rect and the
+  // label (we render the number ourselves) so it embeds and crops cleanly.
   const barcodeInner = product.barcodeSvg
     ? product.barcodeSvg
         .replace(/<\?xml[^?]*\?>/g, "")
         .replace(/<!DOCTYPE[^>]*>/g, "")
-        .replace(/<rect[^>]*style="fill:white"[^>]*\/>/g, "")
-        .replace(/<svg /, `<svg preserveAspectRatio="none" `)
+        .replace(/<rect[^>]*fill:white[^>]*\/>/g, "")
+        .replace(/<text[\s\S]*?<\/text>/g, "")
         .trim()
     : `<span style="font-family:monospace;font-size:9pt">${product.barcode}</span>`;
 
@@ -102,8 +112,10 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
     .tag { padding: 3mm 4mm; display: flex; flex-direction: column; gap: 1mm; text-align: center; }
     .brand { font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
     .tagline { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .barcode-wrap { width: 100%; }
-    .barcode-wrap svg { width: 100%; height: 18mm; display: block; }
+    .barcode-wrap { width: 100%; overflow: hidden; }
+    /* SVG has no viewBox, so its mm coordinates are absolute — don't scale it,
+       just centre it and crop the empty strip left by the removed label. */
+    .barcode-wrap svg { height: 17mm; display: block; margin: 0 auto; }
     .barcode-text { font-size: 8pt; font-weight: 700; letter-spacing: 1px; }
     .name { font-size: 11pt; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; line-height: 1.1; }
     .desc { font-size: 7pt; font-weight: 700; text-transform: uppercase; }
