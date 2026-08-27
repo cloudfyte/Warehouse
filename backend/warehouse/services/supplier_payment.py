@@ -9,22 +9,26 @@ from warehouse.models import PurchaseBill, SupplierPayment
 
 def create_supplier_payment(*, user, bill_id, amount, payment_date=None, payment_mode="CASH",
                              reference="", notes=""):
-    try:
-        bill = PurchaseBill.objects.select_for_update().get(pk=bill_id)
-    except PurchaseBill.DoesNotExist as exc:
-        raise GraphQLError("Purchase bill not found.") from exc
-
     amt = Decimal(str(amount))
     if amt <= 0:
         raise GraphQLError("Payment amount must be greater than zero.")
 
-    if bill.amount_paid + amt > bill.total_amount:
-        remaining = bill.total_amount - bill.amount_paid
-        raise GraphQLError(
-            f"Payment of ₹{amt} would exceed outstanding balance ₹{remaining:.2f}."
-        )
-
+    # select_for_update() raises outside a transaction, and requests run in
+    # autocommit — so locking the bill before opening the block made every
+    # payment fail. The overpayment check also has to sit under the lock, or
+    # two concurrent payments can each see the same amount_paid and both pass.
     with transaction.atomic():
+        try:
+            bill = PurchaseBill.objects.select_for_update().get(pk=bill_id)
+        except PurchaseBill.DoesNotExist as exc:
+            raise GraphQLError("Purchase bill not found.") from exc
+
+        if bill.amount_paid + amt > bill.total_amount:
+            remaining = bill.total_amount - bill.amount_paid
+            raise GraphQLError(
+                f"Payment of ₹{amt} would exceed outstanding balance ₹{remaining:.2f}."
+            )
+
         payment = SupplierPayment.objects.create(
             bill=bill,
             amount=amt,

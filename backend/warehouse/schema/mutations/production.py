@@ -1,8 +1,9 @@
 import graphene
+from graphql import GraphQLError
 from graphql_jwt.decorators import login_required
 
 from warehouse.models import EmployeeProfile
-from warehouse.permissions import require_role
+from warehouse.permissions import accessible_warehouses, require_role
 from warehouse.services.production import (
     create_cutting_assignment, create_finished_products, create_stitching_job,
     update_cutting_assignment, update_stitching_job,
@@ -109,13 +110,24 @@ class UpdateFinishedProduct(graphene.Mutation):
     @login_required
     def mutate(self, info, id, **kwargs):
         from warehouse.models import FinishedProduct
+
+        user = info.context.user
+        # Marking a tag printed is a store-keeper action; repricing stock is not.
+        require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
+                     EmployeeProfile.Role.STORE_KEEPER)
+        if kwargs.get("sale_price") is not None:
+            require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
+
+        # Scoped by warehouse: ids are sequential, so a bare get(pk=) let anyone
+        # reprice stock in a warehouse they are not assigned to.
         try:
-            fp = FinishedProduct.objects.get(pk=id)
+            fp = FinishedProduct.objects.get(pk=id, warehouse__in=accessible_warehouses(user))
         except FinishedProduct.DoesNotExist as exc:
             raise GraphQLError("Finished product not found.") from exc
-        if "tags_printed" in kwargs and kwargs["tags_printed"] is not None:
+
+        if kwargs.get("tags_printed") is not None:
             fp.tags_printed = kwargs["tags_printed"]
-        if "sale_price" in kwargs and kwargs["sale_price"] is not None:
+        if kwargs.get("sale_price") is not None:
             from decimal import Decimal
             fp.sale_price = Decimal(str(kwargs["sale_price"]))
         fp.save()

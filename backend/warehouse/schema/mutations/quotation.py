@@ -2,7 +2,14 @@ import graphene
 from graphql import GraphQLError
 from graphql_jwt.decorators import login_required
 
+from warehouse.models import EmployeeProfile
+from warehouse.permissions import require_role
 from warehouse.schema.types import QuotationType, SalesOrderType
+
+# Converting a quotation calls the same create_sales_order service that
+# CreateSalesOrder guards with these roles — without the guard, quotations were
+# an unchecked route to issuing orders and shipping stock.
+_SALES_ROLES = (EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
 
 
 class QuotationItemInput(graphene.InputObjectType):
@@ -24,6 +31,7 @@ class CreateQuotation(graphene.Mutation):
 
     @login_required
     def mutate(self, info, buyer_id, warehouse_id, items, discount=0, notes="", validity_date=None):
+        require_role(info.context.user, *_SALES_ROLES)
         from warehouse.services.quotation import create_quotation
         qt = create_quotation(
             user=info.context.user,
@@ -49,6 +57,7 @@ class UpdateQuotationStatus(graphene.Mutation):
 
     @login_required
     def mutate(self, info, id, status):
+        require_role(info.context.user, *_SALES_ROLES)
         from warehouse.services.quotation import update_quotation_status
         qt = update_quotation_status(id=id, status=status)
         return UpdateQuotationStatus(quotation=qt)
@@ -64,6 +73,7 @@ class ConvertQuotationToSO(graphene.Mutation):
 
     @login_required
     def mutate(self, info, id, payment_mode="CREDIT", amount_paid=None):
+        require_role(info.context.user, *_SALES_ROLES)
         from warehouse.services.quotation import convert_quotation_to_so
         so = convert_quotation_to_so(id=id, user=info.context.user, payment_mode=payment_mode, amount_paid=amount_paid)
         return ConvertQuotationToSO(sales_order=so)

@@ -525,7 +525,18 @@ class SystemSettingsType(DjangoObjectType):
 
     class Meta:
         model = SystemSettings
-        fields = "__all__"
+        # These are write-only on purpose. The settings resolver is only
+        # @login_required, so with fields = "__all__" any employee — a tailor,
+        # an auditor — could read the live SMTP password, WhatsApp token and
+        # Firebase service-account key straight out of the API. The UI never
+        # reads them back (it only sends them in the update mutation), so
+        # excluding them from the schema costs nothing.
+        exclude = (
+            "smtp_password",
+            "twilio_auth_token",
+            "wa_token",
+            "firebase_service_account_json",
+        )
 
     def resolve_tag_component_order(self, info):
         return self.tag_component_order or []
