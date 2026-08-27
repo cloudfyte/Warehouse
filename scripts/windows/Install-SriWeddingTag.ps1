@@ -181,11 +181,35 @@ Write-Host "Verify in:  Control Panel -> Devices and Printers -> (select any pri
 Write-Host "            -> Print server properties -> Forms tab -> '$FormName'" -ForegroundColor Cyan
 
 # --- optionally make it the printer default ---------------------------------
+# The form above is server-wide and works no matter what the printer is called.
+# This step is only about setting that printer's *default* paper, so when no
+# name is given we try to find the label printer ourselves — the name differs
+# between shop machines depending on how the driver was installed.
+if (-not $PrinterName) {
+    $candidates = @(Get-Printer -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match 'LP\s*46|SNBC|TVSE|TVS ' })
+
+    if ($candidates.Count -eq 1) {
+        $PrinterName = $candidates[0].Name
+        Write-Host "Detected label printer: '$PrinterName'." -ForegroundColor Cyan
+    }
+    elseif ($candidates.Count -gt 1) {
+        Write-Host ""
+        Write-Host "Several printers look like the label printer. Re-run with the one you want:" -ForegroundColor Yellow
+        $candidates | ForEach-Object { Write-Host "    .\Install-SriWeddingTag.ps1 -PrinterName `"$($_.Name)`"" }
+    }
+    else {
+        Write-Host ""
+        Write-Host "No label printer detected. The form is installed either way - just pick" -ForegroundColor Yellow
+        Write-Host "'$FormName' in the print dialog. Installed printers:" -ForegroundColor Yellow
+        Get-Printer -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "    $($_.Name)" }
+    }
+}
+
 if ($PrinterName) {
-    $printer = Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue
-    if (-not $printer) {
+    if (-not (Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue)) {
         Write-Warning "Printer '$PrinterName' not found. Installed printers:"
-        Get-Printer | Select-Object -ExpandProperty Name | ForEach-Object { Write-Warning "  $_" }
+        Get-Printer -ErrorAction SilentlyContinue | ForEach-Object { Write-Warning "    $($_.Name)" }
     }
     else {
         try {
