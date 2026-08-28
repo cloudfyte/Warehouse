@@ -18,6 +18,7 @@ import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
+import Drawer from "@/app/components/atoms/Drawer";
 
 interface Props {
   orders: SalesOrder[]
@@ -240,12 +241,17 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
 
       {/* ── Create Sales Order drawer ── */}
       {showNew && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
-          <div style={{ background: "var(--paper)", width: "min(600px, 100vw)", height: "100vh", overflowY: "auto", padding: 28, borderLeft: "1px solid var(--line)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>New Sales Order</h3>
-              <button onClick={() => { setShowNew(false); resetForm(); }} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)" }}>×</button>
-            </div>
+        <Drawer
+          title="New Sales Order"
+          width={600}
+          onClose={() => { setShowNew(false); resetForm(); }}
+          onSubmit={createSO}
+          footer={
+            <Button type="submit" disabled={loading} style={{ width: "100%", fontSize: 15 }}>
+              {loading ? "Creating…" : "Create Sales Order"}
+            </Button>
+          }
+        >
 
             <ErrorBanner msg={error} />
 
@@ -287,7 +293,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 Items
-                <button onClick={() => setItems(p => [...p, emptyItem()])}
+                <button type="button" onClick={() => setItems(p => [...p, emptyItem()])}
                   style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, padding: "4px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "transparent", cursor: "pointer", color: "var(--primary)" }}>
                   <Plus size={12} /> Add Item
                 </button>
@@ -317,7 +323,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                     </Field>
                     <div style={{ paddingBottom: 2 }}>
                       {i === 0 && <div style={{ fontSize: 12, marginBottom: 4, color: "transparent" }}>×</div>}
-                      <button onClick={() => setItems(p => p.filter((_, idx) => idx !== i))} disabled={items.length === 1}
+                      <button type="button" onClick={() => setItems(p => p.filter((_, idx) => idx !== i))} disabled={items.length === 1}
                         style={{ padding: 6, borderRadius: 7, border: "1px solid #ffc5c2", background: "#fff1f0", color: "#c0392b", cursor: "pointer", display: "flex", alignItems: "center" }}>
                         <Trash2 size={13} />
                       </button>
@@ -357,28 +363,21 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
               )}
             </div>
 
-            <Button onClick={createSO} disabled={loading} style={{ width: "100%", fontSize: 15 }}>
-              {loading ? "Creating…" : "Create Sales Order"}
-            </Button>
-          </div>
-        </div>
+        </Drawer>
       )}
 
       {/* ── Detail panel ── */}
       {detail && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
-          <div style={{ background: "var(--paper)", width: "min(560px, 100vw)", height: "100vh", overflowY: "auto", padding: 28, borderLeft: "1px solid var(--line)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 18 }}>{detail.orderNumber}</div>
-                <div style={{ color: "var(--muted)", fontSize: 14 }}>{detail.buyer.name}</div>
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <Button variant="secondary" size="sm" onClick={() => printSO(detail)}><Printer size={14} /> Print</Button>
-                <button onClick={() => { setDetail(null); setError(""); }}
-                  style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}>×</button>
-              </div>
-            </div>
+        <Drawer
+          title={detail.orderNumber}
+          subtitle={detail.buyer.name}
+          width={560}
+          zIndex={100}
+          onClose={() => { setDetail(null); setError(""); }}
+          headerActions={
+            <Button variant="secondary" size="sm" onClick={() => printSO(detail)}><Printer size={14} /> Print</Button>
+          }
+        >
             <ErrorBanner msg={error} />
             <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
               <Badge s={detail.status} />
@@ -433,8 +432,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                 Cancel Order
               </Button>
             )}
-          </div>
-        </div>
+        </Drawer>
       )}
 
       {/* ── Table ── */}

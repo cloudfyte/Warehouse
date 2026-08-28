@@ -16,6 +16,7 @@ import type { ConfirmState } from "@/app/types";
 import { downloadCsv } from "@/app/lib/csv";
 import Pagination from "@/app/components/atoms/Pagination";
 import { showToast } from "@/app/lib/toast";
+import Modal from "@/app/components/atoms/Modal";
 
 interface RawClothBatch {
   id: string; batchNumber: string
@@ -285,21 +286,29 @@ export default function StockAdjustments({
 
       {/* Create Adjustment Modal */}
       {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 200, overflowY: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 16px" }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, width: "min(560px, 100%)", boxShadow: "0 24px 64px #0006" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, fontSize: 17 }}>Record Stock Adjustment</span>
-              <button onClick={() => { setShowForm(false); resetForm(); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--muted)" }}>×</button>
+        <Modal
+          title="Record Stock Adjustment"
+          width={560}
+          onClose={() => { setShowForm(false); resetForm(); }}
+          onSubmit={handleSubmit}
+          footer={
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => { setShowForm(false); resetForm(); }}>
+                Cancel
+              </Button>
+              <Button variant="primary" type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Record Adjustment"}
+              </Button>
             </div>
-
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+          }
+        >
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Item Kind toggle */}
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Adjust what?</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {(["RAW_CLOTH", "FINISHED_PRODUCT"] as const).map(k => (
-                    <button key={k} onClick={() => { setItemKind(k); setBatchId(""); setProductId(""); }}
+                    <button type="button" key={k} onClick={() => { setItemKind(k); setBatchId(""); setProductId(""); }}
                       style={{ padding: "8px 16px", borderRadius: 20, border: "1px solid var(--line)", cursor: "pointer", fontSize: 13, fontWeight: 600,
                         background: itemKind === k ? "var(--primary)" : "var(--canvas)",
                         color: itemKind === k ? "#fff" : "var(--ink)" }}>
@@ -389,18 +398,8 @@ export default function StockAdjustments({
               )}
 
               <ErrorBanner msg={err} />
-
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <Button variant="secondary" onClick={() => { setShowForm(false); resetForm(); }}>
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={handleSubmit} disabled={saving}>
-                  {saving ? "Saving…" : "Record Adjustment"}
-                </Button>
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {confirmDelete !== null && (

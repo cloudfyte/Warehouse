@@ -51,8 +51,8 @@ export default function ResetPasswordDialog({
         </label>
         {err && <p style={{ color: "#c0392b", fontSize: 12, marginBottom: 8 }}>{err}</p>}
         <div className="confirm-actions">
-          <button className="secondary-button" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button className="primary-button" onClick={handle} disabled={busy}>
+          <button type="button" className="secondary-button" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="button" className="primary-button" onClick={handle} disabled={busy}>
             {busy ? "Saving…" : "Save password"}
           </button>
         </div>

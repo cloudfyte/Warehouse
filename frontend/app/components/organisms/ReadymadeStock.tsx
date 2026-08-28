@@ -93,7 +93,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
                 <td style={{ padding: "11px 14px", fontSize: 12 }}>{s.receivedDate ? new Date(s.receivedDate).toLocaleDateString("en-IN") : "—"}</td>
                 <td style={{ padding: "11px 14px" }}>
                   {canAddStock && s.quantityAvailable > 0 && (
-                    <button
+                    <button type="button"
                       onClick={() => setAddToProducts({ item: s, salePrice: "", qty: String(s.quantityAvailable) })}
                       style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
                       → Add to Products
@@ -121,13 +121,13 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
           width={420}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <button
+              <button type="button"
                 disabled={adding || !(parseFloat(addToProducts.salePrice) > 0) || !(parseInt(addToProducts.qty) > 0)}
                 onClick={addToProductsSubmit}
                 style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
                 {adding ? "Adding…" : "Add to Products"}
               </button>
-              <button onClick={() => setAddToProducts(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+              <button type="button" onClick={() => setAddToProducts(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 9, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
             </div>
           }>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

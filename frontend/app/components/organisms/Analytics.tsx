@@ -3,6 +3,7 @@ import { useEffect, useState, memo } from "react";
 import Button from "@/app/components/atoms/Button";
 import StatCard from "@/app/components/molecules/StatCard";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import { formatMoney } from "@/app/lib/formatters";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -43,12 +44,7 @@ interface AnalyticsData {
 
 const COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#3b82f6", "#8b5cf6", "#f97316", "#14b8a6"];
 
-function fmtK(n: number) {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-  return `₹${n.toFixed(0)}`;
-}
+const fmtK = (n: number) => formatMoney(n, { compact: true });
 
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -180,7 +176,7 @@ function Analytics({ gql }: { gql: (q: string) => Promise<AnalyticsData> }) {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: "var(--muted)" }} />
               <YAxis tickFormatter={fmtK} tick={{ fontSize: 11, fill: "var(--muted)" }} width={60} />
-              <Tooltip formatter={(v) => [`₹${Number(v).toLocaleString("en-IN")}`, "Revenue"]}
+              <Tooltip formatter={(v) => [formatMoney(Number(v), { decimals: 0 }), "Revenue"]}
                 labelStyle={{ fontSize: 12, fontWeight: 700 }} contentStyle={TOOLTIP_STYLE} />
               <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} fill="url(#rev)" dot={{ r: 3, fill: "#6366f1" }} />
             </AreaChart>
@@ -197,7 +193,7 @@ function Analytics({ gql }: { gql: (q: string) => Promise<AnalyticsData> }) {
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: "var(--muted)" }} />
               <YAxis tickFormatter={fmtK} tick={{ fontSize: 11, fill: "var(--muted)" }} width={60} />
               <Tooltip
-                formatter={(v, name) => [`₹${Number(v).toLocaleString("en-IN")}`, name === "revenue" ? "Revenue" : "Expenses"]}
+                formatter={(v, name) => [formatMoney(Number(v), { decimals: 0 }), name === "revenue" ? "Revenue" : "Expenses"]}
                 labelStyle={{ fontSize: 12, fontWeight: 700 }} contentStyle={TOOLTIP_STYLE}
               />
               <Legend formatter={v => v === "revenue" ? "Revenue" : "Expenses"} iconType="circle" iconSize={8} />
@@ -255,7 +251,7 @@ function Analytics({ gql }: { gql: (q: string) => Promise<AnalyticsData> }) {
                   <Pie data={topBuyers} dataKey="totalSpend" nameKey="buyerName" outerRadius={75} innerRadius={40} paddingAngle={3}>
                     {topBuyers.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`₹${Number(v).toLocaleString("en-IN")}`, "Spend"]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatMoney(Number(v), { decimals: 0 }), "Spend"]} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>

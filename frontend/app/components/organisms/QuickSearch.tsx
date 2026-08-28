@@ -116,7 +116,7 @@ export default function QuickSearch({ finishedProducts, suppliers, buyers, rawBa
             </div>
           )}
           {results.map(r => (
-            <button
+            <button type="button"
               key={r.id + r.kind}
               onClick={() => { onNavigate(r.tab); onClose(); }}
               style={{
@@ -149,7 +149,7 @@ export default function QuickSearch({ finishedProducts, suppliers, buyers, rawBa
             <div style={{ padding: "24px 20px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>Quick Jump</div>
               {(["finished_products", "suppliers", "buyers", "raw_cloth", "purchase_bills", "sales_orders"] as Tab[]).map(tab => (
-                <button key={tab} onClick={() => { onNavigate(tab); onClose(); }}
+                <button type="button" key={tab} onClick={() => { onNavigate(tab); onClose(); }}
                   style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 0", background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--ink)", borderBottom: "1px solid var(--line)" }}>
                   {tab.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
                 </button>

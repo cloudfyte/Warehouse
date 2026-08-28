@@ -219,11 +219,11 @@ export default function Login({ onLogin }: Props) {
       `}</style>
 
       {/* ── Shell ── */}
-      <div className="login-shell" style={{ display: "flex", minHeight: "100vh", background: "#0c1220" }}>
+      <div className="login-shell" style={{ display: "flex", minHeight: "100dvh", background: "#0c1220" }}>
 
         {/* ── Left decorative panel ── */}
         <div className="login-left" style={{
-          position: "sticky", top: 0, height: "100vh", width: "44%", flexShrink: 0,
+          position: "sticky", top: 0, height: "100dvh", width: "44%", flexShrink: 0,
           display: "flex", flexDirection: "column", padding: "48px 44px",
           overflow: "hidden", background: "#0c1220",
         }}>
@@ -330,7 +330,7 @@ export default function Login({ onLogin }: Props) {
         {/* ── Right form panel ── */}
         <div className="login-right" style={{
           flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-          background: "var(--canvas, #f9fafb)", padding: "40px 24px", minHeight: "100vh",
+          background: "var(--canvas, #f9fafb)", padding: "40px 24px", minHeight: "100dvh",
         }}>
           <div className="login-form-anim" style={{ width: "100%", maxWidth: 420 }}>
 
@@ -511,7 +511,7 @@ export default function Login({ onLogin }: Props) {
                   </div>
                 </div>
 
-                <button className="login-btn-primary" style={{
+                <button type="submit" className="login-btn-primary" style={{
                   width: "100%", padding: "14px", borderRadius: 12, border: "none",
                   color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -553,7 +553,7 @@ export default function Login({ onLogin }: Props) {
                   }
                 </div>
 
-                <button className="login-btn-primary" style={{
+                <button type="submit" className="login-btn-primary" style={{
                   width: "100%", padding: "14px", borderRadius: 12, border: "none",
                   color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,

@@ -336,7 +336,7 @@ export default function Buyers({ buyers, isAdmin, isSuperAdmin, isManager = fals
             {filtered.map(b => (
               <tr key={b.id} style={{ borderBottom: "1px solid var(--panel-border)", opacity: b.active ? 1 : 0.5 }}>
                 <td style={{ padding: "13px 16px" }}>
-                  <button onClick={() => setHistoryBuyer(b)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+                  <button type="button" onClick={() => setHistoryBuyer(b)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
                     <div style={{ fontWeight: 700, fontSize: 13, color: "var(--primary)", textDecoration: "underline", textDecorationStyle: "dotted" }}>{b.name}</div>
                     {b.city && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{b.city}, {b.state}</div>}
                   </button>

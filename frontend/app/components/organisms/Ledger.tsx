@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { Buyer, Supplier, SalesOrder, CreditTransaction, PurchaseBill, LedgerEntry } from "@/app/types";
+import { formatMoney } from "@/app/lib/formatters";
 
 interface Props {
   buyers: Buyer[];
@@ -12,8 +13,8 @@ interface Props {
 
 type Mode = "buyer" | "supplier";
 
-const fmt = (n: number) =>
-  `₹${Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+// Ledger shows direction as Dr/Cr, so the figure itself is always positive.
+const fmt = (n: number) => formatMoney(Math.abs(n));
 
 function buildBuyerLedger(buyerId: string, salesOrders: SalesOrder[], creditTransactions: CreditTransaction[]): LedgerEntry[] {
   const entries: LedgerEntry[] = [];
@@ -130,7 +131,7 @@ export default function Ledger({ buyers, suppliers, salesOrders, creditTransacti
       <div className="flex items-end gap-3 flex-wrap">
         <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
           {(["buyer", "supplier"] as Mode[]).map(m => (
-            <button key={m} onClick={() => { setMode(m); setPartyId(""); }}
+            <button type="button" key={m} onClick={() => { setMode(m); setPartyId(""); }}
               className="px-4 py-2 text-sm font-medium transition-colors"
               style={{
                 background: mode === m ? "var(--primary)" : "var(--surface)",

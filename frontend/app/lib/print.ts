@@ -1,3 +1,4 @@
+import { formatMoney } from "@/app/lib/formatters";
 /**
  * Opens a clean print window with the given HTML content.
  * Includes a Print button in the window itself plus auto-triggers print.
@@ -60,9 +61,9 @@ export function printDoc(html: string, title: string): void {
   w.document.close();
 }
 
-/** Format a number as Indian currency string for print (no React dependency). */
+/** Format a number as currency for print. Same symbol as the on-screen figures. */
 export function fmtMoney(n: number): string {
-  return "₹" + (n ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatMoney(n ?? 0);
 }
 
 /** Format ISO date string as DD MMM YYYY for print. */

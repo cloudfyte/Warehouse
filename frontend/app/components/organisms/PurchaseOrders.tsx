@@ -23,6 +23,8 @@ import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
+import Modal from "@/app/components/atoms/Modal";
+import Drawer from "@/app/components/atoms/Drawer";
 
 interface Props {
   orders: PurchaseOrder[]; suppliers: Supplier[]; warehouses: WarehouseLocation[]
@@ -357,13 +359,21 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
 
       {/* ── New PO modal ── */}
       {showNew && (
-        <div style={{ position: "fixed", inset: 0, background: "#0009", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "32px 0" }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, width: "min(860px,96vw)", border: "1px solid var(--border)", marginBottom: 32 }}>
-            <div style={{ padding: "22px 28px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0 }}>New Purchase Order</h3>
-              <button onClick={() => { setShowNew(false); resetForm(); }} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)" }}>×</button>
+        <Modal
+          title="New Purchase Order"
+          width={860}
+          onClose={() => { setShowNew(false); resetForm(); }}
+          onSubmit={createPO}
+          footer={
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button type="submit" disabled={loading} style={{ flex: 1, fontSize: 15 }}>
+                {loading ? "Creating…" : "Create Purchase Order"}
+              </Button>
+              <Button variant="secondary" onClick={() => { setShowNew(false); resetForm(); }}>Cancel</Button>
             </div>
-            <div style={{ padding: 28 }}>
+          }
+        >
+            <div>
               <ErrorBanner msg={error} />
 
               {/* Header fields */}
@@ -397,7 +407,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               {/* Items */}
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>Order Items</span>
-                <button onClick={() => setItems(p => [...p, emptyItem()])}
+                <button type="button" onClick={() => setItems(p => [...p, emptyItem()])}
                   style={{ padding: "5px 14px", borderRadius: 7, border: "1px dashed var(--primary)", background: "var(--primary)10", color: "var(--primary)", cursor: "pointer", fontSize: 13 }}>
                   + Add Item
                 </button>
@@ -416,7 +426,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                       ))}
                     </div>
                     {items.length > 1 && (
-                      <button onClick={() => removeItem(idx)} style={{ background: "none", border: "none", color: "#f44336", cursor: "pointer", fontSize: 18 }}>×</button>
+                      <button type="button" onClick={() => removeItem(idx)} style={{ background: "none", border: "none", color: "#f44336", cursor: "pointer", fontSize: 18 }}>×</button>
                     )}
                   </div>
 
@@ -473,31 +483,22 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 </div>
               ))}
 
-              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                <Button onClick={createPO} disabled={loading} style={{ flex: 1, fontSize: 15 }}>
-                  {loading ? "Creating…" : "Create Purchase Order"}
-                </Button>
-                <Button variant="secondary" onClick={() => { setShowNew(false); resetForm(); }}>Cancel</Button>
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ── Detail panel ── */}
       {detail && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
-          <div style={{ background: "var(--paper)", width: "min(560px, 100vw)", height: "100vh", overflowY: "auto", padding: 28, border: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 18 }}>{detail.poNumber}</div>
-                <div style={{ color: "var(--muted)", fontSize: 14 }}>{detail.supplier.name}</div>
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <Button variant="secondary" size="sm" onClick={() => printPO(detail)}>🖨 Print</Button>
-                <button onClick={() => { setDetail(null); setError(""); }} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}>×</button>
-              </div>
-            </div>
+        <Drawer
+          title={detail.poNumber}
+          subtitle={detail.supplier.name}
+          width={560}
+          zIndex={100}
+          onClose={() => { setDetail(null); setError(""); }}
+          headerActions={
+            <Button variant="secondary" size="sm" onClick={() => printPO(detail)}>🖨 Print</Button>
+          }
+        >
             <ErrorBanner msg={error} />
             <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
               <Badge s={detail.status} />
@@ -617,22 +618,27 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 <div style={{ fontSize: 13, color: "var(--muted)", fontStyle: "italic" }}>No inspection recorded yet.</div>
               )}
             </div>
-          </div>
-        </div>
+        </Drawer>
       )}
 
       {/* Receive Goods Modal */}
       {showReceive && detail && (
-        <div onClick={e => { if (e.target === e.currentTarget) setShowReceive(false); }}
-          style={{ position: "fixed", inset: 0, background: "#0009", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 520, flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-              <div style={{ fontSize: 17, fontWeight: 700 }}>Receive Goods</div>
-              <Button variant="ghost" onClick={() => setShowReceive(false)} style={{ fontSize: 20, padding: "0 6px" }}>×</Button>
+        <Modal
+          title="Receive Goods"
+          subtitle={`Confirm quantities received for ${detail.poNumber}. Stock will be added to inventory.`}
+          width={520}
+          zIndex={200}
+          onClose={() => setShowReceive(false)}
+          onSubmit={submitReceive}
+          footer={
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="primary" type="submit" disabled={receiveSaving} style={{ flex: 1 }}>
+                {receiveSaving ? "Receiving…" : "Confirm Receipt & Add to Stock"}
+              </Button>
+              <Button variant="secondary" onClick={() => setShowReceive(false)}>Cancel</Button>
             </div>
-            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
-              Confirm quantities received for {detail.poNumber}. Stock will be added to inventory.
-            </div>
+          }
+        >
             {receiveRows.map((row, i) => (
               <div key={row.poItemId} style={{ background: "var(--bg)", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{row.label}</div>
@@ -656,26 +662,27 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               </div>
             ))}
             {receiveErr && <ErrorBanner msg={receiveErr} />}
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <Button variant="primary" onClick={submitReceive} disabled={receiveSaving} style={{ flex: 1 }}>
-                {receiveSaving ? "Receiving…" : "Confirm Receipt & Add to Stock"}
-              </Button>
-              <Button variant="secondary" onClick={() => setShowReceive(false)}>Cancel</Button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Parcel Inspection Modal */}
       {showInspection && detail && (
-        <div onClick={e => { if (e.target === e.currentTarget) setShowInspection(false); }}
-          style={{ position: "fixed", inset: 0, background: "#0009", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 460, flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-              <div style={{ fontSize: 17, fontWeight: 700 }}>{inspection ? "Update" : "Record"} Parcel Inspection</div>
-              <button onClick={() => setShowInspection(false)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)", lineHeight: 1, padding: "0 4px" }}>×</button>
+        <Modal
+          title={`${inspection ? "Update" : "Record"} Parcel Inspection`}
+          subtitle={`${detail.poNumber} — ${detail.supplier.name}`}
+          width={460}
+          zIndex={200}
+          onClose={() => setShowInspection(false)}
+          onSubmit={saveInspection}
+          footer={
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setShowInspection(false)}>Cancel</Button>
+              <Button type="submit" disabled={inspSaving}>
+                {inspSaving ? "Saving…" : inspection ? "Update" : "Save Inspection"}
+              </Button>
             </div>
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>{detail.poNumber} — {detail.supplier.name}</div>
+          }
+        >
             <ErrorBanner msg={inspErr} />
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <Field label="Inspection Date">
@@ -716,14 +723,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 )}
               </Field>
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-              <Button variant="secondary" onClick={() => setShowInspection(false)}>Cancel</Button>
-              <Button onClick={saveInspection} disabled={inspSaving}>
-                {inspSaving ? "Saving…" : inspection ? "Update" : "Save Inspection"}
-              </Button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--border)", overflowX: "auto" }}>

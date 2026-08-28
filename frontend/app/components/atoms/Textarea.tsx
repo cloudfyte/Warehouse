@@ -3,13 +3,13 @@ import React from "react";
 
 type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
 
-export default function Textarea({ style, ...props }: TextareaProps) {
+export default function Textarea({ style, className, ...props }: TextareaProps) {
   return (
     <textarea
+      className={["ui-field", className].filter(Boolean).join(" ")}
       style={{
-        width: "100%", padding: "9px 12px", borderRadius: 8,
         border: "1px solid var(--line)", background: "var(--canvas)",
-        color: "var(--ink)", fontSize: 13, outline: "none", boxSizing: "border-box",
+        color: "var(--ink)", outline: "none",
         resize: "vertical", minHeight: 80,
         ...style,
       }}

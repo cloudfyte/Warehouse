@@ -220,7 +220,7 @@ function Notifications({ notifications, onMutate, onNavigate }: Props) {
                   </span>
                 </div>
               </div>
-              <button onClick={() => setDetail(null)} style={{
+              <button type="button" onClick={() => setDetail(null)} style={{
                 background: "none", border: "none", cursor: "pointer",
                 color: "var(--muted)", padding: 4, borderRadius: 6, flexShrink: 0,
               }}>

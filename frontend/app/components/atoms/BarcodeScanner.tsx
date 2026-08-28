@@ -87,7 +87,7 @@ export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerPr
             <ScanLine size={20} color="var(--primary)" />
             <span style={{ fontWeight: 700, fontSize: 16 }}>Scan Barcode</span>
           </div>
-          <button onClick={() => { stopCamera(); onClose(); }}
+          <button type="button" onClick={() => { stopCamera(); onClose(); }}
             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", padding: 4 }}>
             <X size={20} />
           </button>
@@ -96,7 +96,7 @@ export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerPr
         {/* Mode tabs — Camera tab hidden on unsupported browsers (iOS Safari) */}
         <div style={{ display: "flex", borderBottom: "1px solid var(--line)" }}>
           {(["camera", "manual"] as const).filter(m => m !== "camera" || isCameraSupported).map(m => (
-            <button key={m} onClick={() => setMode(m)}
+            <button type="button" key={m} onClick={() => setMode(m)}
               style={{ flex: 1, padding: "11px 0", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
                 background: mode === m ? "var(--primary)" : "transparent",
                 color: mode === m ? "#fff" : "var(--muted)",
@@ -142,7 +142,7 @@ export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerPr
                   placeholder="Barcode or SKU…"
                   style={{ flex: 1, padding: "11px 14px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, outline: "none" }}
                 />
-                <button onClick={() => { if (manual.trim()) { onDetected(manual.trim()); onClose(); } }}
+                <button type="button" onClick={() => { if (manual.trim()) { onDetected(manual.trim()); onClose(); } }}
                   disabled={!manual.trim()}
                   style={{ padding: "11px 18px", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
                   Search

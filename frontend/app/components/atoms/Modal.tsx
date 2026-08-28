@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface ModalProps {
   title: string;
@@ -9,14 +9,50 @@ interface ModalProps {
   footer?: React.ReactNode;
   width?: number;
   zIndex?: number;
+  /**
+   * Makes the body a real <form>, so Enter in any field saves the dialog
+   * instead of doing nothing. Most of this app is data entry — without it
+   * every row costs a reach for the mouse.
+   *
+   * Buttons default to type="button" (see the Button atom), so a click still
+   * runs only its own onClick and never also submits.
+   */
+  onSubmit?: () => void;
 }
 
-export default function Modal({ title, subtitle, onClose, children, footer, width = 520, zIndex = 100 }: ModalProps) {
+export default function Modal({
+  title, subtitle, onClose, children, footer,
+  width = 520, zIndex = 100, onSubmit,
+}: ModalProps) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", fn);
     return () => document.removeEventListener("keydown", fn);
   }, [onClose]);
+
+  // Put the caret in the first field so the dialog can be filled without
+  // reaching for the mouse first.
+  useEffect(() => {
+    const first = bodyRef.current?.querySelector<HTMLElement>(
+      "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])"
+    );
+    first?.focus();
+  }, []);
+
+  const body = (
+    <>
+      <div ref={bodyRef} style={{ padding: "20px 24px" }}>
+        {children}
+      </div>
+      {footer && (
+        <div style={{ padding: "14px 24px 20px", borderTop: "1px solid var(--line)" }}>
+          {footer}
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div
@@ -32,16 +68,21 @@ export default function Modal({ title, subtitle, onClose, children, footer, widt
         padding: "40px 16px 60px",
       }}
     >
-      <div style={{
-        width: "100%",
-        maxWidth: width,
-        background: "var(--paper)",
-        borderRadius: 16,
-        boxShadow: "0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08)",
-        border: "1px solid var(--line)",
-        display: "flex",
-        flexDirection: "column",
-      }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        style={{
+          width: "100%",
+          maxWidth: width,
+          background: "var(--paper)",
+          borderRadius: 16,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08)",
+          border: "1px solid var(--line)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {/* Header */}
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -54,10 +95,11 @@ export default function Modal({ title, subtitle, onClose, children, footer, widt
             {subtitle && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>{subtitle}</div>}
           </div>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close dialog"
             style={{
-              width: 32, height: 32, borderRadius: 8,
+              width: 40, height: 40, borderRadius: 8,
               border: "1px solid var(--line)",
               background: "transparent", cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -67,20 +109,9 @@ export default function Modal({ title, subtitle, onClose, children, footer, widt
           >✕</button>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: "20px 24px" }}>
-          {children}
-        </div>
-
-        {/* Footer */}
-        {footer && (
-          <div style={{
-            padding: "14px 24px 20px",
-            borderTop: "1px solid var(--line)",
-          }}>
-            {footer}
-          </div>
-        )}
+        {onSubmit
+          ? <form onSubmit={e => { e.preventDefault(); onSubmit(); }}>{body}</form>
+          : body}
       </div>
     </div>
   );

@@ -264,7 +264,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 4, background: "var(--canvas)", borderRadius: 10, padding: 4, border: "1px solid var(--line)" }}>
           {TABS.map(t => (
-            <button
+            <button type="button"
               key={t.id}
               onClick={() => setTab(t.id)}
               style={{
@@ -366,7 +366,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                 </div>
               </div>
               <div style={{ flex: 1, background: "var(--canvas)", display: "flex", alignItems: "center", gap: 10, paddingLeft: 16 }}>
-                <button style={{ background: form.primaryColor || "#173a2c", color: "#fff", border: "none", borderRadius: 7, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "default" }}>Save</button>
+                <button type="button" style={{ background: form.primaryColor || "#173a2c", color: "#fff", border: "none", borderRadius: 7, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "default" }}>Save</button>
                 <span style={{ background: form.accentColor || "#d4932f", color: "#fff", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "3px 9px" }}>Badge</span>
                 <span style={{ padding: "3px 9px", borderRadius: 99, border: `1.5px solid ${form.primaryColor || "#173a2c"}`, color: form.primaryColor || "#173a2c", fontSize: 10, fontWeight: 600 }}>Outline</span>
               </div>
@@ -527,11 +527,11 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                   {form.tagLogoData ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <img src={form.tagLogoData} alt="tag logo" style={{ height: 32, borderRadius: 4, border: "1px solid var(--line)" }} />
-                      <button onClick={() => setForm(p => ({ ...p, tagLogoData: "" }))}
+                      <button type="button" onClick={() => setForm(p => ({ ...p, tagLogoData: "" }))}
                         style={{ fontSize: 11, color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
                     </div>
                   ) : (
-                    <button onClick={() => logoInputRef.current?.click()}
+                    <button type="button" onClick={() => logoInputRef.current?.click()}
                       style={{ width: "100%", padding: "8px 0", borderRadius: 8, border: "1.5px dashed var(--line)", background: "var(--canvas)", color: "var(--muted)", fontSize: 12, cursor: "pointer" }}>
                       + Upload B&W Logo
                     </button>
@@ -581,7 +581,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                           <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>{info.label}</div>
                           <div style={{ fontSize: 10, color: "var(--muted)" }}>{info.desc}</div>
                         </div>
-                        <button onClick={() => tagToggle(key)}
+                        <button type="button" onClick={() => tagToggle(key)}
                           style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, border: "none", cursor: "pointer",
                             background: "color-mix(in srgb,#ef4444 12%,transparent)", color: "#ef4444", fontWeight: 600 }}>
                           Remove
@@ -596,7 +596,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                     <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>Hidden (click to re-add):</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {DEFAULT_COMPONENT_ORDER.filter(k => !tagOrder.includes(k)).map(k => (
-                        <button key={k} onClick={() => tagToggle(k)}
+                        <button type="button" key={k} onClick={() => tagToggle(k)}
                           style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px dashed var(--line)", background: "var(--canvas)", color: "var(--muted)", cursor: "pointer" }}>
                           + {COMPONENT_LABELS[k]?.label}
                         </button>
@@ -604,7 +604,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                     </div>
                   </div>
                 )}
-                <button onClick={() => setForm(p => ({ ...p, tagComponentOrder: [...DEFAULT_COMPONENT_ORDER] }))}
+                <button type="button" onClick={() => setForm(p => ({ ...p, tagComponentOrder: [...DEFAULT_COMPONENT_ORDER] }))}
                   style={{ marginTop: 10, fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--muted)", cursor: "pointer" }}>
                   Reset to default order
                 </button>

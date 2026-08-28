@@ -12,6 +12,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import { showToast } from "@/app/lib/toast";
+import Modal from "@/app/components/atoms/Modal";
 
 const PER_PAGE = 20;
 
@@ -111,7 +112,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
           const count = s === "ALL" ? transfers.length : transfers.filter(t => t.status === s).length;
           const active = filter === s;
           return (
-            <button key={s} onClick={() => setFilter(s)} style={{
+            <button type="button" key={s} onClick={() => setFilter(s)} style={{
               padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
               border: `1px solid ${active ? "var(--primary)" : "var(--line)"}`,
               background: active ? "var(--primary)" : "var(--paper)",
@@ -184,12 +185,20 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
 
       {/* Create modal */}
       {creating && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>New Stock Transfer</div>
-              <button onClick={() => { setCreating(false); setErr(""); }} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)", lineHeight: 1 }}>×</button>
+        <Modal
+          title="New Stock Transfer"
+          width={480}
+          onClose={() => { setCreating(false); setErr(""); }}
+          onSubmit={handleCreate}
+          footer={
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => { setCreating(false); setErr(""); }}>Cancel</Button>
+              <Button variant="primary" type="submit" disabled={saving}>
+                {saving ? "Creating…" : "Create Transfer"}
+              </Button>
             </div>
+          }
+        >
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <ErrorBanner msg={err} />
               <Field label="Transfer Kind">
@@ -279,14 +288,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
                 <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ minHeight: 70, height: 70 }} placeholder="Reason for transfer…" />
               </Field>
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-              <Button variant="secondary" onClick={() => { setCreating(false); setErr(""); }}>Cancel</Button>
-              <Button variant="primary" onClick={handleCreate} disabled={saving}>
-                {saving ? "Creating…" : "Create Transfer"}
-              </Button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

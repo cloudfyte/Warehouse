@@ -51,6 +51,7 @@ import { PageSkeleton } from "@/app/components/atoms/Skeleton";
 import FcmManager from "@/app/components/atoms/FcmManager";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
 import type { AppSettings, CustomRole, Tab } from "@/app/types";
+import { setCurrencySymbol } from "@/app/lib/formatters";
 
 // ─── Role-based tab visibility ────────────────────────────────────────────────
 
@@ -195,6 +196,11 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showSearch]);
+  // Set during render, not in an effect: formatMoney is read while the tree
+  // renders, so an effect would land a paint too late and leave the previous
+  // symbol on screen until something unrelated re-rendered.
+  setCurrencySymbol(data?.systemSettings?.currencySymbol);
+
   useEffect(() => {
     if (data?.systemSettings) {
       applyBrandColors(data.systemSettings);
@@ -328,7 +334,7 @@ export default function Home() {
   }, [token, loadData]);
 
   const AppSkeleton = () => (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex" }}>
+    <div style={{ minHeight: "100dvh", background: "var(--bg)", display: "flex" }}>
       <div style={{ width: 220, background: "var(--paper)", borderRight: "1px solid var(--line)", padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} style={{ height: 32, borderRadius: 8, background: "linear-gradient(90deg, var(--line) 25%, var(--canvas) 50%, var(--line) 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s infinite" }} />
@@ -342,7 +348,7 @@ export default function Home() {
 
   if (!token) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh", background: "var(--bg)" }}>
         <Login onLogin={handleLogin} />
       </div>
     );
@@ -352,10 +358,10 @@ export default function Home() {
 
   if (error) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100dvh", gap: 12 }}>
         <div style={{ color: "#f44336", fontSize: 15 }}>{error}</div>
-        <button onClick={() => token && loadData(token)} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer" }}>Retry</button>
-        <button onClick={handleLogout} style={{ fontSize: 13, color: "var(--muted)", border: "none", background: "none", cursor: "pointer" }}>Log out</button>
+        <button type="button" onClick={() => token && loadData(token)} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer" }}>Retry</button>
+        <button type="button" onClick={handleLogout} style={{ fontSize: 13, color: "var(--muted)", border: "none", background: "none", cursor: "pointer" }}>Log out</button>
       </div>
     );
   }
@@ -380,7 +386,7 @@ export default function Home() {
   const SIDEBAR_W = sidebarOpen ? 232 : 56;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
+    <div style={{ display: "flex", minHeight: "100dvh", background: "var(--bg)" }}>
       <ToastContainer />
       <FcmManager isAuthenticated={!!token} />
 
@@ -424,7 +430,7 @@ export default function Home() {
               {(data?.systemSettings?.appName || "W")[0].toUpperCase()}
             </div>
           )}
-          <button onClick={() => setSidebarOpen(o => !o)}
+          <button type="button" onClick={() => setSidebarOpen(o => !o)}
             style={{ background: "none", border: "none", color: "#ffffffaa", cursor: "pointer", padding: 4,
               marginLeft: sidebarOpen ? 4 : 0, flexShrink: 0,
               display: "flex", alignItems: "center" }}>
@@ -522,17 +528,17 @@ export default function Home() {
 
           {/* Controls row — stacks vertically when collapsed so buttons fit in 56px */}
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexDirection: sidebarOpen ? "row" : "column" }}>
-            <button onClick={() => setDarkMode(d => !d)} title={darkMode ? "Light mode" : "Dark mode"}
+            <button type="button" onClick={() => setDarkMode(d => !d)} title={darkMode ? "Light mode" : "Dark mode"}
               style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffffcc", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: sidebarOpen ? "auto" : 36 }}>
               {darkMode ? <Sun size={14} /> : <Moon size={14} />}
             </button>
             {sidebarOpen ? (
-              <button onClick={() => setConfirmLogout(true)}
+              <button type="button" onClick={() => setConfirmLogout(true)}
                 style={{ flex: 1, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "#ffffffaa", borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                 <LogOut size={13} /> Log Out
               </button>
             ) : (
-              <button onClick={() => setConfirmLogout(true)} title="Log out"
+              <button type="button" onClick={() => setConfirmLogout(true)} title="Log out"
                 style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", color: "#ffffffaa", borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 36 }}>
                 <LogOut size={14} />
               </button>
@@ -566,14 +572,14 @@ export default function Home() {
               Are you sure you want to log out of {data?.systemSettings?.appName || "Warehouse ERP"}?
             </p>
             <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={() => setConfirmLogout(false)} style={{
+              <button type="button" onClick={() => setConfirmLogout(false)} style={{
                 flex: 1, padding: "13px", borderRadius: 11,
                 border: "1.5px solid var(--line)", background: "transparent",
                 color: "var(--ink)", fontWeight: 600, fontSize: 14, cursor: "pointer",
               }}>
                 Cancel
               </button>
-              <button onClick={handleLogout} style={{
+              <button type="button" onClick={handleLogout} style={{
                 flex: 1, padding: "13px", borderRadius: 11, border: "none",
                 background: "#ef4444", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
               }}>
@@ -595,7 +601,7 @@ export default function Home() {
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             {/* Hamburger — mobile only */}
             {isMobile && (
-              <button onClick={() => setSidebarOpen(o => !o)}
+              <button type="button" onClick={() => setSidebarOpen(o => !o)}
                 style={{ background: "none", border: "1px solid var(--line)", borderRadius: 8,
                   padding: "6px 8px", cursor: "pointer", color: "var(--ink)", display: "flex",
                   alignItems: "center", flexShrink: 0 }}>
@@ -606,7 +612,7 @@ export default function Home() {
           </div>
           <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
             {token && (
-              <button
+              <button type="button"
                 onClick={() => setShowSearch(true)}
                 title="Quick Search (press /)"
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--muted)", cursor: "pointer", fontSize: 13 }}>

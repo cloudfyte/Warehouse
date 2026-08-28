@@ -155,7 +155,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
           const total = expenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0);
           if (total === 0) return null;
           return (
-            <button key={cat} onClick={() => setFilterCat(filterCat === cat ? "ALL" : cat)}
+            <button type="button" key={cat} onClick={() => setFilterCat(filterCat === cat ? "ALL" : cat)}
               style={{ flexShrink: 0, padding: "10px 14px", borderRadius: 10, border: `1.5px solid ${filterCat === cat ? CAT_COLORS[cat] : "var(--line)"}`, background: filterCat === cat ? CAT_COLORS[cat] + "12" : "var(--paper)", cursor: "pointer", textAlign: "left", minWidth: 130 }}>
               <div style={{ fontSize: 10, color: filterCat === cat ? CAT_COLORS[cat] : "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
               <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4, color: filterCat === cat ? CAT_COLORS[cat] : "var(--ink)" }}>{formatMoney(total)}</div>
@@ -169,7 +169,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
         {(["ALL", "TODAY", "WEEK", "MONTH", "CUSTOM"] as const).map(q => {
           const labels = { ALL: "All time", TODAY: "Today", WEEK: "This week", MONTH: "This month", CUSTOM: "Custom" };
           return (
-            <button key={q} onClick={() => setQuickDate(q)}
+            <button type="button" key={q} onClick={() => setQuickDate(q)}
               style={{ padding: "5px 13px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
                 border: `1.5px solid ${quickDate === q ? "var(--primary)" : "var(--line)"}`,
                 background: quickDate === q ? "var(--primary)" : "var(--paper)",
@@ -197,7 +197,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
       {filterCat !== "ALL" && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <span style={{ fontSize: 13, color: "var(--muted)" }}>Category: <strong>{CATEGORIES[filterCat]}</strong></span>
-          <button onClick={() => setFilterCat("ALL")} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Clear</button>
+          <button type="button" onClick={() => setFilterCat("ALL")} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Clear</button>
         </div>
       )}
 
@@ -266,7 +266,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
             {editing.proofImage && (
               <div style={{ marginTop: 10, position: "relative", display: "inline-block" }}>
                 <img src={editing.proofImage} alt="proof" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, border: "1px solid var(--line)", objectFit: "contain" }} />
-                <button onClick={() => setEditing(p => p ? { ...p, proofImage: "" } : p)}
+                <button type="button" onClick={() => setEditing(p => p ? { ...p, proofImage: "" } : p)}
                   style={{ position: "absolute", top: -6, right: -6, background: "#ef4444", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
               </div>
             )}
@@ -312,7 +312,7 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
                   <div style={{ fontWeight: 500 }}>{e.description}</div>
                   {e.reference && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Ref: {e.reference}</div>}
                   {e.proofImage && (
-                    <button onClick={() => window.open(e.proofImage, "_blank")}
+                    <button type="button" onClick={() => window.open(e.proofImage, "_blank")}
                       style={{ fontSize: 11, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 4 }}>
                       📎 View proof
                     </button>

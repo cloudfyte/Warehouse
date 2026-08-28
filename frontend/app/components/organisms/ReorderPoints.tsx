@@ -9,6 +9,7 @@ import Select from "@/app/components/atoms/Select";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import Field from "@/app/components/molecules/Field";
+import Modal from "@/app/components/atoms/Modal";
 
 interface Props {
   reorderPoints: ReorderPoint[]
@@ -180,9 +181,20 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
       )}
 
       {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>{editing ? "Edit Threshold" : "Add Reorder Threshold"}</div>
+        <Modal
+          title={editing ? "Edit Threshold" : "Add Reorder Threshold"}
+          width={460}
+          onClose={() => setShowForm(false)}
+          onSubmit={save}
+          footer={
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="primary" type="submit" disabled={saving}>
+                {saving ? "Saving…" : editing ? "Save Changes" : "Add Threshold"}
+              </Button>
+            </div>
+          }
+        >
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <ErrorBanner msg={err} />
               {!editing && (
@@ -250,14 +262,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
                 </label>
               )}
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-              <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button variant="primary" onClick={save} disabled={saving}>
-                {saving ? "Saving…" : editing ? "Save Changes" : "Add Threshold"}
-              </Button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {confirmDelete !== null && (

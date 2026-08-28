@@ -2,7 +2,7 @@
 import { useState, useRef } from "react";
 import { buildBillEscPos } from "@/app/lib/useBluetooth";
 import BluetoothPrintButton from "@/app/components/molecules/BluetoothPrintButton";
-import { formatMoney, formatDate } from "@/app/lib/formatters";
+import { formatMoney, formatDate, getCurrencySymbol } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import SizeSelect from "@/app/components/atoms/SizeSelect";
 import AgeGroupSelect from "@/app/components/atoms/AgeGroupSelect";
@@ -18,6 +18,7 @@ import { downloadCsv } from "@/app/lib/csv";
 import { showToast } from "@/app/lib/toast";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import Pagination from "@/app/components/atoms/Pagination";
+import Modal from "@/app/components/atoms/Modal";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -177,7 +178,7 @@ export default function PurchaseBills({
       paymentStatus: bill.paymentStatus,
     });
   }
-  const currency = systemSettings?.currencySymbol || "₹";
+  const currency = getCurrencySymbol();
 
   const [page, setPage] = useState(1);
   const paged = bills.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -627,7 +628,7 @@ export default function PurchaseBills({
                                 <td style={{ padding: "7px 10px", fontWeight: 700, color: "#2e7d32" }}>{formatMoney(p.amount)}</td>
                                 <td style={{ padding: "7px 10px" }}>
                                   {canCreate && (
-                                    <button onClick={() => handleDeletePayment(p.id)}
+                                    <button type="button" onClick={() => handleDeletePayment(p.id)}
                                       style={{ padding: "3px 8px", borderRadius: 5, border: "1px solid #fcc", background: pendingDeletePay === p.id ? "#fcc" : "#fff5f5", color: "#c62828", fontSize: 11, cursor: "pointer" }}>
                                       {pendingDeletePay === p.id ? "Confirm?" : "×"}
                                     </button>
@@ -654,18 +655,23 @@ export default function PurchaseBills({
 
       {/* Record Payment Modal */}
       {payBillId && payingBill && (
-        <div onClick={e => { if (e.target === e.currentTarget) setPayBillId(null); }} style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, width: "min(440px, 100%)", boxShadow: "0 24px 64px #0006" }}>
-            <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>Record Payment</div>
-                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                  {payingBill.billNumber} · {payingBill.supplier.name} · {formatMoney(payingBill.amountPending)} pending
-                </div>
-              </div>
-              <button onClick={() => setPayBillId(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--muted)" }}>×</button>
+        <Modal
+          title="Record Payment"
+          subtitle={`${payingBill.billNumber} · ${payingBill.supplier.name} · ${formatMoney(payingBill.amountPending)} pending`}
+          width={440}
+          zIndex={300}
+          onClose={() => setPayBillId(null)}
+          onSubmit={handlePayment}
+          footer={
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setPayBillId(null)}>Cancel</Button>
+              <Button variant="primary" type="submit" disabled={payLoading}>
+                {payLoading ? "Saving…" : "Record Payment"}
+              </Button>
             </div>
-            <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
+          }
+        >
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <Field label={`Amount (${currency})`} required>
                 <Input type="number" min="0.01" step="0.01" value={payAmount}
                   onChange={e => setPayAmount(e.target.value)}
@@ -692,27 +698,28 @@ export default function PurchaseBills({
                 <Input value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="Any remarks…" />
               </Field>
               <ErrorBanner msg={payErr} />
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <Button variant="secondary" onClick={() => setPayBillId(null)}>Cancel</Button>
-                <Button variant="primary" onClick={handlePayment} disabled={payLoading}>
-                  {payLoading ? "Saving…" : "Record Payment"}
-                </Button>
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Create Bill Modal */}
       {showForm && (
-        <div style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 200, overflowY: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 16px" }}>
-          <div style={{ background: "var(--paper)", borderRadius: 16, width: "min(740px, 100%)", boxShadow: "0 24px 64px #0006" }}>
-            {/* Modal header */}
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, fontSize: 17 }}>Record Direct Purchase</span>
-              <button onClick={() => { setShowForm(false); resetForm(); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "var(--muted)" }}>×</button>
+        <Modal
+          title="Record Direct Purchase"
+          width={740}
+          onClose={() => { setShowForm(false); resetForm(); }}
+          onSubmit={handleSubmit}
+          footer={
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => { setShowForm(false); resetForm(); }}>
+                Cancel
+              </Button>
+              <Button variant="primary" type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Record Purchase & Stock"}
+              </Button>
             </div>
+          }
+        >
 
             <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
               {/* Header fields */}
@@ -837,18 +844,8 @@ export default function PurchaseBills({
               </Field>
 
               <ErrorBanner msg={err} />
-
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <Button variant="secondary" onClick={() => { setShowForm(false); resetForm(); }}>
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={handleSubmit} disabled={saving}>
-                  {saving ? "Saving…" : "Record Purchase & Stock"}
-                </Button>
-              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
@@ -877,7 +874,7 @@ function ItemEditor({
   return (
     <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 14, position: "relative" }}>
       {onRemove && (
-        <button onClick={onRemove}
+        <button type="button" onClick={onRemove}
           style={{ position: "absolute", top: 10, right: 12, background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--muted)" }}>
           ×
         </button>
@@ -887,7 +884,7 @@ function ItemEditor({
       {/* Kind selector */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         {(["RAW_CLOTH", "READYMADE"] as const).map(k => (
-          <button key={k} onClick={() => onChange({ itemKind: k })}
+          <button type="button" key={k} onClick={() => onChange({ itemKind: k })}
             style={{ padding: "6px 14px", borderRadius: 20, border: "1px solid var(--line)", cursor: "pointer", fontSize: 12, fontWeight: 600,
               background: item.itemKind === k ? "var(--primary)" : "var(--canvas)",
               color: item.itemKind === k ? "#fff" : "var(--ink)" }}>
@@ -927,7 +924,7 @@ function ItemEditor({
               <Input value={item.clothCode} onChange={e => onChange({ clothCode: e.target.value })}
                 placeholder="Auto-generated" style={{ fontFamily: "monospace", flex: 1 }} />
               {item.costPerMeter && (
-                <button onClick={() => onChange({ clothCode: genClothCode(item.costPerMeter) })}
+                <button type="button" onClick={() => onChange({ clothCode: genClothCode(item.costPerMeter) })}
                   title="Regenerate code" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 14 }}>
                   🔄
                 </button>

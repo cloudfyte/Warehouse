@@ -176,7 +176,7 @@ export default function ItemTypes({ itemTypes, isSuperAdmin, isAdmin, isManager,
           <div className="w-full max-w-md rounded-xl p-6 space-y-4" style={{ background: "var(--surface)" }}>
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-base">{editing ? "Edit Item Type" : "New Item Type"}</h3>
-              <button onClick={() => setShowForm(false)} className="text-2xl" style={{ color: "var(--text-secondary)" }}>×</button>
+              <button type="button" onClick={() => setShowForm(false)} className="text-2xl" style={{ color: "var(--text-secondary)" }}>×</button>
             </div>
 
             <ErrorBanner msg={err} />

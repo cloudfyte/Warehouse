@@ -16,15 +16,18 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: Size;
 }
 
-export default function Button({ variant = "primary", size = "md", style, children, disabled, ...props }: ButtonProps) {
+// Defaults to type="button". An untyped button inside a <form> is a submit
+// button, so without this every dialog button would fire its own onClick and
+// the form's onSubmit — saving twice on a single click.
+export default function Button({ variant = "primary", size = "md", type = "button", style, className, children, disabled, ...props }: ButtonProps) {
   return (
     <button
+      type={type}
       disabled={disabled}
+      className={["ui-btn", size === "sm" && "ui-btn--sm", className].filter(Boolean).join(" ")}
       style={{
-        padding: size === "sm" ? "6px 14px" : "9px 18px",
         borderRadius: 8,
         fontWeight: 700,
-        fontSize: size === "sm" ? 12 : 13,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
         display: "inline-flex",

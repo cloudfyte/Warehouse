@@ -238,7 +238,7 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
 
       <FilterBar>
         <Input placeholder="Search suppliers…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 360 }} />
-        <button
+        <button type="button"
           onClick={() => setShowArchived(v => !v)}
           style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${showArchived ? "#dc2626" : "var(--line)"}`, background: showArchived ? "#fef2f2" : "transparent", color: showArchived ? "#dc2626" : "var(--muted)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           {showArchived ? "← Active Suppliers" : "View Archived"}
@@ -345,7 +345,7 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
             {filtered.map(s => (
               <tr key={s.id} style={{ borderBottom: "1px solid var(--panel-border)" }}>
                 <td style={{ padding: "13px 16px" }}>
-                  <button onClick={() => setHistorySupplier(s)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+                  <button type="button" onClick={() => setHistorySupplier(s)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
                     <div style={{ fontWeight: 700, fontSize: 13, color: "var(--primary)", textDecoration: "underline", textDecorationStyle: "dotted" }}>{s.name}</div>
                     {s.city && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{s.city}, {s.state}</div>}
                     {!s.active && <div style={{ fontSize: 10, fontWeight: 700, color: "#991b1b", background: "#fef2f2", borderRadius: 4, padding: "1px 5px", display: "inline-block", marginTop: 3 }}>Archived</div>}

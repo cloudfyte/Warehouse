@@ -85,7 +85,7 @@ button { cursor: pointer; }
 button:hover:not(:disabled) { filter: brightness(0.9); transition: filter 0.15s; }
 
 /* ─── App shell ───────────────────────────────────────────────────────────── */
-.app-shell { min-height: 100vh; display: flex; }
+.app-shell { min-height: 100dvh; display: flex; }
 
 /* Sidebar — fixed, full height, flex column so nav can scroll */
 .sidebar {
@@ -403,7 +403,7 @@ tbody tr:hover { background: var(--hover-bg); }  /* was: #fafcfb */
 .confirm-actions .danger-btn:hover { background: #a93226; }
 
 /* ─── Login ───────────────────────────────────────────────────────────────── */
-.login-page { min-height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr; }
+.login-page { min-height: 100dvh; display: grid; grid-template-columns: 1.1fr 1fr; }
 .login-story {
   padding: 42px 50px; color: white;
   background: linear-gradient(145deg, rgba(21,58,43,.91), rgba(13,41,30,.96)),
@@ -470,7 +470,7 @@ textarea { min-height: 78px; resize: vertical; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .modal-footer { padding: 14px 24px 20px; border-top: 1px solid var(--line); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; padding-top: 17px; border-top: 1px solid var(--line); }
-.center-state { min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; color: var(--muted); }
+.center-state { min-height: 100dvh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; color: var(--muted); }
 .spinner { width: 24px; height: 24px; border-radius: 50%; border: 3px solid #d9e1dc; border-top-color: var(--primary-3); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
@@ -545,4 +545,52 @@ textarea { min-height: 78px; resize: vertical; }
 @media (max-width: 640px) {
   /* Filter rows that use flex should wrap */
   .filter-bar { flex-wrap: wrap !important; }
+}
+
+/* ─── Form controls ───────────────────────────────────────────────────────────
+   These sizes live here rather than in the atoms' inline style objects: inline
+   styles beat any stylesheet, so while padding and font-size were set in JSX no
+   media query could reach them. The atoms keep their colours inline and their
+   dimensions here. */
+.ui-field {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  min-height: 38px;
+  box-sizing: border-box;
+}
+
+.ui-btn {
+  padding: 9px 18px;
+  font-size: 13px;
+  min-height: 38px;
+}
+
+.ui-btn--sm {
+  padding: 6px 14px;
+  font-size: 12px;
+  min-height: 32px;
+}
+
+/* Touch devices: 44px targets, and 16px text on fields because iOS Safari
+   zooms the whole page when it focuses an input smaller than that — which then
+   leaves the rest of the form off-screen. Keyed on pointer rather than width so
+   a small desktop window keeps the tighter desktop sizing. */
+@media (pointer: coarse) {
+  .ui-field {
+    font-size: 16px;
+    min-height: 44px;
+    padding: 11px 14px;
+  }
+  .ui-btn {
+    min-height: 44px;
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+  .ui-btn--sm {
+    min-height: 40px;
+    padding: 9px 16px;
+    font-size: 13px;
+  }
 }

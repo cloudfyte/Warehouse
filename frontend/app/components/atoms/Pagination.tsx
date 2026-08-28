@@ -20,14 +20,14 @@ export default function Pagination({ page, total, perPage, onChange }: Props) {
         {from}–{to} of {total}
       </span>
       <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-        <button
+        <button type="button"
           disabled={page <= 1}
           onClick={() => onChange(1)}
           style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", cursor: page <= 1 ? "default" : "pointer", opacity: page <= 1 ? 0.4 : 1, fontSize: 12 }}
         >
           «
         </button>
-        <button
+        <button type="button"
           disabled={page <= 1}
           onClick={() => onChange(page - 1)}
           style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", cursor: page <= 1 ? "default" : "pointer", opacity: page <= 1 ? 0.4 : 1, fontSize: 12 }}
@@ -37,14 +37,14 @@ export default function Pagination({ page, total, perPage, onChange }: Props) {
         <span style={{ padding: "4px 10px", borderRadius: 6, background: "var(--accent)", color: "#fff", fontWeight: 600, fontSize: 12 }}>
           {page} / {pages}
         </span>
-        <button
+        <button type="button"
           disabled={page >= pages}
           onClick={() => onChange(page + 1)}
           style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", cursor: page >= pages ? "default" : "pointer", opacity: page >= pages ? 0.4 : 1, fontSize: 12 }}
         >
           ›
         </button>
-        <button
+        <button type="button"
           disabled={page >= pages}
           onClick={() => onChange(pages)}
           style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--surface)", cursor: page >= pages ? "default" : "pointer", opacity: page >= pages ? 0.4 : 1, fontSize: 12 }}

@@ -14,6 +14,7 @@ import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
+import { formatMoney } from "@/app/lib/formatters";
 
 interface Props {
   quotations: Quotation[];
@@ -53,8 +54,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
 
   function printQuotation(qt: Quotation) {
     const ss = systemSettings;
-    const curr = ss?.currencySymbol || "₹";
-    const fmt = (n: number) => `${curr}${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+    const fmt = (n: number) => formatMoney(n);
     const companyName = ss?.companyName || ss?.appName || "Warehouse ERP";
     const addr = (ss?.printCompanyAddress || "").replace(/\n/g, "<br>");
     const logoUrl = ss?.printShowLogo !== false && ss?.logoUrl ? ss.logoUrl : "";
@@ -228,7 +228,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
     }
   }
 
-  const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  const fmt = (n: number) => formatMoney(n);
 
   return (
     <div className="space-y-4">
@@ -240,7 +240,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
       {/* Filter chips */}
       <FilterBar>
         {["ALL", ...STATUS_OPTIONS].map(s => (
-          <button key={s} onClick={() => setFilter(s)}
+          <button type="button" key={s} onClick={() => setFilter(s)}
             className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
             style={{
               background: filter === s ? "var(--primary)" : "transparent",
@@ -324,7 +324,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                 <Button variant="secondary" size="sm" onClick={() => printQuotation(selected)} title="Print / Save as PDF">
                   <Printer size={14} /> Print
                 </Button>
-                <button onClick={() => { setSelected(null); setConvertMode(null); }} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                <button type="button" onClick={() => { setSelected(null); setConvertMode(null); }} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
             </div>
 
@@ -438,7 +438,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
             style={{ background: "var(--surface)" }}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">New Quotation</h3>
-              <button onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setErr(""); }} className="text-2xl" style={{ color: "var(--text-secondary)" }}>×</button>
+              <button type="button" onClick={() => { setShowCreate(false); setForm(EMPTY_FORM); setErr(""); }} className="text-2xl" style={{ color: "var(--text-secondary)" }}>×</button>
             </div>
 
             <ErrorBanner msg={err} />
@@ -495,7 +495,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                         onChange={e => setItemField(idx, "unitPrice", e.target.value)}
                         style={{ fontSize: 11 }} min="0" />
                       {form.items.length > 1 && (
-                        <button onClick={() => removeItem(idx)}
+                        <button type="button" onClick={() => removeItem(idx)}
                           className="text-red-500 font-bold text-lg leading-none self-center">×</button>
                       )}
                     </div>

@@ -11,6 +11,7 @@ import StatCard from "@/app/components/molecules/StatCard";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import Field from "@/app/components/molecules/Field";
+import { formatMoney } from "@/app/lib/formatters";
 
 interface Props {
   gql: <T>(q: string, v?: Record<string, unknown>) => Promise<T>;
@@ -19,7 +20,7 @@ interface Props {
 const CURRENT_YEAR = new Date().getFullYear();
 
 function pct(n: number) { return `${n.toFixed(1)}%`; }
-function fmt(n: number) { return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`.replace(/\.0$/, ""); }
+const fmt = (n: number) => formatMoney(n, { decimals: 0 });
 
 export default function Reports({ gql }: Props) {
   const [section, setSection] = useState<"pl" | "aging">("pl");
@@ -128,7 +129,7 @@ export default function Reports({ gql }: Props) {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="var(--text-secondary)" />
                       <YAxis tick={{ fontSize: 11 }} stroke="var(--text-secondary)"
-                        tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
+                        tickFormatter={v => formatMoney(v, { compact: true })} />
                       <Tooltip
                         contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
                         formatter={(v: unknown, name: unknown) => [fmt(typeof v === "number" ? v : 0), name as string]} />

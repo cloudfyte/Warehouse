@@ -17,6 +17,7 @@ import BluetoothPrintButton from "@/app/components/molecules/BluetoothPrintButto
 import { buildTagEscPos } from "@/app/lib/useBluetooth";
 
 import { tagDocument, type TagSettings } from "@/app/lib/tagTemplate";
+import Drawer from "@/app/components/atoms/Drawer";
 
 interface Props {
   products: FinishedProduct[]
@@ -131,15 +132,13 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
 
       {/* Detail / tag print panel */}
       {selected && (
-        <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "var(--paper)", width: "min(460px, 100vw)", height: "100vh", overflowY: "auto", padding: 28, border: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 18 }}>{selected.sku}</div>
-                <div style={{ color: "var(--muted)", fontSize: 14 }}>{selected.itemType.name}</div>
-              </div>
-              <button onClick={() => setSelected(null)} aria-label="Close" style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)", padding: "4px 8px", borderRadius: 6 }}>×</button>
-            </div>
+        <Drawer
+          title={selected.sku}
+          subtitle={selected.itemType.name}
+          width={460}
+          zIndex={100}
+          onClose={() => setSelected(null)}
+        >
             <div style={{ background: "var(--bg)", borderRadius: 10, padding: 16, marginBottom: 16, fontSize: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[
@@ -192,8 +191,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 printerWidth: systemSettings?.tagPrinterWidth,
               })}
             />
-          </div>
-        </div>
+        </Drawer>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
@@ -232,7 +230,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
             {!p.tagsPrinted && (
               <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#c07020", fontWeight: 600, background: "#fff3e0", borderRadius: 4, padding: "2px 7px" }}>Tag pending</div>
-                <button
+                <button type="button"
                   onClick={e => { e.stopPropagation(); printTag(p, systemSettings || {}); markPrinted(p.id); }}
                   style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, padding: "2px 8px", borderRadius: 4, border: "1px solid #c07020", background: "transparent", color: "#c07020", fontWeight: 600, cursor: "pointer" }}>
                   Print Tag

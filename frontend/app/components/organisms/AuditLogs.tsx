@@ -10,6 +10,7 @@ import Badge from "@/app/components/atoms/Badge";
 import Pagination from "@/app/components/atoms/Pagination";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import Modal from "@/app/components/atoms/Modal";
 
 interface Props { logs: AuditLog[] }
 
@@ -132,24 +133,15 @@ function AuditLogs({ logs }: Props) {
       <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
 
       {detail && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
-          onClick={() => setDetail(null)}>
-          <div style={{ background: "var(--paper)", borderRadius: 14, padding: 28, maxWidth: 520, width: "90vw", maxHeight: "80vh", overflowY: "auto" }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>{detail.action.replace(/_/g, " ")}</div>
-                <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>
-                  {detail.entityType} #{detail.entityId} · {detail.actorName} · {timeAgo(detail.createdAt)}
-                </div>
-              </div>
-              <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--muted)" }}>×</button>
-            </div>
-            <pre style={{ background: "var(--canvas)", borderRadius: 8, padding: 14, fontSize: 12, overflow: "auto", margin: 0, color: "var(--ink)" }}>
-              {JSON.stringify(detail.detail, null, 2)}
-            </pre>
-          </div>
-        </div>
+        <Modal
+          title={detail.action.replace(/_/g, " ")}
+          subtitle={`${detail.entityType} #${detail.entityId} · ${detail.actorName} · ${timeAgo(detail.createdAt)}`}
+          onClose={() => setDetail(null)}
+        >
+          <pre style={{ background: "var(--canvas)", borderRadius: 8, padding: 14, fontSize: 12, overflow: "auto", margin: 0, color: "var(--ink)" }}>
+            {JSON.stringify(detail.detail, null, 2)}
+          </pre>
+        </Modal>
       )}
     </div>
   );

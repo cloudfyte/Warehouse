@@ -266,7 +266,7 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
                       {tabs.map(t => {
                         const on = !!form.tabPermissions[t.key];
                         return (
-                          <button key={t.key} onClick={() => setForm(f => ({ ...f, tabPermissions: { ...f.tabPermissions, [t.key]: !on } }))}
+                          <button type="button" key={t.key} onClick={() => setForm(f => ({ ...f, tabPermissions: { ...f.tabPermissions, [t.key]: !on } }))}
                             style={{
                               padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
                               border: `1.5px solid ${on ? "var(--primary)" : "var(--line)"}`,

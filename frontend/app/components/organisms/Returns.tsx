@@ -14,6 +14,7 @@ import Field from "@/app/components/molecules/Field";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import Pagination from "@/app/components/atoms/Pagination";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import Drawer from "@/app/components/atoms/Drawer";
 
 const PER_PAGE = 20;
 
@@ -241,12 +242,17 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
 
       {/* ── Buyer Return modal ── */}
       {showBuyer && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
-          <div style={{ background: "var(--paper)", width: "min(480px, 100vw)", height: "100vh", overflowY: "auto", padding: 28, borderLeft: "1px solid var(--line)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>New Customer Return</h3>
-              <button onClick={() => setShowBuyer(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)" }}>×</button>
-            </div>
+        <Drawer
+          title="New Customer Return"
+          width={480}
+          onClose={() => setShowBuyer(false)}
+          onSubmit={submitBuyerReturn}
+          footer={
+            <Button type="submit" disabled={buyerLoading} style={{ width: "100%", fontSize: 15 }}>
+              {buyerLoading ? "Recording…" : "Record Return"}
+            </Button>
+          }
+        >
             <ErrorBanner msg={buyerErr} />
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <Field label="Buyer" required>
@@ -283,21 +289,22 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
                 <Textarea value={buyerForm.reason} onChange={e => setBuyerForm(f => ({ ...f, reason: e.target.value }))} rows={3} placeholder="Why is the buyer returning this?" style={{ minHeight: "unset" }} />
               </Field>
             </div>
-            <Button onClick={submitBuyerReturn} disabled={buyerLoading} style={{ width: "100%", marginTop: 20, fontSize: 15 }}>
-              {buyerLoading ? "Recording…" : "Record Return"}
-            </Button>
-          </div>
-        </div>
+        </Drawer>
       )}
 
       {/* ── Supplier Return modal ── */}
       {showSupplier && (
-        <div style={{ position: "fixed", inset: 0, background: "#0008", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
-          <div style={{ background: "var(--paper)", width: "min(480px, 100vw)", height: "100vh", overflowY: "auto", padding: 28, borderLeft: "1px solid var(--line)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>New Supplier Return</h3>
-              <button onClick={() => setShowSupplier(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--muted)" }}>×</button>
-            </div>
+        <Drawer
+          title="New Supplier Return"
+          width={480}
+          onClose={() => setShowSupplier(false)}
+          onSubmit={submitSupplierReturn}
+          footer={
+            <Button type="submit" disabled={supplierLoading} style={{ width: "100%", fontSize: 15 }}>
+              {supplierLoading ? "Recording…" : "Record Return"}
+            </Button>
+          }
+        >
             <ErrorBanner msg={supplierErr} />
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <Field label="Supplier" required>
@@ -349,11 +356,7 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
                 <Textarea value={supplierForm.reason} onChange={e => setSupplierForm(f => ({ ...f, reason: e.target.value }))} rows={3} placeholder="Why are you returning this?" style={{ minHeight: "unset" }} />
               </Field>
             </div>
-            <Button onClick={submitSupplierReturn} disabled={supplierLoading} style={{ width: "100%", marginTop: 20, fontSize: 15 }}>
-              {supplierLoading ? "Recording…" : "Record Return"}
-            </Button>
-          </div>
-        </div>
+        </Drawer>
       )}
     </div>
   );

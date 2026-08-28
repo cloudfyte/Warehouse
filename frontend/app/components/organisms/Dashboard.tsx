@@ -64,7 +64,7 @@ function WorkflowGuide({ stats, onNavigate }: { stats: DashboardStats; onNavigat
             const alert = stats && step.getAlert ? step.getAlert(stats) : false;
             return (
               <div key={step.tab} style={{ display: "flex", alignItems: "center" }}>
-                <button
+                <button type="button"
                   onClick={() => onNavigate?.(step.tab)}
                   style={{
                     display: "flex", flexDirection: "column", alignItems: "center",
@@ -336,7 +336,7 @@ function Dashboard({
               <div style={{ marginBottom: 10, fontSize: 11, fontWeight: 700, color: "#b45309", textTransform: "uppercase", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6 }}>
                 <span>⚠ Stock Alerts</span>
                 <span style={{ background: "#f59e0b", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 7px", fontWeight: 700 }}>{totalAlerts}</span>
-                <button onClick={() => setAlertsDismissed(true)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#b45309", padding: 4, borderRadius: 6 }}>
+                <button type="button" onClick={() => setAlertsDismissed(true)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#b45309", padding: 4, borderRadius: 6 }}>
                   <X size={14} />
                 </button>
               </div>
@@ -367,7 +367,7 @@ function Dashboard({
               <div style={{ marginBottom: 10, fontSize: 11, fontWeight: 700, color: "#b45309", textTransform: "uppercase", letterSpacing: 1, display: "flex", alignItems: "center", gap: 6 }}>
                 <span>⚠ Stock Alerts</span>
                 <span style={{ background: "#f59e0b", color: "#fff", borderRadius: 99, fontSize: 10, padding: "1px 7px", fontWeight: 700 }}>{totalAlerts}</span>
-                <button onClick={() => setAlertsDismissed(true)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#b45309", padding: 4, borderRadius: 6 }}>
+                <button type="button" onClick={() => setAlertsDismissed(true)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#b45309", padding: 4, borderRadius: 6 }}>
                   <X size={14} />
                 </button>
               </div>

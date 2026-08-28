@@ -14,8 +14,8 @@ export default function ConfirmDialog({
         <h3>{state.title}</h3>
         <p>{state.message}</p>
         <div className="confirm-actions">
-          <button className="secondary-button" onClick={onCancel}>Cancel</button>
-          <button className="danger-btn" onClick={() => { state.onConfirm(); onCancel(); }}>
+          <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
+          <button type="button" className="danger-btn" onClick={() => { state.onConfirm(); onCancel(); }}>
             {state.confirmLabel}
           </button>
         </div>
