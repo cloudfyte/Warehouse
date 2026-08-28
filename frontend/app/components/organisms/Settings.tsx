@@ -487,7 +487,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
               <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Print Area (white section only)</div>
-                  <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, background: "color-mix(in srgb,var(--brand) 8%,transparent)", borderRadius: 6, padding: "6px 10px" }}>
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, background: "color-mix(in srgb,var(--primary) 8%,transparent)", borderRadius: 6, padding: "6px 10px" }}>
                     Sri Wedding default: <strong>54mm × 65mm</strong> — measure your tag's white section
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -495,16 +495,16 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                     <input type="range" min={40} max={110} step={1}
                       value={form.tagWidthMm ?? 54}
                       onChange={e => setForm(p => ({ ...p, tagWidthMm: +e.target.value }))}
-                      style={{ flex: 1, accentColor: "var(--brand)" }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", width: 38 }}>{form.tagWidthMm ?? 54}mm</span>
+                      style={{ flex: 1, accentColor: "var(--primary)" }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", width: 38 }}>{form.tagWidthMm ?? 54}mm</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                     <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", width: 40 }}>Height</span>
                     <input type="range" min={40} max={150} step={1}
                       value={form.tagHeightMm ?? 65}
                       onChange={e => setForm(p => ({ ...p, tagHeightMm: +e.target.value }))}
-                      style={{ flex: 1, accentColor: "var(--brand)" }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", width: 38 }}>{form.tagHeightMm ?? 65}mm</span>
+                      style={{ flex: 1, accentColor: "var(--primary)" }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", width: 38 }}>{form.tagHeightMm ?? 65}mm</span>
                   </div>
                   <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} style={{ marginBottom: 8 }} />
                   <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Tagline (e.g. Quality Garments)" style={{ marginBottom: 8 }} />
@@ -517,8 +517,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                     <input type="range" min={8} max={22} step={1}
                       value={form.tagBrandFontSize ?? 14}
                       onChange={e => setForm(p => ({ ...p, tagBrandFontSize: +e.target.value }))}
-                      style={{ flex: 1, accentColor: "var(--brand)" }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", width: 30 }}>{form.tagBrandFontSize ?? 14}pt</span>
+                      style={{ flex: 1, accentColor: "var(--primary)" }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)", width: 30 }}>{form.tagBrandFontSize ?? 14}pt</span>
                   </div>
                 </div>
 
@@ -544,7 +544,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                       <input type="range" min={16} max={60} step={2}
                         value={form.tagLogoSize ?? 30}
                         onChange={e => setForm(p => ({ ...p, tagLogoSize: +e.target.value }))}
-                        style={{ width: "100%", accentColor: "var(--brand)" }} />
+                        style={{ width: "100%", accentColor: "var(--primary)" }} />
                     </div>
                   )}
                 </div>
@@ -573,7 +573,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                         style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "7px 10px", borderRadius: 8, border: "1px solid var(--line)",
-                          background: dragIdx === idx ? "color-mix(in srgb,var(--brand) 8%,transparent)" : "var(--canvas)",
+                          background: dragIdx === idx ? "color-mix(in srgb,var(--primary) 8%,transparent)" : "var(--canvas)",
                           cursor: "grab", userSelect: "none", transition: "background 0.1s",
                         }}>
                         <span style={{ color: "var(--muted)", fontSize: 13 }}>⠿</span>

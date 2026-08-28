@@ -154,18 +154,42 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
     return so
 
 
+# Once an order is finished it must not be reopened: going back to REQUESTED and
+# forward again re-ran the dispatch notification and, worse, made the stock
+# restored by a cancellation issuable a second time.
+_SO_TERMINAL = {SalesOrder.Status.DELIVERED, SalesOrder.Status.CANCELLED}
+
+
 def update_sales_order_status(*, id, status, actual_delivery=None):
     status = status.upper()
     if status not in SalesOrder.Status.values:
         raise GraphQLError("Invalid status.")
-    try:
-        so = SalesOrder.objects.select_related("buyer").get(pk=id)
-    except SalesOrder.DoesNotExist as exc:
-        raise GraphQLError("Sales order not found.") from exc
-    so.status = status
-    if actual_delivery:
-        so.actual_delivery = actual_delivery
-    so.save()
+
+    with transaction.atomic():
+        try:
+            so = SalesOrder.objects.select_for_update().select_related("buyer").get(pk=id)
+        except SalesOrder.DoesNotExist as exc:
+            raise GraphQLError("Sales order not found.") from exc
+
+        if so.status == status:
+            return so
+        if so.status in _SO_TERMINAL:
+            raise GraphQLError(
+                f"This order is already {so.status.lower()} and cannot be changed."
+            )
+
+        # create_sales_order decremented FinishedProduct.quantity; cancelling only
+        # flipped the status, so the pieces were written off permanently.
+        if status == SalesOrder.Status.CANCELLED:
+            for item in so.items.select_related("finished_product"):
+                fp = FinishedProduct.objects.select_for_update().get(pk=item.finished_product_id)
+                fp.quantity += item.quantity
+                fp.save(update_fields=["quantity", "updated_at"])
+
+        so.status = status
+        if actual_delivery:
+            so.actual_delivery = actual_delivery
+        so.save()
 
     # WhatsApp notification when order is dispatched
     if status == SalesOrder.Status.DISPATCHED:

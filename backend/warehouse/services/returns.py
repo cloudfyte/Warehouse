@@ -97,24 +97,43 @@ def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_
     if return_kind == "RAW_CLOTH":
         if not raw_cloth_batch_id or not meters_returned:
             raise GraphQLError("Raw cloth batch and meters returned are required for RAW_CLOTH returns.")
-        try:
-            raw_batch = RawClothBatch.objects.get(pk=raw_cloth_batch_id)
-        except RawClothBatch.DoesNotExist as exc:
-            raise GraphQLError("Raw cloth batch not found.") from exc
         meters_returned = Decimal(str(meters_returned))
         if meters_returned <= 0:
             raise GraphQLError("Meters returned must be greater than zero.")
     else:
         if not readymade_stock_id or not quantity_returned:
             raise GraphQLError("Readymade stock and quantity are required for READYMADE returns.")
-        try:
-            readymade = ReadymadeStock.objects.get(pk=readymade_stock_id)
-        except ReadymadeStock.DoesNotExist as exc:
-            raise GraphQLError("Readymade stock not found.") from exc
         if quantity_returned <= 0:
             raise GraphQLError("Quantity must be greater than zero.")
 
+    # Goods sent back to a supplier were recorded but never taken out of stock,
+    # so the same cloth stayed available to cut and the same units stayed sellable.
     with transaction.atomic():
+        if return_kind == "RAW_CLOTH":
+            try:
+                raw_batch = RawClothBatch.objects.select_for_update().get(pk=raw_cloth_batch_id)
+            except RawClothBatch.DoesNotExist as exc:
+                raise GraphQLError("Raw cloth batch not found.") from exc
+            if meters_returned > raw_batch.available_meters:
+                raise GraphQLError(
+                    f"Only {raw_batch.available_meters}m of batch {raw_batch.batch_number} "
+                    f"is still in stock — {meters_returned}m cannot be returned."
+                )
+            raw_batch.available_meters -= meters_returned
+            raw_batch.save(update_fields=["available_meters", "updated_at"])
+        else:
+            try:
+                readymade = ReadymadeStock.objects.select_for_update().get(pk=readymade_stock_id)
+            except ReadymadeStock.DoesNotExist as exc:
+                raise GraphQLError("Readymade stock not found.") from exc
+            if quantity_returned > readymade.quantity_available:
+                raise GraphQLError(
+                    f"Only {readymade.quantity_available} unit(s) still in stock — "
+                    f"{quantity_returned} cannot be returned."
+                )
+            readymade.quantity_available -= quantity_returned
+            readymade.save(update_fields=["quantity_available"])
+
         ret = SupplierReturn.objects.create(
             supplier=supplier,
             return_kind=return_kind,

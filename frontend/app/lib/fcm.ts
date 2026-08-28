@@ -11,7 +11,7 @@ const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 const API_URL = process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:8000/graphql/";
 
 async function gql(query: string, variables: Record<string, unknown> = {}) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("jwt") : null;
   const r = await fetch(API_URL, {
     method: "POST",
     headers: {

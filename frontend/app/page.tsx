@@ -303,6 +303,16 @@ export default function Home() {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // A fresh arrow here would be a new identity every render, and page.tsx
+  // re-renders on a 60s interval and on every mutation. Analytics puts this in
+  // a useEffect dep array, so an unstable identity refetched its whole query
+  // and blanked all six charts each time.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const runQuery = useCallback((q: string, v?: Record<string, unknown>): Promise<any> => {
+    if (!token) throw new Error("Not authenticated");
+    return graphql(q, v || {}, token);
+  }, [token]);
+
   const mutate = useCallback(async (query: string, variables: Record<string, unknown>): Promise<any> => {
     if (!token) throw new Error("Not authenticated");
     setSaving(true);
@@ -622,7 +632,7 @@ export default function Home() {
         {/* ── Tab content ── */}
         <div className="tab-content">
         {currentTab === "analytics" && (
-          <Analytics gql={(q) => graphql(q, {}, token!)} />
+          <Analytics gql={runQuery} />
         )}
         {currentTab === "dashboard" && (
           <Dashboard stats={data?.dashboardStats} profile={data?.employeeProfile} rawBatches={data?.rawClothBatches || []} readymadeStock={data?.readymadeStock || []} reorderPoints={data?.reorderPoints || []} role={role} cuttingAssignments={data?.cuttingAssignments || []} stitchingJobs={data?.stitchingJobs || []} onNavigate={t => navigateTo(t)} />
@@ -697,7 +707,7 @@ export default function Home() {
             products={data?.finishedProducts || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
             onMutate={mutate}
-            gql={(q, v) => graphql(q, v || {}, token!)}
+            gql={runQuery}
             systemSettings={data?.systemSettings}
           />
         )}
@@ -752,7 +762,7 @@ export default function Home() {
             warehouses={data?.warehouseLocations || []}
             rawClothBatches={data?.rawClothBatches || []}
             finishedProducts={data?.finishedProducts || []}
-            gql={(q, v) => graphql(q, v || {}, token!)}
+            gql={runQuery}
             onRefresh={() => loadData(token!)}
           />
         )}
@@ -764,7 +774,7 @@ export default function Home() {
             colors={data?.clothColors || []}
             itemTypes={data?.itemTypes || []}
             isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} isManager={isManager}
-            gql={(q, v) => graphql(q, v || {}, token!)}
+            gql={runQuery}
             onRefresh={() => loadData(token!)}
           />
         )}
@@ -775,12 +785,12 @@ export default function Home() {
             warehouses={data?.warehouseLocations || []}
             finishedProducts={data?.finishedProducts || []}
             systemSettings={data?.systemSettings}
-            gql={(q, v) => graphql(q, v || {}, token!)}
+            gql={runQuery}
             onRefresh={() => loadData(token!)}
           />
         )}
         {currentTab === "reports" && (
-          <Reports gql={(q, v) => graphql(q, v || {}, token!)} />
+          <Reports gql={runQuery} />
         )}
         {currentTab === "ledger" && (
           <Ledger
@@ -795,7 +805,7 @@ export default function Home() {
           <ItemTypes
             itemTypes={data?.itemTypes || []}
             isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} isManager={isManager}
-            gql={(q, v) => graphql(q, v || {}, token!)}
+            gql={runQuery}
             onRefresh={() => loadData(token!)}
           />
         )}
@@ -816,7 +826,7 @@ export default function Home() {
           <Roles
             roles={data?.customRoles || []}
             isSuperAdmin={isSuperAdmin}
-            gql={(q, v) => graphql(q, v || {}, token!)}
+            gql={runQuery}
             onRefresh={() => loadData(token!)}
           />
         )}

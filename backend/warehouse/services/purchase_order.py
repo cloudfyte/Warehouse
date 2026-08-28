@@ -86,14 +86,28 @@ def update_purchase_order_status(*, id, status, actual_delivery=None):
     status = status.upper()
     if status not in PurchaseOrder.Status.values:
         raise GraphQLError("Invalid status.")
-    try:
-        po = PurchaseOrder.objects.get(pk=id)
-    except PurchaseOrder.DoesNotExist as exc:
-        raise GraphQLError("Purchase order not found.") from exc
-    po.status = status
-    if actual_delivery:
-        po.actual_delivery = actual_delivery
-    po.save()
+
+    with transaction.atomic():
+        try:
+            po = PurchaseOrder.objects.select_for_update().get(pk=id)
+        except PurchaseOrder.DoesNotExist as exc:
+            raise GraphQLError("Purchase order not found.") from exc
+
+        # Reopening a received order let it be received again, and every receipt
+        # mints fresh RawClothBatch / ReadymadeStock rows — the stock doubles.
+        if po.status == PurchaseOrder.Status.CANCELLED:
+            raise GraphQLError("This order is cancelled and cannot be changed.")
+        if po.status in (PurchaseOrder.Status.RECEIVED, PurchaseOrder.Status.VERIFIED):
+            if status != PurchaseOrder.Status.VERIFIED:
+                raise GraphQLError(
+                    f"Goods for this order are already in stock ({po.status.lower()}); "
+                    f"it can only move on to verified."
+                )
+
+        po.status = status
+        if actual_delivery:
+            po.actual_delivery = actual_delivery
+        po.save()
     return po
 
 
@@ -102,14 +116,21 @@ def receive_purchase_order(*, po_id, user, receipt_items):
     Mark PO as received and create raw cloth batches / readymade stock records.
     receipt_items = [{po_item_id, received_meters?, received_quantity?, bin_location?, cost_per_meter?, notes?}]
     """
-    try:
-        po = PurchaseOrder.objects.select_related("supplier", "warehouse").get(pk=po_id)
-    except PurchaseOrder.DoesNotExist as exc:
-        raise GraphQLError("Purchase order not found.") from exc
-    if po.status not in (PurchaseOrder.Status.PLACED, PurchaseOrder.Status.DISPATCHED):
-        raise GraphQLError("Only PLACED or DISPATCHED orders can be received.")
-
     with transaction.atomic():
+        # The status check has to hold the row: read outside the lock, two clicks
+        # on Receive both saw PLACED and each created a full set of stock rows.
+        try:
+            po = (PurchaseOrder.objects
+                  .select_for_update()
+                  .select_related("supplier", "warehouse")
+                  .get(pk=po_id))
+        except PurchaseOrder.DoesNotExist as exc:
+            raise GraphQLError("Purchase order not found.") from exc
+        if po.status not in (PurchaseOrder.Status.PLACED, PurchaseOrder.Status.DISPATCHED):
+            raise GraphQLError(
+                f"Only placed or dispatched orders can be received — this one is {po.status.lower()}."
+            )
+
         for receipt in receipt_items:
             try:
                 poi = PurchaseOrderItem.objects.select_for_update().get(pk=receipt["po_item_id"], purchase_order=po)
@@ -118,6 +139,8 @@ def receive_purchase_order(*, po_id, user, receipt_items):
 
             if poi.item_kind == PurchaseOrderItem.ItemKind.RAW_CLOTH:
                 meters = Decimal(str(receipt.get("received_meters", poi.ordered_meters or 0)))
+                if meters <= 0:
+                    raise GraphQLError("Received meters must be greater than zero.")
                 poi.received_meters = meters
                 poi.save(update_fields=["received_meters"])
                 RawClothBatch.objects.create(
@@ -134,6 +157,8 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                 )
             else:
                 qty = int(receipt.get("received_quantity", poi.ordered_quantity or 0))
+                if qty <= 0:
+                    raise GraphQLError("Received quantity must be greater than zero.")
                 poi.received_quantity = qty
                 poi.save(update_fields=["received_quantity"])
                 ReadymadeStock.objects.create(

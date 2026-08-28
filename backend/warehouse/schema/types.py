@@ -1,6 +1,10 @@
 import graphene
 from graphene_django import DjangoObjectType
 
+# Installs the DecimalField->Float and JSONField->GenericScalar conversions.
+# Must be imported before the DjangoObjectType classes below are declared.
+from warehouse.schema import converters  # noqa: F401
+
 from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
     AuditLog,

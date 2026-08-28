@@ -68,42 +68,71 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
 
 def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_used=None,
                               cloth_wasted=None, completed_date=None, notes=None):
-    try:
-        assignment = CuttingAssignment.objects.get(pk=id)
-    except CuttingAssignment.DoesNotExist as exc:
-        raise GraphQLError("Cutting assignment not found.") from exc
+    with transaction.atomic():
+        try:
+            assignment = CuttingAssignment.objects.select_for_update().get(pk=id)
+        except CuttingAssignment.DoesNotExist as exc:
+            raise GraphQLError("Cutting assignment not found.") from exc
 
-    prev_status = assignment.status
+        prev_status = assignment.status
+        # Completion returns leftover cloth to the batch, so re-completing an
+        # assignment would return it a second time and invent meters.
+        if prev_status == CuttingAssignment.Status.COMPLETED:
+            raise GraphQLError(
+                f"Assignment {assignment.assignment_number} is already completed and cannot be changed."
+            )
 
-    if pieces_completed is not None:
-        if pieces_completed > assignment.target_pieces:
+        if pieces_completed is not None:
+            if pieces_completed > assignment.target_pieces:
+                raise GraphQLError(
+                    f"Pieces completed ({pieces_completed}) cannot exceed target pieces ({assignment.target_pieces})."
+                )
+            assignment.pieces_completed = pieces_completed
+        if cloth_used is not None:
+            cloth_used_dec = Decimal(str(cloth_used))
+            if cloth_used_dec < 0:
+                raise GraphQLError("Cloth used cannot be negative.")
+            assignment.cloth_used = cloth_used_dec
+        if cloth_wasted is not None:
+            cloth_wasted_dec = Decimal(str(cloth_wasted))
+            if cloth_wasted_dec < 0:
+                raise GraphQLError("Cloth wasted cannot be negative.")
+            assignment.cloth_wasted = cloth_wasted_dec
+
+        # cloth_used and cloth_wasted are disjoint (wastage % is wasted/used), so
+        # together they are what the assignment consumed.
+        consumed = assignment.cloth_used + assignment.cloth_wasted
+        if consumed > assignment.meters_assigned:
             raise GraphQLError(
-                f"Pieces completed ({pieces_completed}) cannot exceed target pieces ({assignment.target_pieces})."
+                f"Cloth used ({assignment.cloth_used}m) plus wasted ({assignment.cloth_wasted}m) "
+                f"is {consumed}m, more than the {assignment.meters_assigned}m assigned."
             )
-        assignment.pieces_completed = pieces_completed
-    if cloth_used is not None:
-        cloth_used_dec = Decimal(str(cloth_used))
-        if assignment.meters_assigned > 0 and cloth_used_dec > assignment.meters_assigned:
-            raise GraphQLError(
-                f"Cloth used ({cloth_used_dec}m) cannot exceed meters assigned ({assignment.meters_assigned}m)."
-            )
-        assignment.cloth_used = cloth_used_dec
-    if cloth_wasted is not None:
-        assignment.cloth_wasted = Decimal(str(cloth_wasted))
-    prev_status = assignment.status
-    if status is not None:
-        assignment.status = status.upper()
-    if completed_date is not None:
-        assignment.completed_date = completed_date
-    elif status == CuttingAssignment.Status.COMPLETED and not assignment.completed_date:
-        assignment.completed_date = timezone.now().date()
-    if notes is not None:
-        assignment.notes = notes.strip()
-    assignment.save()
+
+        if status is not None:
+            assignment.status = status.upper()
+        if completed_date is not None:
+            assignment.completed_date = completed_date
+        elif status == CuttingAssignment.Status.COMPLETED and not assignment.completed_date:
+            assignment.completed_date = timezone.now().date()
+        if notes is not None:
+            assignment.notes = notes.strip()
+        assignment.save()
+
+        # The full meters_assigned left the batch when the job was handed out.
+        # Whatever the cutting master did not consume is still good cloth — put
+        # it back, otherwise every short job silently destroys the remainder.
+        if assignment.status == CuttingAssignment.Status.COMPLETED:
+            leftover = assignment.meters_assigned - consumed
+            if leftover > 0:
+                batch = RawClothBatch.objects.select_for_update().get(
+                    pk=assignment.raw_cloth_batch_id)
+                batch.available_meters += leftover
+                batch.save(update_fields=["available_meters", "updated_at"])
+
     if status == CuttingAssignment.Status.COMPLETED and prev_status != CuttingAssignment.Status.COMPLETED:
         notify_managers(
             title=f"Cutting Complete: {assignment.assignment_number}",
-            message=f"{assignment.cutting_master.username} completed {assignment.pieces_completed} pieces "
+            message=f"{assignment.cutting_master.user.username} completed {assignment.pieces_completed} pieces "
                     f"of {assignment.item_type.name} (job {assignment.assignment_number}).",
             level="INFO",
             link="cutting",
@@ -113,32 +142,38 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
 
 def create_stitching_job(*, user, cutting_assignment_id, tailor_id, pieces_assigned,
                          assigned_date=None, due_date=None, notes=""):
-    try:
-        ca = CuttingAssignment.objects.get(pk=cutting_assignment_id)
-    except CuttingAssignment.DoesNotExist as exc:
-        raise GraphQLError("Cutting assignment not found.") from exc
-
-    already_assigned = StitchingJob.objects.filter(cutting_assignment=ca).aggregate(
-        total=__import__("django.db.models", fromlist=["Sum"]).Sum("pieces_assigned")
-    )["total"] or 0
-    available = ca.pieces_completed - already_assigned
-    if pieces_assigned > available:
-        raise GraphQLError(f"Only {available} unassigned pieces available from this cutting assignment.")
+    if pieces_assigned <= 0:
+        raise GraphQLError("Pieces assigned must be greater than zero.")
 
     try:
         tailor = EmployeeProfile.objects.get(pk=tailor_id, role=EmployeeProfile.Role.TAILOR, active=True)
     except EmployeeProfile.DoesNotExist as exc:
         raise GraphQLError("Tailor not found or inactive.") from exc
 
-    job = StitchingJob.objects.create(
-        cutting_assignment=ca,
-        tailor=tailor,
-        pieces_assigned=pieces_assigned,
-        assigned_date=assigned_date or timezone.now().date(),
-        due_date=due_date,
-        notes=notes.strip(),
-        assigned_by=user,
-    )
+    with transaction.atomic():
+        # Lock the assignment so two managers cannot each read the same
+        # unassigned count and both hand out the last pieces.
+        try:
+            ca = CuttingAssignment.objects.select_for_update().get(pk=cutting_assignment_id)
+        except CuttingAssignment.DoesNotExist as exc:
+            raise GraphQLError("Cutting assignment not found.") from exc
+
+        already_assigned = StitchingJob.objects.filter(cutting_assignment=ca).aggregate(
+            total=Sum("pieces_assigned")
+        )["total"] or 0
+        available = ca.pieces_completed - already_assigned
+        if pieces_assigned > available:
+            raise GraphQLError(f"Only {available} unassigned pieces available from this cutting assignment.")
+
+        job = StitchingJob.objects.create(
+            cutting_assignment=ca,
+            tailor=tailor,
+            pieces_assigned=pieces_assigned,
+            assigned_date=assigned_date or timezone.now().date(),
+            due_date=due_date,
+            notes=notes.strip(),
+            assigned_by=user,
+        )
     notify_user(
         user=tailor.user,
         title=f"New Stitching Job: {job.job_number}",
@@ -190,7 +225,7 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
     if status == StitchingJob.Status.READY and prev_status != StitchingJob.Status.READY:
         notify_managers(
             title=f"Stitching Ready: {job.job_number}",
-            message=f"{job.tailor.username} completed {job.pieces_completed} pieces "
+            message=f"{job.tailor.user.username} completed {job.pieces_completed} pieces "
                     f"(job {job.job_number}) — ready to move to Finished Goods.",
             level="INFO",
             link="stitching",
@@ -211,11 +246,27 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
     rs = None
 
     with transaction.atomic():
+        if quantity <= 0:
+            raise GraphQLError("Quantity must be greater than zero.")
+
         if stitching_job_id:
             try:
-                sj = StitchingJob.objects.get(pk=stitching_job_id)
+                sj = StitchingJob.objects.select_for_update().get(pk=stitching_job_id)
             except StitchingJob.DoesNotExist as exc:
                 raise GraphQLError("Stitching job not found.") from exc
+
+            # The eligible/already-moved figures were only used to set the job
+            # status, never to cap the quantity — so one job could be moved to
+            # finished goods over and over, minting stock that was never stitched.
+            eligible = (sj.pieces_completed or 0) - (sj.pieces_rejected or 0)
+            already_moved = FinishedProduct.objects.filter(stitching_job=sj).aggregate(
+                t=Sum("quantity"))["t"] or 0
+            if already_moved + quantity > eligible:
+                raise GraphQLError(
+                    f"Job {sj.job_number} has {eligible - already_moved} piece(s) left to move "
+                    f"({eligible} stitched, {already_moved} already moved)."
+                )
+
             item_type_id = sj.cutting_assignment.item_type_id
             cloth_category_id = sj.cutting_assignment.raw_cloth_batch.cloth_category_id
             cloth_color_id = sj.cutting_assignment.raw_cloth_batch.cloth_color_id
@@ -253,11 +304,9 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
         fp.save(update_fields=["barcode_svg"])
 
         if sj:
-            eligible = (sj.pieces_completed or 0) - (sj.pieces_rejected or 0)
-            already_moved = FinishedProduct.objects.filter(stitching_job=sj).exclude(pk=fp.pk).aggregate(t=Sum("quantity"))["t"] or 0
             if already_moved + quantity >= eligible:
                 sj.status = StitchingJob.Status.MOVED
+                sj.save(update_fields=["status"])
             # else keep READY — more pieces still to be moved
-            sj.save(update_fields=["status"])
 
         return fp
