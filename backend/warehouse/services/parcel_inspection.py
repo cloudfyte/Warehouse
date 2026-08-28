@@ -3,6 +3,7 @@ from django.utils import timezone
 from graphql import GraphQLError
 
 from warehouse.models import ParcelInspection, PurchaseOrder
+from warehouse.permissions import get_scoped
 from warehouse.services.uploads import save_data_urls_csv
 
 
@@ -10,10 +11,7 @@ def create_parcel_inspection(
     *, po_id, user, parcel_condition="GOOD", quantity_check_passed=True,
     discrepancy_notes="", photos="", notes="", inspection_date=None,
 ):
-    try:
-        po = PurchaseOrder.objects.get(pk=po_id)
-    except PurchaseOrder.DoesNotExist as exc:
-        raise GraphQLError("Purchase order not found.") from exc
+    po = get_scoped(user, PurchaseOrder, po_id)
 
     if hasattr(po, "parcel_inspection"):
         raise GraphQLError("Inspection already recorded for this purchase order.")

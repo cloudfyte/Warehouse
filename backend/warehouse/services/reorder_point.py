@@ -6,7 +6,7 @@ from graphql import GraphQLError
 from warehouse.models import (
     ClothCategory, ClothColor, ItemType, ReorderPoint, WarehouseLocation,
 )
-from warehouse.permissions import get_warehouse
+from warehouse.permissions import get_scoped, get_warehouse
 
 
 def create_reorder_point(
@@ -60,11 +60,8 @@ def create_reorder_point(
     return rp
 
 
-def update_reorder_point(*, reorder_point_id, threshold_meters=None, threshold_pieces=None, active=None, size=None):
-    try:
-        rp = ReorderPoint.objects.get(pk=reorder_point_id)
-    except ReorderPoint.DoesNotExist as exc:
-        raise GraphQLError("Reorder point not found.") from exc
+def update_reorder_point(*, user, reorder_point_id, threshold_meters=None, threshold_pieces=None, active=None, size=None):
+    rp = get_scoped(user, ReorderPoint, reorder_point_id)
 
     fields = []
     if threshold_meters is not None:
@@ -84,10 +81,7 @@ def update_reorder_point(*, reorder_point_id, threshold_meters=None, threshold_p
     return rp
 
 
-def delete_reorder_point(*, reorder_point_id):
-    try:
-        rp = ReorderPoint.objects.get(pk=reorder_point_id)
-    except ReorderPoint.DoesNotExist as exc:
-        raise GraphQLError("Reorder point not found.") from exc
+def delete_reorder_point(*, user, reorder_point_id):
+    rp = get_scoped(user, ReorderPoint, reorder_point_id)
     rp.delete()
     return True

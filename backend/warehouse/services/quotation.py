@@ -7,7 +7,7 @@ from graphql import GraphQLError
 from warehouse.models import (
     Buyer, FinishedProduct, Quotation, QuotationItem, SalesOrder,
 )
-from warehouse.permissions import get_warehouse
+from warehouse.permissions import get_scoped, get_warehouse, scoped
 
 
 def create_quotation(*, user, buyer_id, warehouse_id, items, discount=0, notes="", validity_date=None):
@@ -46,10 +46,7 @@ def create_quotation(*, user, buyer_id, warehouse_id, items, discount=0, notes="
             if unit_price < 0:
                 raise GraphQLError("Item unit price cannot be negative.")
 
-            try:
-                fp = FinishedProduct.objects.select_related("item_type").get(pk=fp_id, active=True)
-            except FinishedProduct.DoesNotExist as exc:
-                raise GraphQLError(f"Finished product {fp_id} not found.") from exc
+            fp = get_scoped(user, FinishedProduct, fp_id, active=True)
             line_total = unit_price * qty
             QuotationItem.objects.create(
                 quotation=qt, finished_product=fp, quantity=qty,
@@ -71,14 +68,11 @@ def create_quotation(*, user, buyer_id, warehouse_id, items, discount=0, notes="
     return qt
 
 
-def update_quotation_status(*, id, status):
+def update_quotation_status(*, user, id, status):
     status = status.upper()
     if status not in Quotation.Status.values:
         raise GraphQLError("Invalid status.")
-    try:
-        qt = Quotation.objects.get(pk=id)
-    except Quotation.DoesNotExist as exc:
-        raise GraphQLError("Quotation not found.") from exc
+    qt = get_scoped(user, Quotation, id)
     if qt.status in (Quotation.Status.ACCEPTED, Quotation.Status.REJECTED):
         raise GraphQLError(f"Cannot change status of a {qt.status.lower()} quotation.")
     qt.status = status
@@ -89,7 +83,7 @@ def update_quotation_status(*, id, status):
 def convert_quotation_to_so(*, id, user, payment_mode="CREDIT", amount_paid=None):
     """Convert an ACCEPTED quotation into a real Sales Order."""
     try:
-        qt = Quotation.objects.select_related("buyer", "warehouse").prefetch_related(
+        qt = scoped(user, Quotation).select_related("buyer", "warehouse").prefetch_related(
             "items__finished_product"
         ).get(pk=id)
     except Quotation.DoesNotExist as exc:

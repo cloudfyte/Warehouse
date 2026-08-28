@@ -5,6 +5,7 @@ from django.db import transaction
 from graphql import GraphQLError
 
 from warehouse.models import FinishedProduct, RawClothBatch, StockAdjustment, WarehouseLocation
+from warehouse.permissions import get_scoped
 
 
 def create_stock_adjustment(*, user, item_kind, quantity_change, adjustment_type,
@@ -22,10 +23,7 @@ def create_stock_adjustment(*, user, item_kind, quantity_change, adjustment_type
         if item_kind == StockAdjustment.ItemKind.RAW_CLOTH:
             if not raw_cloth_batch_id:
                 raise GraphQLError("raw_cloth_batch_id is required for RAW_CLOTH adjustment.")
-            try:
-                batch = RawClothBatch.objects.select_for_update().get(pk=raw_cloth_batch_id, active=True)
-            except RawClothBatch.DoesNotExist as exc:
-                raise GraphQLError("Raw cloth batch not found.") from exc
+            batch = get_scoped(user, RawClothBatch, raw_cloth_batch_id, lock=True, active=True)
 
             new_available = batch.available_meters + qty
             if new_available < 0:
@@ -49,10 +47,7 @@ def create_stock_adjustment(*, user, item_kind, quantity_change, adjustment_type
         elif item_kind == StockAdjustment.ItemKind.FINISHED_PRODUCT:
             if not finished_product_id:
                 raise GraphQLError("finished_product_id is required for FINISHED_PRODUCT adjustment.")
-            try:
-                fp = FinishedProduct.objects.select_for_update().get(pk=finished_product_id, active=True)
-            except FinishedProduct.DoesNotExist as exc:
-                raise GraphQLError("Finished product not found.") from exc
+            fp = get_scoped(user, FinishedProduct, finished_product_id, lock=True, active=True)
 
             # For finished products, quantity_change is integer pieces
             pieces = int(qty)

@@ -7,6 +7,7 @@ from django.utils import timezone
 from graphql import GraphQLError
 
 from warehouse.models import CuttingAssignment, EmployeeProfile, FinishedProduct, ItemType, RawClothBatch, StitchingJob
+from warehouse.permissions import get_scoped, get_warehouse
 from warehouse.services.barcode import generate_barcode_svg
 from warehouse.services.notify import notify_managers, notify_user
 
@@ -28,10 +29,7 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
 
     with transaction.atomic():
         # select_for_update must run inside an atomic block to prevent double-assignment
-        try:
-            batch = RawClothBatch.objects.select_for_update().get(pk=raw_cloth_batch_id, active=True)
-        except RawClothBatch.DoesNotExist as exc:
-            raise GraphQLError("Raw cloth batch not found.") from exc
+        batch = get_scoped(user, RawClothBatch, raw_cloth_batch_id, lock=True, active=True)
 
         if meters > batch.available_meters:
             raise GraphQLError(
@@ -236,7 +234,6 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
 def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=None,
                               item_type_id=None, cloth_category_id=None, cloth_color_id=None,
                               age_group="", size="", quantity, warehouse_id, cost_price, sale_price):
-    from warehouse.permissions import get_warehouse
     from warehouse.models import ReadymadeStock
 
     warehouse = get_warehouse(user, warehouse_id)
@@ -274,10 +271,7 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             size = sj.cutting_assignment.size
 
         if readymade_stock_id:
-            try:
-                rs = ReadymadeStock.objects.select_for_update().get(pk=readymade_stock_id)
-            except ReadymadeStock.DoesNotExist as exc:
-                raise GraphQLError("Readymade stock not found.") from exc
+            rs = get_scoped(user, ReadymadeStock, readymade_stock_id, lock=True)
             if rs.quantity_available < quantity:
                 raise GraphQLError(f"Only {rs.quantity_available} units available.")
             rs.quantity_available -= quantity

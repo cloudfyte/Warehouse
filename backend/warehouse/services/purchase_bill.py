@@ -9,7 +9,7 @@ from warehouse.models import (
     PurchaseBill, PurchaseBillItem, PurchaseOrder,
     RawClothBatch, ReadymadeStock, Supplier,
 )
-from warehouse.permissions import get_warehouse
+from warehouse.permissions import get_scoped, get_warehouse
 from warehouse.services.uploads import save_data_url
 
 
@@ -192,10 +192,7 @@ def generate_bill_from_po(*, po_id, user):
     Stock was already created when the PO was received — this only creates
     the accounting document (bill + bill items) for GST/payment tracking.
     """
-    try:
-        po = PurchaseOrder.objects.get(pk=po_id)
-    except PurchaseOrder.DoesNotExist as exc:
-        raise GraphQLError("Purchase order not found.") from exc
+    po = get_scoped(user, PurchaseOrder, po_id)
 
     if po.status not in (PurchaseOrder.Status.RECEIVED, PurchaseOrder.Status.VERIFIED):
         raise GraphQLError("Bill can only be generated for a received purchase order.")

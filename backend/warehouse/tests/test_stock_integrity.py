@@ -223,26 +223,26 @@ class SalesOrderCancellation(StockFixture):
         self.product.refresh_from_db()
         self.assertEqual(self.product.quantity, 45)
 
-        update_sales_order_status(id=order.id, status=SalesOrder.Status.CANCELLED)
+        update_sales_order_status(user=self.admin, id=order.id, status=SalesOrder.Status.CANCELLED)
 
         self.product.refresh_from_db()
         self.assertEqual(self.product.quantity, 50)
 
     def test_a_cancelled_order_cannot_be_reopened(self):
         order = self._order(quantity=5)
-        update_sales_order_status(id=order.id, status=SalesOrder.Status.CANCELLED)
+        update_sales_order_status(user=self.admin, id=order.id, status=SalesOrder.Status.CANCELLED)
 
         with self.assertRaises(GraphQLError):
-            update_sales_order_status(id=order.id, status=SalesOrder.Status.REQUESTED)
+            update_sales_order_status(user=self.admin, id=order.id, status=SalesOrder.Status.REQUESTED)
 
         self.product.refresh_from_db()
         self.assertEqual(self.product.quantity, 50)
 
     def test_cancelling_twice_does_not_credit_stock_twice(self):
         order = self._order(quantity=5)
-        update_sales_order_status(id=order.id, status=SalesOrder.Status.CANCELLED)
+        update_sales_order_status(user=self.admin, id=order.id, status=SalesOrder.Status.CANCELLED)
         # Same status again is a no-op, not a second refund.
-        update_sales_order_status(id=order.id, status=SalesOrder.Status.CANCELLED)
+        update_sales_order_status(user=self.admin, id=order.id, status=SalesOrder.Status.CANCELLED)
 
         self.product.refresh_from_db()
         self.assertEqual(self.product.quantity, 50)
@@ -290,7 +290,7 @@ class PurchaseOrderReceipt(StockFixture):
         )
 
         with self.assertRaises(GraphQLError):
-            update_purchase_order_status(id=po.id, status=PurchaseOrder.Status.PLACED)
+            update_purchase_order_status(user=self.admin, id=po.id, status=PurchaseOrder.Status.PLACED)
 
         self.assertEqual(RawClothBatch.objects.filter(po_item=item).count(), 1)
 
@@ -392,3 +392,85 @@ class ScalarsReachTheClientAsRealTypes(TestCase):
         perms = result.data["customRoles"][0]["tabPermissions"]
         self.assertIsInstance(perms, dict)
         self.assertTrue(perms["cutting"])
+
+
+class WarehouseScopingBlocksOtherBranches(StockFixture):
+    """A role check proves the caller is a manager somewhere, not everywhere.
+
+    Before permissions.scoped(), every mutation that took an object id fetched
+    it with a bare pk lookup, so a store keeper at one branch could move,
+    adjust, or sell another branch's stock just by sending its id.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # A second branch, and a keeper who is assigned only to it.
+        self.other_branch = WarehouseLocation.objects.create(name="Branch", code="BR")
+        outsider = User.objects.create_user("outsider", password="x")
+        self.outsider = EmployeeProfile.objects.create(
+            user=outsider, role=EmployeeProfile.Role.STORE_KEEPER, active=True)
+        self.outsider.locations.add(self.other_branch)
+        self.outsider_user = outsider
+
+    def test_cannot_cut_cloth_belonging_to_another_branch(self):
+        with self.assertRaisesRegex(GraphQLError, "not found in your warehouses"):
+            create_cutting_assignment(
+                user=self.outsider_user,
+                raw_cloth_batch_id=self.batch.id,
+                cutting_master_id=self.master.id,
+                item_type_id=self.item_type.id,
+                meters_assigned=Decimal("10.00"),
+                target_pieces=5,
+            )
+
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.available_meters, Decimal("100.00"))
+
+    def test_cannot_return_another_branch_cloth_to_a_supplier(self):
+        with self.assertRaisesRegex(GraphQLError, "not found in your warehouses"):
+            create_supplier_return(
+                user=self.outsider_user,
+                supplier_id=self.supplier.id,
+                return_kind="RAW_CLOTH",
+                reason="not mine",
+                warehouse_id=self.other_branch.id,
+                raw_cloth_batch_id=self.batch.id,
+                meters_returned=Decimal("10.00"),
+            )
+
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.available_meters, Decimal("100.00"))
+
+    def test_cannot_adjust_another_branch_stock(self):
+        from warehouse.models import StockAdjustment
+        from warehouse.services.stock_adjustment import create_stock_adjustment
+
+        with self.assertRaisesRegex(GraphQLError, "not found in your warehouses"):
+            create_stock_adjustment(
+                user=self.outsider_user,
+                item_kind=StockAdjustment.ItemKind.RAW_CLOTH,
+                quantity_change=Decimal("-50.00"),
+                adjustment_type="LOSS",
+                reason="not mine",
+                warehouse_id=self.other_branch.id,
+                raw_cloth_batch_id=self.batch.id,
+            )
+
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.available_meters, Decimal("100.00"))
+
+    def test_the_owning_branch_is_still_allowed(self):
+        # The scoping must not lock out the people it is meant to serve.
+        self.outsider.locations.add(self.warehouse)
+
+        create_cutting_assignment(
+            user=self.outsider_user,
+            raw_cloth_batch_id=self.batch.id,
+            cutting_master_id=self.master.id,
+            item_type_id=self.item_type.id,
+            meters_assigned=Decimal("10.00"),
+            target_pieces=5,
+        )
+
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.available_meters, Decimal("90.00"))

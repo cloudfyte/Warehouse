@@ -72,7 +72,7 @@ class UpdatePurchaseOrderStatus(graphene.Mutation):
     @login_required
     def mutate(self, info, id, status, actual_delivery=None):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER, EmployeeProfile.Role.STORE_KEEPER)
-        po = update_purchase_order_status(id=id, status=status, actual_delivery=actual_delivery)
+        po = update_purchase_order_status(user=info.context.user, id=id, status=status, actual_delivery=actual_delivery)
         log_action(entity_type="PurchaseOrder", entity_id=po.pk, action=f"STATUS_CHANGED_TO_{status}",
                    actor=info.context.user, detail={"status": status})
         return UpdatePurchaseOrderStatus(purchase_order=po)

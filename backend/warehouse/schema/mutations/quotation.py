@@ -59,7 +59,7 @@ class UpdateQuotationStatus(graphene.Mutation):
     def mutate(self, info, id, status):
         require_role(info.context.user, *_SALES_ROLES)
         from warehouse.services.quotation import update_quotation_status
-        qt = update_quotation_status(id=id, status=status)
+        qt = update_quotation_status(user=info.context.user, id=id, status=status)
         return UpdateQuotationStatus(quotation=qt)
 
 

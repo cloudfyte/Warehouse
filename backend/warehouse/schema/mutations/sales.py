@@ -59,7 +59,7 @@ class UpdateSalesOrderStatus(graphene.Mutation):
     @login_required
     def mutate(self, info, id, status, actual_delivery=None):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER, EmployeeProfile.Role.STORE_KEEPER)
-        so = update_sales_order_status(id=id, status=status, actual_delivery=actual_delivery)
+        so = update_sales_order_status(user=info.context.user, id=id, status=status, actual_delivery=actual_delivery)
         log_action(entity_type="SalesOrder", entity_id=so.pk, action=f"STATUS_CHANGED_TO_{status}",
                    actor=info.context.user, detail={"status": status})
         if status == "DELIVERED":

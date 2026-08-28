@@ -7,7 +7,7 @@ from warehouse.models import (
     ClothCategory, ClothColor, ItemType, PurchaseOrder,
     PurchaseOrderItem, RawClothBatch, ReadymadeStock, Supplier,
 )
-from warehouse.permissions import get_warehouse
+from warehouse.permissions import get_scoped, get_warehouse, scoped
 
 
 def create_purchase_order(*, user, supplier_id, order_type, warehouse_id,
@@ -82,16 +82,13 @@ def create_purchase_order(*, user, supplier_id, order_type, warehouse_id,
     return po
 
 
-def update_purchase_order_status(*, id, status, actual_delivery=None):
+def update_purchase_order_status(*, user, id, status, actual_delivery=None):
     status = status.upper()
     if status not in PurchaseOrder.Status.values:
         raise GraphQLError("Invalid status.")
 
     with transaction.atomic():
-        try:
-            po = PurchaseOrder.objects.select_for_update().get(pk=id)
-        except PurchaseOrder.DoesNotExist as exc:
-            raise GraphQLError("Purchase order not found.") from exc
+        po = get_scoped(user, PurchaseOrder, id, lock=True)
 
         # Reopening a received order let it be received again, and every receipt
         # mints fresh RawClothBatch / ReadymadeStock rows — the stock doubles.
@@ -119,13 +116,12 @@ def receive_purchase_order(*, po_id, user, receipt_items):
     with transaction.atomic():
         # The status check has to hold the row: read outside the lock, two clicks
         # on Receive both saw PLACED and each created a full set of stock rows.
-        try:
-            po = (PurchaseOrder.objects
-                  .select_for_update()
-                  .select_related("supplier", "warehouse")
-                  .get(pk=po_id))
-        except PurchaseOrder.DoesNotExist as exc:
-            raise GraphQLError("Purchase order not found.") from exc
+        po = (scoped(user, PurchaseOrder)
+              .select_for_update()
+              .select_related("supplier", "warehouse")
+              .filter(pk=po_id).first())
+        if po is None:
+            raise GraphQLError("Purchase order not found in your warehouses.")
         if po.status not in (PurchaseOrder.Status.PLACED, PurchaseOrder.Status.DISPATCHED):
             raise GraphQLError(
                 f"Only placed or dispatched orders can be received — this one is {po.status.lower()}."

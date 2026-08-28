@@ -43,7 +43,7 @@ class UpdateReorderPoint(graphene.Mutation):
     @login_required
     def mutate(self, info, id, **kwargs):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
-        return UpdateReorderPoint(reorder_point=update_reorder_point(reorder_point_id=id, **kwargs))
+        return UpdateReorderPoint(reorder_point=update_reorder_point(user=info.context.user, reorder_point_id=id, **kwargs))
 
 
 class DeleteReorderPoint(graphene.Mutation):
@@ -55,5 +55,5 @@ class DeleteReorderPoint(graphene.Mutation):
     @login_required
     def mutate(self, info, id):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
-        delete_reorder_point(reorder_point_id=id)
+        delete_reorder_point(user=info.context.user, reorder_point_id=id)
         return DeleteReorderPoint(ok=True)

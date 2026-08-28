@@ -9,7 +9,7 @@ from warehouse.models import (
     Buyer, CreditPayment, CreditTransaction,
     FinishedProduct, SalesOrder, SalesOrderItem,
 )
-from warehouse.permissions import get_warehouse
+from warehouse.permissions import get_scoped, get_warehouse, scoped
 
 
 def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
@@ -54,10 +54,7 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
             if unit_price < 0:
                 raise GraphQLError("Item unit price cannot be negative.")
 
-            try:
-                fp = FinishedProduct.objects.select_for_update().select_related("item_type").get(pk=fp_id, active=True)
-            except FinishedProduct.DoesNotExist as exc:
-                raise GraphQLError(f"Finished product {fp_id} not found.") from exc
+            fp = get_scoped(user, FinishedProduct, fp_id, lock=True, active=True)
             if fp.quantity < qty:
                 raise GraphQLError(f"Insufficient stock for {fp.sku}: only {fp.quantity} available.")
 
@@ -160,16 +157,13 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
 _SO_TERMINAL = {SalesOrder.Status.DELIVERED, SalesOrder.Status.CANCELLED}
 
 
-def update_sales_order_status(*, id, status, actual_delivery=None):
+def update_sales_order_status(*, user, id, status, actual_delivery=None):
     status = status.upper()
     if status not in SalesOrder.Status.values:
         raise GraphQLError("Invalid status.")
 
     with transaction.atomic():
-        try:
-            so = SalesOrder.objects.select_for_update().select_related("buyer").get(pk=id)
-        except SalesOrder.DoesNotExist as exc:
-            raise GraphQLError("Sales order not found.") from exc
+        so = get_scoped(user, SalesOrder, id, lock=True)
 
         if so.status == status:
             return so

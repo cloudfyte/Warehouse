@@ -4,10 +4,10 @@ from decimal import Decimal
 from django.db import transaction
 from graphql import GraphQLError
 
+from warehouse.permissions import get_scoped, get_warehouse, scoped
 from warehouse.models import (
     BuyerReturn, Buyer, FinishedProduct, SalesOrder,
     SupplierReturn, Supplier, RawClothBatch, ReadymadeStock,
-    WarehouseLocation,
 )
 
 
@@ -17,23 +17,14 @@ def create_buyer_return(*, user, buyer_id, finished_product_id, quantity, condit
         buyer = Buyer.objects.get(pk=buyer_id)
     except Buyer.DoesNotExist as exc:
         raise GraphQLError("Buyer not found.") from exc
-    try:
-        product = FinishedProduct.objects.get(pk=finished_product_id)
-    except FinishedProduct.DoesNotExist as exc:
-        raise GraphQLError("Finished product not found.") from exc
-    try:
-        warehouse = WarehouseLocation.objects.get(pk=warehouse_id)
-    except WarehouseLocation.DoesNotExist as exc:
-        raise GraphQLError("Warehouse not found.") from exc
+    product = get_scoped(user, FinishedProduct, finished_product_id)
+    warehouse = get_warehouse(user, warehouse_id)
     if quantity <= 0:
         raise GraphQLError("Quantity must be greater than zero.")
 
     sales_order = None
     if sales_order_id:
-        try:
-            sales_order = SalesOrder.objects.get(pk=sales_order_id)
-        except SalesOrder.DoesNotExist:
-            pass
+        sales_order = scoped(user, SalesOrder).filter(pk=sales_order_id).first()
 
     with transaction.atomic():
         ret = BuyerReturn.objects.create(
@@ -49,17 +40,14 @@ def create_buyer_return(*, user, buyer_id, finished_product_id, quantity, condit
     return ret
 
 
-def process_buyer_return(*, id, status):
+def process_buyer_return(*, user, id, status):
     """Advance a buyer return: PENDING→RECEIVED, RECEIVED→RESTOCKED or DISCARDED.
     RESTOCKED puts the quantity back into finished product stock."""
     status = status.upper()
     valid = (BuyerReturn.Status.RECEIVED, BuyerReturn.Status.RESTOCKED, BuyerReturn.Status.DISCARDED)
     if status not in valid:
         raise GraphQLError(f"Invalid status '{status}'. Must be one of: RECEIVED, RESTOCKED, DISCARDED.")
-    try:
-        ret = BuyerReturn.objects.get(pk=id)
-    except BuyerReturn.DoesNotExist as exc:
-        raise GraphQLError("Return not found.") from exc
+    ret = get_scoped(user, BuyerReturn, id)
 
     if ret.status == BuyerReturn.Status.PENDING and status != BuyerReturn.Status.RECEIVED:
         raise GraphQLError("A pending return must be marked RECEIVED before restocking or discarding.")
@@ -83,10 +71,7 @@ def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_
         supplier = Supplier.objects.get(pk=supplier_id)
     except Supplier.DoesNotExist as exc:
         raise GraphQLError("Supplier not found.") from exc
-    try:
-        warehouse = WarehouseLocation.objects.get(pk=warehouse_id)
-    except WarehouseLocation.DoesNotExist as exc:
-        raise GraphQLError("Warehouse not found.") from exc
+    warehouse = get_warehouse(user, warehouse_id)
 
     return_kind = return_kind.upper()
     if return_kind not in ("RAW_CLOTH", "READYMADE"):
@@ -110,10 +95,7 @@ def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_
     # so the same cloth stayed available to cut and the same units stayed sellable.
     with transaction.atomic():
         if return_kind == "RAW_CLOTH":
-            try:
-                raw_batch = RawClothBatch.objects.select_for_update().get(pk=raw_cloth_batch_id)
-            except RawClothBatch.DoesNotExist as exc:
-                raise GraphQLError("Raw cloth batch not found.") from exc
+            raw_batch = get_scoped(user, RawClothBatch, raw_cloth_batch_id, lock=True)
             if meters_returned > raw_batch.available_meters:
                 raise GraphQLError(
                     f"Only {raw_batch.available_meters}m of batch {raw_batch.batch_number} "
@@ -122,10 +104,7 @@ def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_
             raw_batch.available_meters -= meters_returned
             raw_batch.save(update_fields=["available_meters", "updated_at"])
         else:
-            try:
-                readymade = ReadymadeStock.objects.select_for_update().get(pk=readymade_stock_id)
-            except ReadymadeStock.DoesNotExist as exc:
-                raise GraphQLError("Readymade stock not found.") from exc
+            readymade = get_scoped(user, ReadymadeStock, readymade_stock_id, lock=True)
             if quantity_returned > readymade.quantity_available:
                 raise GraphQLError(
                     f"Only {readymade.quantity_available} unit(s) still in stock — "

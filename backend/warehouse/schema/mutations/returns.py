@@ -48,7 +48,7 @@ class ProcessBuyerReturn(graphene.Mutation):
     @login_required
     def mutate(self, info, id, status):
         require_role(info.context.user, _R.ADMIN, _R.MANAGER, _R.STORE_KEEPER)
-        ret = process_buyer_return(id=id, status=status)
+        ret = process_buyer_return(user=info.context.user, id=id, status=status)
         return ProcessBuyerReturn(buyer_return=ret)
 
 
