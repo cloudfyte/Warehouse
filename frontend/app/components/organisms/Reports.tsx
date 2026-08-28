@@ -12,6 +12,7 @@ import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import Field from "@/app/components/molecules/Field";
 import { formatMoney } from "@/app/lib/formatters";
+import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
   gql: <T>(q: string, v?: Record<string, unknown>) => Promise<T>;
@@ -45,7 +46,7 @@ export default function Reports({ gql }: Props) {
       });
       setPlData(data.profitLossReport);
     } catch (e: unknown) {
-      setPlErr(e instanceof Error ? e.message : "Failed to load report.");
+      setPlErr(friendlyError(e));
     } finally {
       setPlLoading(false);
     }
@@ -57,7 +58,7 @@ export default function Reports({ gql }: Props) {
       const data = await gql<{ agingReport: AgingReport }>(AGING_REPORT_QUERY);
       setAgingData(data.agingReport);
     } catch (e: unknown) {
-      setAgingErr(e instanceof Error ? e.message : "Failed to load aging report.");
+      setAgingErr(friendlyError(e));
     } finally {
       setAgingLoading(false);
     }

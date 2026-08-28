@@ -11,6 +11,13 @@ PRODUCTION_ROLES = {
 
 
 def get_profile(user):
+    # Cached on the user object, which lives exactly one request. Nearly every
+    # selector and permission check calls this, so a single GraphQL query was
+    # re-reading the same profile row ~27 times.
+    cached = getattr(user, "_warehouse_profile", None)
+    if cached is not None:
+        return cached
+
     profile = EmployeeProfile.objects.filter(user=user).first()
     if profile is None:
         if user.is_superuser:
@@ -20,6 +27,11 @@ def get_profile(user):
             raise GraphQLError("No employee profile found for this account. Contact an administrator.")
     if not profile.active:
         raise GraphQLError("Your account has been deactivated. Contact an administrator.")
+
+    try:
+        user._warehouse_profile = profile
+    except AttributeError:
+        pass  # AnonymousUser and friends do not accept attributes
     return profile
 
 

@@ -15,6 +15,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
 import { formatMoney } from "@/app/lib/formatters";
+import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
   quotations: Quotation[];
@@ -192,7 +193,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
       setForm(EMPTY_FORM);
       onRefresh();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Failed to create quotation.");
+      setErr(friendlyError(e));
     } finally {
       setSaving(false);
     }
@@ -206,7 +207,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
       onRefresh();
       if (selected?.id === qt.id) setSelected(prev => prev ? { ...prev, status } : null);
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : "Update failed.", "error");
+      showToast(friendlyError(e), "error");
     } finally {
       setStatusUpdating(false);
     }
@@ -222,7 +223,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
       onRefresh();
       showToast(`Sales Order created from ${qt.quotationNumber}!`, "success");
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : "Conversion failed.", "error");
+      showToast(friendlyError(e), "error");
     } finally {
       setConverting(false);
     }

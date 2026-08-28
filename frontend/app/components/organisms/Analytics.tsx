@@ -4,6 +4,7 @@ import Button from "@/app/components/atoms/Button";
 import StatCard from "@/app/components/molecules/StatCard";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import { formatMoney } from "@/app/lib/formatters";
+import { friendlyError } from "@/app/lib/errors";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -94,7 +95,7 @@ function Analytics({ gql }: { gql: (q: string) => Promise<AnalyticsData> }) {
       }
     }`)
       .then(d => setData(d.analyticsStats))
-      .catch(e => setError(e?.message || "Failed to load analytics"))
+      .catch(e => setError(friendlyError(e)))
       .finally(() => setLoading(false));
   };
 

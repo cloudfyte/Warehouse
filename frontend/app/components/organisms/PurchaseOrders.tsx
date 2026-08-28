@@ -100,7 +100,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       setShowReceive(false);
       showToast("Goods received and stock updated.", "success");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to receive";
+      const msg = friendlyError(e);
       setReceiveErr(msg); showToast(msg, "error");
     }
     finally { setReceiveSaving(false); }
@@ -116,7 +116,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       showToast("Purchase Bill created — check Purchase Bills tab.", "success");
       if (onNavigateToBills) onNavigateToBills();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : "Failed to generate bill", "error");
+      showToast(friendlyError(e), "error");
     } finally { setLoading(false); }
   }
 
@@ -270,7 +270,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       setShowInspection(false);
       showToast("Inspection recorded.", "success");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed";
+      const msg = friendlyError(e);
       setInspErr(msg); showToast(msg, "error");
     }
     finally { setInspSaving(false); }

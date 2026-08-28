@@ -37,3 +37,4 @@ backend/staticfiles/
 frontend/tmp/
 agent-skills/
 erp-guide.html
+.playwright-mcp/

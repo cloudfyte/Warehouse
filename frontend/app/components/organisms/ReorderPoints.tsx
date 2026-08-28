@@ -10,6 +10,7 @@ import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import Field from "@/app/components/molecules/Field";
 import Modal from "@/app/components/atoms/Modal";
+import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
   reorderPoints: ReorderPoint[]
@@ -89,7 +90,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
       setShowForm(false); onRefresh();
       showToast(editing ? "Threshold updated." : "Threshold created.", "success");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed";
+      const msg = friendlyError(e);
       setErr(msg); showToast(msg, "error");
     }
     finally { setSaving(false); }
@@ -100,7 +101,7 @@ export default function ReorderPoints({ reorderPoints, warehouses, categories, c
       await gql(`mutation D($id:ID!){deleteReorderPoint(id:$id){ok}}`, { id });
       showToast("Reorder threshold deleted.", "success");
       onRefresh();
-    } catch (e: unknown) { showToast(e instanceof Error ? e.message : "Failed", "error"); }
+    } catch (e: unknown) { showToast(friendlyError(e), "error"); }
   }
 
   // Group by warehouse

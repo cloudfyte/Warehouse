@@ -13,6 +13,7 @@ import PageHeader from "@/app/components/molecules/PageHeader";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
+import { friendlyError } from "@/app/lib/errors";
 
 const PER_PAGE = 20;
 
@@ -85,7 +86,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
       setForm({ fromWarehouseId: "", toWarehouseId: "", transferKind: "RAW_CLOTH", rawClothBatchId: "", metersToTransfer: "", finishedProductId: "", quantityToTransfer: "", notes: "" });
       onRefresh();
       showToast("Transfer created.", "success");
-    } catch (e: unknown) { const msg = e instanceof Error ? e.message : "Failed"; setErr(msg); showToast(msg, "error"); }
+    } catch (e: unknown) { const msg = friendlyError(e); setErr(msg); showToast(msg, "error"); }
     finally { setSaving(false); }
   }
 
@@ -93,9 +94,9 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
     try {
       await gql(`mutation A($id:ID!){ ${mutation}(id:$id){ transfer{id status} } }`, { id });
       onRefresh();
-      const label: Record<string, string> = { dispatchStockTransfer: "Transfer dispatched.", markStockTransferReceived: "Transfer received — stock updated.", cancelStockTransfer: "Transfer cancelled." };
+      const label: Record<string, string> = { dispatchStockTransfer: "Transfer dispatched.", receiveStockTransfer: "Transfer received — stock updated.", cancelStockTransfer: "Transfer cancelled." };
       showToast(label[mutation] || "Transfer updated.", "success");
-    } catch (e: unknown) { showToast(e instanceof Error ? e.message : "Failed", "error"); }
+    } catch (e: unknown) { showToast(friendlyError(e), "error"); }
   }
 
   return (

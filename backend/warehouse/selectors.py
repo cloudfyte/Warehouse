@@ -388,14 +388,20 @@ def get_dashboard_stats(user):
     )
 
 
+# Both of these took `user` and ignored it, so every role saw every branch's
+# returns. The write side was scoped in 154bc09; this is the read side.
 def get_buyer_returns(user):
-    return BuyerReturn.objects.select_related(
+    return BuyerReturn.objects.filter(
+        warehouse__in=accessible_warehouses(user)
+    ).select_related(
         "buyer", "finished_product", "finished_product__item_type", "warehouse"
     ).order_by("-created_at")
 
 
 def get_supplier_returns(user):
-    return SupplierReturn.objects.select_related(
+    return SupplierReturn.objects.filter(
+        warehouse__in=accessible_warehouses(user)
+    ).select_related(
         "supplier", "raw_cloth_batch", "readymade_stock", "warehouse"
     ).order_by("-created_at")
 
@@ -589,7 +595,15 @@ def get_analytics_stats(user):
         for row in supplier_qs
     ]
 
-    supplier_total_pending = sum(s.total_pending for s in top_suppliers)
+    # Sum over every supplier, not just the eight shown. Summing the slice made
+    # this figure silently disagree with dashboardStats.supplierTotalPending
+    # (which aggregates all bills) as soon as a ninth supplier had a bill.
+    _pending = (
+        PurchaseBill.objects
+        .filter(warehouse__in=warehouses)
+        .aggregate(total=Sum("total_amount"), paid=Sum("amount_paid"))
+    )
+    supplier_total_pending = float(_pending["total"] or 0) - float(_pending["paid"] or 0)
 
     # Size-wise sales breakdown (last 12 months, delivered orders)
     size_qs = (

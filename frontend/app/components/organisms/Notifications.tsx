@@ -4,6 +4,8 @@ import { X, ExternalLink, CheckCircle2, MailOpen, Bell, Info, AlertTriangle, Ale
 import type { Notification } from "@/app/types";
 import { formatDateShort } from "@/app/lib/formatters";
 import { TAB_TITLES } from "@/app/lib/constants";
+import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import Button from "@/app/components/atoms/Button";
 import Pagination from "@/app/components/atoms/Pagination";
 import PageHeader from "@/app/components/molecules/PageHeader";
@@ -52,15 +54,23 @@ function Notifications({ notifications, onMutate, onNavigate }: Props) {
     notifications;
   const paged = visible.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+  // These three had no catch at all: a failed mark-read rejected out of
+  // handleClick, so the click did nothing — the card stayed unread AND the
+  // navigation below never ran, with no message to say why.
   async function markAll() {
-    await onMutate(`mutation{markNotificationsRead(markAll:true){count}}`, {});
+    try {
+      await onMutate(`mutation{markNotificationsRead(markAll:true){count}}`, {});
+    } catch (e: unknown) { showToast(friendlyError(e), "error"); }
   }
 
   async function markOne(id: string) {
-    await onMutate(`mutation M($ids:[ID]){markNotificationsRead(ids:$ids){count}}`, { ids: [id] });
+    try {
+      await onMutate(`mutation M($ids:[ID]){markNotificationsRead(ids:$ids){count}}`, { ids: [id] });
+    } catch (e: unknown) { showToast(friendlyError(e), "error"); }
   }
 
   async function handleClick(n: Notification) {
+    // Marking read is best-effort; never let it block opening the item.
     if (!n.read) await markOne(n.id);
     if (n.link && onNavigate) {
       onNavigate(n.link);

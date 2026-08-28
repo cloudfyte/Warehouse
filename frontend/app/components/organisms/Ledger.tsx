@@ -19,6 +19,17 @@ const fmt = (n: number) => formatMoney(Math.abs(n));
 function buildBuyerLedger(buyerId: string, salesOrders: SalesOrder[], creditTransactions: CreditTransaction[]): LedgerEntry[] {
   const entries: LedgerEntry[] = [];
 
+  // Money already received against each order, recorded as later CreditPayments.
+  // record_credit_payment keeps SalesOrder.amountPaid in step with these, so the
+  // amount paid up front is the remainder — for a cash sale it is the whole total.
+  const laterPayments = new Map<string, number>();
+  for (const ct of creditTransactions.filter(t => t.buyer.id === buyerId)) {
+    const soId = ct.salesOrder?.id;
+    if (!soId) continue;
+    const sum = (ct.payments ?? []).reduce((t, p) => t + Number(p.amount), 0);
+    laterPayments.set(soId, (laterPayments.get(soId) ?? 0) + sum);
+  }
+
   for (const so of salesOrders.filter(o => o.buyer.id === buyerId)) {
     if (so.totalAmount > 0)
       entries.push({
@@ -28,6 +39,20 @@ function buildBuyerLedger(buyerId: string, salesOrders: SalesOrder[], creditTran
         description: `Sales Order — ${so.items?.length ?? 0} item(s)`,
         debit: so.totalAmount,
         credit: 0,
+        balance: 0,
+      });
+
+    // Without this line a fully-paid cash sale posted a debit and no credit, so
+    // the ledger showed a buyer who owed nothing as still owing the full amount.
+    const paidUpFront = Number(so.amountPaid ?? 0) - (laterPayments.get(so.id) ?? 0);
+    if (paidUpFront > 0)
+      entries.push({
+        date: so.orderDate,
+        type: "payment",
+        reference: so.orderNumber,
+        description: `Paid with order — ${so.paymentMode === "PAID" ? "full payment" : "part payment"}`,
+        debit: 0,
+        credit: paidUpFront,
         balance: 0,
       });
   }

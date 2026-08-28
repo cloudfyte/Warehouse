@@ -10,6 +10,7 @@ import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
+import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
   itemTypes: ItemType[];
@@ -90,7 +91,7 @@ export default function ItemTypes({ itemTypes, isSuperAdmin, isAdmin, isManager,
       setShowForm(false);
       onRefresh();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Save failed.");
+      setErr(friendlyError(e));
     } finally {
       setSaving(false);
     }
@@ -102,7 +103,7 @@ export default function ItemTypes({ itemTypes, isSuperAdmin, isAdmin, isManager,
         { id: it.id, active: !it.active });
       onRefresh();
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : "Failed.", "error");
+      showToast(friendlyError(e), "error");
     }
   }
 

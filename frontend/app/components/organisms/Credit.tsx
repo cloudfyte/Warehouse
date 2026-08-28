@@ -75,7 +75,7 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
           <>
             {totalOutstanding > 0 && (
               <div style={{ background: "#b95c5618", border: "1px solid #b95c5633", color: "#8d3e39", padding: "8px 16px", borderRadius: 9, fontWeight: 700, fontSize: 14 }}>
-                ₹ {formatMoney(totalOutstanding)} outstanding
+                {formatMoney(totalOutstanding)} outstanding
               </div>
             )}
             <Button variant="secondary" onClick={() => downloadCsv(`credit_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(c => ({

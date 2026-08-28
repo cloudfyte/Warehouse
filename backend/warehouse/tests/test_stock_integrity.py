@@ -474,3 +474,54 @@ class WarehouseScopingBlocksOtherBranches(StockFixture):
 
         self.batch.refresh_from_db()
         self.assertEqual(self.batch.available_meters, Decimal("90.00"))
+
+
+class ReadsAreScopedToo(StockFixture):
+    """Scoping the mutations is only half of it.
+
+    get_buyer_returns and get_supplier_returns both accepted a `user` and then
+    ignored it, so a store keeper at one branch could read every branch's
+    returns through the returns tab.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from warehouse.models import Buyer, BuyerReturn, SupplierReturn
+
+        self.other_branch = WarehouseLocation.objects.create(name="Branch", code="BR")
+        outsider = User.objects.create_user("outsider2", password="x")
+        profile = EmployeeProfile.objects.create(
+            user=outsider, role=EmployeeProfile.Role.STORE_KEEPER, active=True)
+        profile.locations.add(self.other_branch)
+        self.outsider_user = outsider
+
+        buyer = Buyer.objects.create(name="Shop", active=True)
+        product = FinishedProduct.objects.create(
+            item_type=self.item_type, cloth_category=self.category,
+            cloth_color=self.color, size="40",
+            source=FinishedProduct.Source.IN_HOUSE, quantity=5,
+            warehouse=self.warehouse,
+            cost_price=Decimal("500.00"), sale_price=Decimal("999.00"),
+        )
+        # A return belonging to the main warehouse, which the outsider is not on.
+        BuyerReturn.objects.create(
+            buyer=buyer, finished_product=product, quantity=1,
+            condition="GOOD", reason="too small", warehouse=self.warehouse,
+        )
+        SupplierReturn.objects.create(
+            supplier=self.supplier, return_kind="RAW_CLOTH",
+            raw_cloth_batch=self.batch, meters_returned=Decimal("5.00"),
+            reason="shade", warehouse=self.warehouse,
+        )
+
+    def test_another_branch_returns_are_not_listed(self):
+        from warehouse.selectors import get_buyer_returns, get_supplier_returns
+
+        self.assertEqual(get_buyer_returns(self.outsider_user).count(), 0)
+        self.assertEqual(get_supplier_returns(self.outsider_user).count(), 0)
+
+    def test_the_owning_branch_still_sees_its_own(self):
+        from warehouse.selectors import get_buyer_returns, get_supplier_returns
+
+        self.assertEqual(get_buyer_returns(self.admin).count(), 1)
+        self.assertEqual(get_supplier_returns(self.admin).count(), 1)
