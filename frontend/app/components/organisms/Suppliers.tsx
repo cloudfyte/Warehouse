@@ -37,17 +37,40 @@ interface Props {
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
 }
 
-const empty = (): Partial<Supplier> => ({ name: "", contactPerson: "", email: "", phone: "", whatsapp: "", address: "", city: "", state: "", gstin: "", creditDays: 0, notes: "" });
+const empty = (): Partial<Supplier> => ({ name: "", contactPerson: "", email: "", phone: "", whatsapp: "", address: "", city: "", state: "", gstin: "", supplyType: "RAW_CLOTH", creditDays: 0, notes: "" });
 
-function deriveSupplyBadge(supplierId: string, purchaseOrders: PurchaseOrder[]): { label: string; color: string } | null {
-  const orders = purchaseOrders.filter(po => po.supplier?.id === supplierId);
-  if (!orders.length) return null;
-  const hasRaw = orders.some(po => po.orderType === "RAW_CLOTH" || po.orderType === "MIXED");
-  const hasReadymade = orders.some(po => po.orderType === "READYMADE" || po.orderType === "MIXED");
-  if (hasRaw && hasReadymade) return { label: "Both", color: "#059669" };
-  if (hasRaw) return { label: "Raw Cloth", color: "#2563eb" };
-  if (hasReadymade) return { label: "Readymade", color: "#7c3aed" };
-  return null;
+const SUPPLY_BADGE: Record<string, { label: string; color: string }> = {
+  BOTH:      { label: "Both",      color: "#059669" },
+  RAW_CLOTH: { label: "Raw Cloth", color: "#2563eb" },
+  READYMADE: { label: "Readymade", color: "#7c3aed" },
+};
+
+/**
+ * What this supplier actually supplies.
+ *
+ * This used to read purchase orders only, so a supplier stocked through
+ * walk-in purchase bills — which is most of them — showed one kind or a dash
+ * even when they had supplied both. Bills carry the kind per item, so they
+ * count too, and the supplier's own stored type is the answer before any
+ * history exists.
+ */
+function deriveSupplyBadge(
+  supplier: Supplier, purchaseOrders: PurchaseOrder[], purchaseBills: PurchaseBill[],
+): { label: string; color: string } | null {
+  const orders = purchaseOrders.filter(po => po.supplier?.id === supplier.id);
+  const bills = purchaseBills.filter(b => b.supplier?.id === supplier.id);
+
+  const hasRaw =
+    orders.some(po => po.orderType === "RAW_CLOTH" || po.orderType === "MIXED") ||
+    bills.some(b => b.items?.some(it => it.itemKind === "RAW_CLOTH"));
+  const hasReadymade =
+    orders.some(po => po.orderType === "READYMADE" || po.orderType === "MIXED") ||
+    bills.some(b => b.items?.some(it => it.itemKind === "READYMADE"));
+
+  if (hasRaw && hasReadymade) return SUPPLY_BADGE.BOTH;
+  if (hasRaw) return SUPPLY_BADGE.RAW_CLOTH;
+  if (hasReadymade) return SUPPLY_BADGE.READYMADE;
+  return SUPPLY_BADGE[supplier.supplyType] ?? null;
 }
 
 const BILL_STATUS_COLORS: Record<string, string> = { PENDING: "#f59e0b", PARTIAL: "#2563eb", PAID: "#16a34a" };
@@ -190,10 +213,10 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
     setLoading(true); setError("");
     try {
       const m = isNew
-        ? `mutation C($name:String!,$cp:String,$email:String,$phone:String,$wa:String,$addr:String,$city:String,$state:String,$gstin:String,$cd:Int,$notes:String){createSupplier(name:$name,contactPerson:$cp,email:$email,phone:$phone,whatsapp:$wa,address:$addr,city:$city,state:$state,gstin:$gstin,creditDays:$cd,notes:$notes){supplier{id}}}`
-        : `mutation U($id:ID!,$name:String,$cp:String,$email:String,$phone:String,$wa:String,$addr:String,$city:String,$state:String,$gstin:String,$cd:Int,$notes:String,$active:Boolean){updateSupplier(id:$id,name:$name,contactPerson:$cp,email:$email,phone:$phone,whatsapp:$wa,address:$addr,city:$city,state:$state,gstin:$gstin,creditDays:$cd,notes:$notes,active:$active){supplier{id}}}`;
+        ? `mutation C($name:String!,$cp:String,$email:String,$phone:String,$wa:String,$addr:String,$city:String,$state:String,$gstin:String,$st:String,$cd:Int,$notes:String){createSupplier(name:$name,contactPerson:$cp,email:$email,phone:$phone,whatsapp:$wa,address:$addr,city:$city,state:$state,gstin:$gstin,supplyType:$st,creditDays:$cd,notes:$notes){supplier{id}}}`
+        : `mutation U($id:ID!,$name:String,$cp:String,$email:String,$phone:String,$wa:String,$addr:String,$city:String,$state:String,$gstin:String,$st:String,$cd:Int,$notes:String,$active:Boolean){updateSupplier(id:$id,name:$name,contactPerson:$cp,email:$email,phone:$phone,whatsapp:$wa,address:$addr,city:$city,state:$state,gstin:$gstin,supplyType:$st,creditDays:$cd,notes:$notes,active:$active){supplier{id}}}`;
       const cd = editing.creditDays != null ? parseInt(String(editing.creditDays), 10) : undefined;
-      await onMutate(m, { id: editing.id, name: editing.name, cp: editing.contactPerson, email: editing.email, phone: editing.phone, wa: editing.whatsapp, addr: editing.address, city: editing.city, state: editing.state, gstin: editing.gstin, cd: Number.isFinite(cd as number) ? cd : undefined, notes: editing.notes, active: editing.active });
+      await onMutate(m, { id: editing.id, name: editing.name, cp: editing.contactPerson, email: editing.email, phone: editing.phone, wa: editing.whatsapp, addr: editing.address, city: editing.city, state: editing.state, gstin: editing.gstin, st: editing.supplyType || undefined, cd: Number.isFinite(cd as number) ? cd : undefined, notes: editing.notes, active: editing.active });
       setEditing(null);
       showToast(isNew ? "Supplier created." : "Supplier updated.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
@@ -310,6 +333,13 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
               style={{ minHeight: 64 }} />
           </Field>
           <FormGrid style={{ marginTop: 14 }}>
+            <Field label="Supplies" hint="What this supplier sells you. Pick Both if they do raw cloth and readymade.">
+              <Select value={editing.supplyType ?? "RAW_CLOTH"} onChange={e => setEditing(p => ({ ...p, supplyType: e.target.value }))}>
+                <option value="RAW_CLOTH">Raw Cloth</option>
+                <option value="READYMADE">Readymade Items</option>
+                <option value="BOTH">Both</option>
+              </Select>
+            </Field>
             <Field label="Credit Days">
               <Input type="number" value={editing.creditDays ?? 0} onChange={e => setEditing(p => ({ ...p, creditDays: +e.target.value }))} />
             </Field>
@@ -365,7 +395,7 @@ export default function Suppliers({ suppliers, isSuperAdmin, isAdmin, isManager 
                   )}
                 </td>
                 <td style={{ padding: "13px 16px" }}>
-                  {(() => { const b = deriveSupplyBadge(s.id, purchaseOrders); return b ? <Badge label={b.label} color={b.color} /> : <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>; })()}
+                  {(() => { const b = deriveSupplyBadge(s, purchaseOrders, purchaseBills); return b ? <Badge label={b.label} color={b.color} /> : <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>; })()}
                 </td>
                 <td style={{ padding: "13px 16px", fontSize: 12, color: "var(--muted)", fontFamily: "monospace" }}>{s.gstin || "—"}</td>
                 <td style={{ padding: "13px 16px" }}>
