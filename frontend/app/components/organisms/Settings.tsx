@@ -113,6 +113,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
 
   const [resetModal, setResetModal] = useState(false);
   const [resetPhrase, setResetPhrase] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetError, setResetError] = useState("");
   const [resetDone, setResetDone] = useState(false);
@@ -173,8 +174,11 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
   async function handleReset() {
     setResetLoading(true); setResetError("");
     try {
-      await onMutate(`mutation R($phrase:String!){resetAllData(confirmPhrase:$phrase){ok message}}`, { phrase: resetPhrase });
-      setResetDone(true); setResetModal(false); setResetPhrase("");
+      await onMutate(
+        `mutation R($phrase:String!,$password:String!){resetAllData(confirmPhrase:$phrase,password:$password){ok message}}`,
+        { phrase: resetPhrase, password: resetPassword },
+      );
+      setResetDone(true); setResetModal(false); setResetPhrase(""); setResetPassword("");
       showToast("All data has been reset.", "success");
     } catch (e: unknown) { setResetError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setResetLoading(false); }
@@ -734,7 +738,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
       {/* ── Reset confirmation modal ── */}
       {resetModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
-          onClick={e => { if (e.target === e.currentTarget) { setResetModal(false); setResetPhrase(""); } }}>
+          onClick={e => { if (e.target === e.currentTarget) { setResetModal(false); setResetPhrase(""); setResetPassword(""); } }}>
           <div style={{ background: "var(--paper)", borderRadius: 16, padding: 32, width: "100%", maxWidth: 480, border: "1.5px solid #ef444433", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
             <div style={{ marginBottom: 12, display: "flex", justifyContent: "center", color: "#dc2626" }}><AlertTriangle size={28} /></div>
             <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 800, color: "#dc2626", textAlign: "center" }}>Reset All Data?</h3>
@@ -757,13 +761,26 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                 style={{ padding: "11px 14px", borderRadius: 9, border: `1.5px solid ${resetPhrase === RESET_PHRASE ? "#dc2626" : "var(--line)"}`, background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, fontFamily: "monospace", outline: "none", letterSpacing: 1 }}
               />
             </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                Your account password
+              </span>
+              <input
+                type="password"
+                value={resetPassword}
+                onChange={e => setResetPassword(e.target.value)}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                style={{ padding: "11px 14px", borderRadius: 9, border: "1.5px solid var(--line)", background: "var(--input-bg)", color: "var(--ink)", fontSize: 14, outline: "none" }}
+              />
+            </label>
             <div style={{ marginBottom: 16 }}><ErrorBanner msg={resetError} /></div>
             <div style={{ display: "flex", gap: 12 }}>
-              <Button variant="secondary" onClick={() => { setResetModal(false); setResetPhrase(""); setResetError(""); }} style={{ flex: 1, padding: "11px" }}>Cancel</Button>
+              <Button variant="secondary" onClick={() => { setResetModal(false); setResetPhrase(""); setResetPassword(""); setResetError(""); }} style={{ flex: 1, padding: "11px" }}>Cancel</Button>
               <Button
-                variant={resetPhrase === RESET_PHRASE ? "danger" : "secondary"}
+                variant={resetPhrase === RESET_PHRASE && resetPassword ? "danger" : "secondary"}
                 onClick={handleReset}
-                disabled={resetPhrase !== RESET_PHRASE || resetLoading}
+                disabled={resetPhrase !== RESET_PHRASE || !resetPassword || resetLoading}
                 style={{ flex: 1, padding: "11px" }}
               >
                 {resetLoading ? "Deleting…" : "Confirm Reset"}

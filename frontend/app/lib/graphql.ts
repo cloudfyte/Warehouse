@@ -67,7 +67,7 @@ export async function graphql<T>(
 
 export const SETTINGS_QUERY = `
   query PublicSettings {
-    systemSettings { appName appSubtitle logoUrl primaryColor accentColor defaultDarkMode companyName }
+    publicSettings { appName appSubtitle logoUrl primaryColor accentColor defaultDarkMode companyName }
   }
 `;
 

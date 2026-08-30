@@ -211,8 +211,12 @@ export default function Home() {
   }, [data?.systemSettings]);
 
   useEffect(() => {
-    // Load public settings for login branding (fire-and-forget)
-    graphql<{ systemSettings: AppSettings }>(SETTINGS_QUERY).catch(() => {});
+    // Branding for the login screen. This used to query systemSettings, which is
+    // @login_required, so it always failed here — and the result was discarded
+    // anyway, so the colours never applied before sign-in either.
+    graphql<{ publicSettings: AppSettings }>(SETTINGS_QUERY)
+      .then(d => { if (d?.publicSettings) applyBrandColors(d.publicSettings); })
+      .catch(() => {});
 
     const stored = localStorage.getItem("jwt");
     if (stored) {

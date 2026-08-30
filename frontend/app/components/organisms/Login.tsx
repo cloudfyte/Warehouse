@@ -89,10 +89,13 @@ export default function Login({ onLogin }: Props) {
   const [brandSubtitle, setBrandSubtitle] = useState("Warehouse ERP");
 
   useEffect(() => {
-    gql(`{ systemSettings { appName appSubtitle } }`)
+    // publicSettings, not systemSettings: the latter is @login_required, so this
+    // request always failed here and the customer's own login page fell back to
+    // the stock "GarmentFlow" branding.
+    gql(`{ publicSettings { appName appSubtitle } }`)
       .then(d => {
-        if (d?.systemSettings?.appName) setBrandName(d.systemSettings.appName);
-        if (d?.systemSettings?.appSubtitle) setBrandSubtitle(d.systemSettings.appSubtitle);
+        if (d?.publicSettings?.appName) setBrandName(d.publicSettings.appName);
+        if (d?.publicSettings?.appSubtitle) setBrandSubtitle(d.publicSettings.appSubtitle);
       })
       .catch(() => {});
   }, []);

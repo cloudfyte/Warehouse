@@ -74,7 +74,10 @@ def get_employees(user):
     profile = get_profile(user)
     if profile.role not in MANAGEMENT_ROLES:
         return EmployeeProfile.objects.none()
-    qs = EmployeeProfile.objects.select_related("user").prefetch_related("locations").order_by("user__username")
+    qs = (EmployeeProfile.objects
+          .select_related("user", "custom_role")
+          .prefetch_related("locations")
+          .order_by("user__username"))
     if profile.role == EmployeeProfile.Role.MANAGER:
         qs = qs.filter(locations__in=accessible_warehouses(user)).distinct()
     return qs
@@ -108,8 +111,14 @@ def get_purchase_orders(user, status=None, limit=50):
         return PurchaseOrder.objects.none()
     qs = (
         PurchaseOrder.objects
-        .select_related("supplier", "warehouse", "created_by", "parcel_inspection")
-        .prefetch_related("items")
+        .select_related(
+            "supplier", "warehouse", "parcel_inspection",
+            "created_by__profile", "received_by__profile",
+            "parcel_inspection__inspected_by__profile",
+        )
+        .prefetch_related(
+            "items__cloth_category", "items__cloth_color", "items__item_type",
+        )
         .filter(warehouse__in=accessible_warehouses(user))
     )
     if status:
@@ -134,9 +143,10 @@ def get_purchase_bills(user, limit=50):
         return PurchaseBill.objects.none()
     return (
         PurchaseBill.objects
-        .select_related("supplier", "warehouse", "created_by")
+        .select_related("supplier", "warehouse", "source_po", "created_by__profile")
         .prefetch_related(
             "items__cloth_category", "items__cloth_color", "items__item_type",
+            "supplier_payments",
         )
         .filter(warehouse__in=accessible_warehouses(user))
     )[: min(limit, 200)]
@@ -178,7 +188,10 @@ def get_cutting_assignments(user, status=None, master_id=None, limit=100):
     profile = get_profile(user)
     qs = (
         CuttingAssignment.objects
-        .select_related("raw_cloth_batch", "cutting_master__user", "item_type", "assigned_by")
+        .select_related(
+            "raw_cloth_batch__cloth_category", "raw_cloth_batch__cloth_color",
+            "cutting_master__user", "item_type", "assigned_by",
+        )
         .filter(raw_cloth_batch__warehouse__in=accessible_warehouses(user))
     )
     if profile.role == EmployeeProfile.Role.CUTTING_MASTER:
@@ -194,7 +207,11 @@ def get_stitching_jobs(user, status=None, tailor_id=None, limit=100):
     profile = get_profile(user)
     qs = (
         StitchingJob.objects
-        .select_related("cutting_assignment__item_type", "tailor__user", "assigned_by")
+        .select_related(
+            "cutting_assignment__item_type",
+            "cutting_assignment__raw_cloth_batch__warehouse",
+            "tailor__user", "assigned_by",
+        )
         .filter(cutting_assignment__raw_cloth_batch__warehouse__in=accessible_warehouses(user))
     )
     if profile.role == EmployeeProfile.Role.TAILOR:
@@ -234,7 +251,7 @@ def get_sales_orders(user, status=None, buyer_id=None, limit=50):
     qs = (
         SalesOrder.objects
         .select_related("buyer", "warehouse", "created_by")
-        .prefetch_related("items__finished_product")
+        .prefetch_related("items__finished_product__item_type")
         .filter(warehouse__in=accessible_warehouses(user))
     )
     if status:
@@ -736,7 +753,7 @@ def get_quotations(user, limit=100):
     warehouses = accessible_warehouses(user)
     return (
         Quotation.objects.filter(warehouse__in=warehouses)
-        .select_related("buyer", "warehouse")
+        .select_related("buyer", "warehouse", "converted_to", "created_by__profile")
         .prefetch_related("items__finished_product__item_type")
     )[:limit]
 

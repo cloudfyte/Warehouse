@@ -35,6 +35,7 @@ from .types import (
     SupplierPaymentType,
     SupplierReturnType,
     SupplierType,
+    PublicSettingsType,
     SystemSettingsType,
     WarehouseLocationType,
 )
@@ -43,6 +44,8 @@ from .types import (
 class Query(graphene.ObjectType):
     # Public
     system_settings = graphene.Field(SystemSettingsType)
+    # Deliberately not login_required — the login screen needs branding.
+    public_settings = graphene.Field(PublicSettingsType)
 
     # Master data
     cloth_categories = graphene.List(ClothCategoryType, active_only=graphene.Boolean())
@@ -118,6 +121,19 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_system_settings(self, info):
         return selectors.get_system_settings()
+
+    def resolve_public_settings(self, info):
+        from warehouse.schema.types import to_url
+        cfg = selectors.get_system_settings()
+        return PublicSettingsType(
+            app_name=cfg.app_name,
+            app_subtitle=cfg.app_subtitle,
+            logo_url=to_url(cfg.logo_url),
+            primary_color=cfg.primary_color,
+            accent_color=cfg.accent_color,
+            default_dark_mode=cfg.default_dark_mode,
+            company_name=cfg.company_name,
+        )
 
     @login_required
     def resolve_cloth_categories(self, info, active_only=True):

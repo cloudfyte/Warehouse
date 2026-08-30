@@ -5,6 +5,7 @@ from graphene_django import DjangoObjectType
 # Must be imported before the DjangoObjectType classes below are declared.
 from warehouse.schema import converters  # noqa: F401
 
+from warehouse.permissions import ELEVATED_ROLES
 from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
     AuditLog,
@@ -130,16 +131,16 @@ class PurchaseOrderType(DjangoObjectType):
         if not self.created_by_id:
             return None
         try:
-            return EmployeeProfile.objects.get(user_id=self.created_by_id)
-        except EmployeeProfile.DoesNotExist:
+            return self.created_by.profile
+        except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 
     def resolve_received_by(self, info):
         if not self.received_by_id:
             return None
         try:
-            return EmployeeProfile.objects.get(user_id=self.received_by_id)
-        except EmployeeProfile.DoesNotExist:
+            return self.received_by.profile
+        except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 
     def resolve_parcel_inspection(self, info):
@@ -390,8 +391,8 @@ class ParcelInspectionType(DjangoObjectType):
         if not self.inspected_by_id:
             return None
         try:
-            return EmployeeProfile.objects.get(user_id=self.inspected_by_id)
-        except EmployeeProfile.DoesNotExist:
+            return self.inspected_by.profile
+        except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 
 
@@ -520,12 +521,47 @@ class ExpenseType(DjangoObjectType):
         return to_url(self.proof_image)
 
 
+class PublicSettingsType(graphene.ObjectType):
+    """Branding only, readable without logging in.
+
+    The login screen needs the company's name, logo and colours before anyone
+    has a token. It used to ask for these through `systemSettings`, which is
+    @login_required, so the request always failed and the error was swallowed —
+    every customer saw the stock "GarmentFlow" branding on their own login page.
+
+    This is a hand-written type rather than the model type with a filter: it can
+    only ever return these seven fields, so no future model field is exposed to
+    anonymous callers by accident.
+    """
+    app_name = graphene.String()
+    app_subtitle = graphene.String()
+    logo_url = graphene.String()
+    primary_color = graphene.String()
+    accent_color = graphene.String()
+    default_dark_mode = graphene.Boolean()
+    company_name = graphene.String()
+
+
 class SystemSettingsType(DjangoObjectType):
     # JSONField would otherwise serialise to a JSONString scalar, so the client
     # receives the string "[]" instead of a list — expose it as a real list.
     tag_component_order = graphene.List(graphene.String)
     logo_url = graphene.String()
     tag_logo_data = graphene.String()
+
+    # Redeclared as nullable on purpose. The model columns are NOT NULL, so the
+    # generated schema made them String!/Int!/Boolean! — and the admin-only
+    # resolvers below return None to everyone else, which a non-null field
+    # rejects outright, taking the whole Settings query down with it.
+    smtp_host = graphene.String()
+    smtp_port = graphene.Int()
+    smtp_user = graphene.String()
+    smtp_from_email = graphene.String()
+    smtp_use_tls = graphene.Boolean()
+    twilio_account_sid = graphene.String()
+    twilio_from_number = graphene.String()
+    wa_phone_number_id = graphene.String()
+    gstin = graphene.String()
 
     class Meta:
         model = SystemSettings
@@ -550,6 +586,31 @@ class SystemSettingsType(DjangoObjectType):
 
     def resolve_tag_logo_data(self, info):
         return to_url(self.tag_logo_data)
+
+
+# Excluding the passwords and tokens was only half the job: the config around
+# them still identified the accounts. A tailor could read the mail server and
+# username, and the Twilio account SID and sending number — enough to aim an
+# attack at those accounts, and none of it is their business. Only the roles
+# that can edit these in Settings can read them back.
+_ADMIN_ONLY_SETTINGS = (
+    "smtp_host", "smtp_port", "smtp_user", "smtp_from_email", "smtp_use_tls",
+    "twilio_account_sid", "twilio_from_number",
+    "wa_phone_number_id", "gstin",
+)
+
+
+def _admin_only(field_name):
+    def resolver(self, info):
+        profile = EmployeeProfile.objects.filter(user=info.context.user).first()
+        if profile and profile.role in ELEVATED_ROLES:
+            return getattr(self, field_name)
+        return None
+    return resolver
+
+
+for _f in _ADMIN_ONLY_SETTINGS:
+    setattr(SystemSettingsType, f"resolve_{_f}", _admin_only(_f))
 
 
 class DashboardStats(graphene.ObjectType):
@@ -613,8 +674,8 @@ class QuotationType(DjangoObjectType):
         if not self.created_by_id:
             return None
         try:
-            return EmployeeProfile.objects.get(user_id=self.created_by_id)
-        except EmployeeProfile.DoesNotExist:
+            return self.created_by.profile
+        except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 
 

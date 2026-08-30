@@ -8,7 +8,9 @@ call-sequence assertions so they keep holding if the services are rewritten.
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from graphql import GraphQLError
 
 from warehouse.models import (
@@ -525,3 +527,179 @@ class ReadsAreScopedToo(StockFixture):
 
         self.assertEqual(get_buyer_returns(self.admin).count(), 1)
         self.assertEqual(get_supplier_returns(self.admin).count(), 1)
+
+
+class SettingsExposure(TestCase):
+    """Who can read the integration config, and what the login screen can see."""
+
+    def setUp(self):
+        from warehouse.models import SystemSettings
+
+        cfg = SystemSettings.load()
+        cfg.app_name = "Sri WareHouse"
+        cfg.company_name = "Sri Weddings"
+        cfg.smtp_host = "smtp.example.com"
+        cfg.smtp_user = "mailer@example.com"
+        cfg.twilio_account_sid = "AC0123456789"
+        cfg.save()
+
+        from django.core.cache import cache
+        cache.delete("system_settings")
+
+        self.admin = User.objects.create_user("cfgadmin", password="x")
+        EmployeeProfile.objects.create(
+            user=self.admin, role=EmployeeProfile.Role.ADMIN, active=True)
+        self.tailor = User.objects.create_user("cfgtailor", password="x")
+        EmployeeProfile.objects.create(
+            user=self.tailor, role=EmployeeProfile.Role.TAILOR, active=True)
+
+    def _run(self, query, user):
+        from config.schema import schema
+
+        class Ctx:
+            pass
+        ctx = Ctx()
+        ctx.user = user
+        return schema.execute(query, context=ctx)
+
+    QUERY = "{ systemSettings { smtpHost smtpUser twilioAccountSid appName } }"
+
+    def test_a_tailor_cannot_read_the_mail_or_sms_config(self):
+        result = self._run(self.QUERY, self.tailor)
+        self.assertIsNone(result.errors)
+        s = result.data["systemSettings"]
+        self.assertIsNone(s["smtpHost"])
+        self.assertIsNone(s["smtpUser"])
+        self.assertIsNone(s["twilioAccountSid"])
+        # Branding is not secret — the app still has to render.
+        self.assertEqual(s["appName"], "Sri WareHouse")
+
+    def test_an_admin_can_still_read_it_back(self):
+        result = self._run(self.QUERY, self.admin)
+        self.assertIsNone(result.errors)
+        s = result.data["systemSettings"]
+        self.assertEqual(s["smtpHost"], "smtp.example.com")
+        self.assertEqual(s["twilioAccountSid"], "AC0123456789")
+
+    def test_the_login_screen_can_read_branding_without_a_token(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        result = self._run(
+            "{ publicSettings { appName companyName primaryColor } }", AnonymousUser())
+        self.assertIsNone(result.errors)
+        self.assertEqual(result.data["publicSettings"]["appName"], "Sri WareHouse")
+        self.assertEqual(result.data["publicSettings"]["companyName"], "Sri Weddings")
+
+    def test_the_public_query_exposes_nothing_but_branding(self):
+        from config.schema import schema
+
+        fields = {f.lower() for f in schema.graphql_schema
+                  .get_type("PublicSettingsType").fields}
+        for leak in ("smtphost", "smtpuser", "twilioaccountsid", "gstin", "watoken"):
+            self.assertNotIn(leak, fields)
+
+
+class QueryCountsDoNotGrowWithRows(StockFixture):
+    """N+1 guard.
+
+    The dashboard pulls most entities at once, so a per-row lookup anywhere is
+    multiplied by the whole table. These assert the query count for a page of
+    records is a small constant — if someone drops a select_related, the number
+    climbs with the row count and the test fails with the new figure.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._seed(10)
+
+    def _seed(self, count):
+        from warehouse.models import PurchaseOrder, PurchaseOrderItem
+
+        for _ in range(count):
+            po = PurchaseOrder.objects.create(
+                supplier=self.supplier,
+                order_type=PurchaseOrder.OrderType.RAW_CLOTH,
+                warehouse=self.warehouse,
+                status=PurchaseOrder.Status.PLACED,
+                created_by=self.admin,
+            )
+            for _ in range(3):
+                PurchaseOrderItem.objects.create(
+                    purchase_order=po,
+                    item_kind=PurchaseOrderItem.ItemKind.RAW_CLOTH,
+                    cloth_category=self.category,
+                    cloth_color=self.color,
+                    ordered_meters=Decimal("10.00"),
+                    unit_price=Decimal("50.00"),
+                    total_price=Decimal("500.00"),
+                )
+
+    def _ctx(self):
+        class Ctx:
+            pass
+        c = Ctx()
+        c.user = self.admin
+        return c
+
+    def test_purchase_orders_with_items_and_people_is_a_constant(self):
+        from config.schema import schema
+
+        query = """{ purchaseOrders {
+            poNumber
+            createdBy { username }
+            receivedBy { username }
+            items { itemKind clothCategory { name } clothColor { name } itemType { name } }
+        } }"""
+
+        result = schema.execute(query, context=self._ctx())
+        self.assertIsNone(result.errors)
+        self.assertEqual(len(result.data["purchaseOrders"]), 10)
+
+        with CaptureQueriesContext(connection) as first:
+            schema.execute(query, context=self._ctx())
+
+        # Triple the data. A query count that is genuinely constant will not
+        # move; a per-row lookup anywhere will roughly triple with it. Asserting
+        # the shape rather than a magic number keeps this from breaking every
+        # time a legitimate field is added.
+        self._seed(20)
+        result = schema.execute(query, context=self._ctx())
+        self.assertEqual(len(result.data["purchaseOrders"]), 30)
+
+        with CaptureQueriesContext(connection) as second:
+            schema.execute(query, context=self._ctx())
+
+        self.assertEqual(
+            len(second.captured_queries), len(first.captured_queries),
+            f"query count grew with the row count: {len(first.captured_queries)} "
+            f"for 10 orders, {len(second.captured_queries)} for 30 — "
+            f"something is querying per row.",
+        )
+
+    def test_get_profile_is_read_once_per_request_not_per_selector(self):
+        from config.schema import schema
+
+        # Four selectors in one query, each of which calls get_profile (some
+        # twice, via accessible_warehouses). Without the per-request memo this
+        # re-read the same EmployeeProfile row for every one of them.
+        query = """{
+            purchaseOrders { poNumber }
+            rawClothBatches { batchNumber }
+            finishedProducts { sku }
+            employees { id }
+        }"""
+        result = schema.execute(query, context=self._ctx())
+        self.assertIsNone(result.errors)
+
+        with CaptureQueriesContext(connection) as ctx:
+            schema.execute(query, context=self._ctx())
+        profile_reads = [
+            q for q in ctx.captured_queries
+            if "employeeprofile" in q["sql"].lower() and " where " in q["sql"].lower()
+            and "user_id" in q["sql"].lower()
+        ]
+        self.assertLessEqual(
+            len(profile_reads), 1,
+            f"profile re-read {len(profile_reads)} times:\n" +
+            "\n".join(q["sql"][:120] for q in profile_reads),
+        )
