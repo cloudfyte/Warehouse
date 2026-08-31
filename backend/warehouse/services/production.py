@@ -340,6 +340,7 @@ def update_finished_product(*, user, id, **changes):
     except FinishedProduct.DoesNotExist as exc:
         raise GraphQLError("Finished product not found.") from exc
 
+    old_price = fp.sale_price
     updated = []
     if "tags_printed" in changes:
         fp.tags_printed = bool(changes["tags_printed"])
@@ -358,6 +359,18 @@ def update_finished_product(*, user, id, **changes):
             value = changes[field]
             setattr(fp, field, value.strip() if isinstance(value, str) else value)
             updated.append(field)
+
+    # The price lives inside the barcode, so a new price means a new code. The
+    # old one is kept and stays scannable: tags are already sewn onto garments
+    # hanging on the rack, and repricing must not turn those into dead labels.
+    if "sale_price" in updated and fp.sale_price != old_price:
+        retired = [c for c in ([fp.barcode] + fp.past_codes()) if c]
+        fp.previous_barcodes = ",".join(dict.fromkeys(retired))
+        fp.barcode = fp.mint_barcode()
+        fp.barcode_svg = generate_barcode_svg(fp.barcode)
+        # A reprice invalidates whatever is on the rack, so the tag needs reprinting.
+        fp.tags_printed = False
+        updated += ["previous_barcodes", "barcode", "barcode_svg", "tags_printed"]
 
     fp.save(update_fields=updated + ["updated_at"])
     return fp

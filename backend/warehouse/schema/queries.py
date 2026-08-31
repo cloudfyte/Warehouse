@@ -254,8 +254,33 @@ class Query(graphene.ObjectType):
 
     @login_required
     def resolve_product_by_barcode(self, info, barcode):
+        """
+        Find a product by any code it has ever carried.
+
+        Repricing mints a new barcode, because the price is inside the code — so
+        a scan of a tag printed before the last price change still has to land on
+        the right product rather than nothing at all.
+        """
+        from django.db.models import Q
+
         from warehouse.models import FinishedProduct
-        return FinishedProduct.objects.filter(barcode=barcode).select_related("item_type", "cloth_color", "cloth_category", "warehouse").first()
+        from warehouse.permissions import accessible_warehouses
+
+        barcode = (barcode or "").strip()
+        if not barcode:
+            return None
+
+        matches = (FinishedProduct.objects
+                   .filter(warehouse__in=accessible_warehouses(info.context.user))
+                   .filter(Q(barcode=barcode) | Q(previous_barcodes__contains=barcode))
+                   .select_related("item_type", "cloth_color", "cloth_category", "warehouse"))
+
+        for product in matches:
+            # __contains can match a code that merely sits inside another, so the
+            # retired codes are compared as whole entries.
+            if product.barcode == barcode or barcode in product.past_codes():
+                return product
+        return None
 
     @login_required
     def resolve_analytics_stats(self, info):

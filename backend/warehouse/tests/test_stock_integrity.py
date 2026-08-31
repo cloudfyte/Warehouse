@@ -880,3 +880,74 @@ class FinishedProductEditing(StockFixture):
 
         self.product.refresh_from_db()
         self.assertEqual(self.product.sale_price, Decimal("900.00"))
+
+
+class BarcodesCarryThePrice(StockFixture):
+    """The price lives inside the code, so repricing must not orphan printed tags."""
+
+    def _product(self, sale_price=Decimal("1299.00")):
+        return FinishedProduct.objects.create(
+            item_type=self.item_type,
+            cloth_color=self.color,
+            size="40",
+            source=FinishedProduct.Source.IMPORTED,
+            quantity=5,
+            warehouse=self.warehouse,
+            cost_price=Decimal("500.00"),
+            sale_price=sale_price,
+        )
+
+    def test_the_code_contains_the_price_between_two_random_pairs(self):
+        product = self._product(Decimal("1299.00"))
+
+        self.assertEqual(len(product.barcode), 8)          # 2 + 4 + 2
+        self.assertEqual(product.barcode[2:-2], "1299")
+        self.assertTrue(product.barcode[:2].isalnum())
+        self.assertTrue(product.barcode[-2:].isalnum())
+
+    def test_two_products_at_the_same_price_get_different_codes(self):
+        first = self._product(Decimal("1299.00"))
+        second = self._product(Decimal("1299.00"))
+
+        self.assertNotEqual(first.barcode, second.barcode)
+
+    def test_repricing_mints_a_new_code_and_keeps_the_old_one_scannable(self):
+        from warehouse.services.production import update_finished_product
+
+        product = self._product(Decimal("1299.00"))
+        printed_on_the_rack = product.barcode
+
+        update_finished_product(user=self.admin, id=product.id, sale_price=1499)
+
+        product.refresh_from_db()
+        self.assertEqual(product.barcode[2:-2], "1499")
+        self.assertNotEqual(product.barcode, printed_on_the_rack)
+        self.assertIn(printed_on_the_rack, product.past_codes())
+        # The rack is now wrong, so the tag has to be printed again.
+        self.assertFalse(product.tags_printed)
+
+    def test_repricing_twice_keeps_every_old_code(self):
+        from warehouse.services.production import update_finished_product
+
+        product = self._product(Decimal("1000.00"))
+        first = product.barcode
+        update_finished_product(user=self.admin, id=product.id, sale_price=1100)
+        product.refresh_from_db()
+        second = product.barcode
+        update_finished_product(user=self.admin, id=product.id, sale_price=1200)
+        product.refresh_from_db()
+
+        self.assertIn(first, product.past_codes())
+        self.assertIn(second, product.past_codes())
+
+    def test_changing_something_other_than_price_leaves_the_code_alone(self):
+        from warehouse.services.production import update_finished_product
+
+        product = self._product()
+        original = product.barcode
+
+        update_finished_product(user=self.admin, id=product.id, size="42")
+
+        product.refresh_from_db()
+        self.assertEqual(product.barcode, original)
+        self.assertEqual(product.past_codes(), [])

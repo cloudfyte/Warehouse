@@ -19,6 +19,7 @@ import { buildTagEscPos } from "@/app/lib/useBluetooth";
 import { tagDocument, type TagSettings } from "@/app/lib/tagTemplate";
 import Drawer from "@/app/components/atoms/Drawer";
 import Field from "@/app/components/molecules/Field";
+import BarcodeGenerator from "@/app/components/organisms/BarcodeGenerator";
 
 interface Props {
   products: FinishedProduct[]
@@ -48,6 +49,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
   const [selected, setSelected] = useState<FinishedProduct | null>(null);
   const [markingPrinted, setMarkingPrinted] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [view, setView] = useState<"list" | "tags">("list");
   const [scanResult, setScanResult] = useState<{ found: boolean; product?: FinishedProduct } | null>(null);
 
   const canManage = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
@@ -153,6 +155,22 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
         sub={`${products.length} SKUs`}
         actions={
           <>
+            <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", marginRight: 4 }}>
+              {([["list", "Products"], ["tags", "Barcode Tags"]] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setView(key)}
+                  style={{
+                    padding: "7px 14px", fontSize: 13, fontWeight: view === key ? 700 : 500,
+                    border: "none", background: view === key ? "var(--primary)" : "transparent",
+                    color: view === key ? "#fff" : "var(--muted)",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <Button variant="ghost" onClick={() => setShowScanner(true)}>
               <Camera size={14} /> Scan Barcode
             </Button>
@@ -171,6 +189,10 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
         }
       />
 
+      {view === "tags" ? (
+        <BarcodeGenerator products={products} systemSettings={systemSettings} onMutate={onMutate} />
+      ) : (
+      <>
       <FilterBar>
         <Input
           placeholder="Search SKU, item type, or barcode…"
@@ -344,6 +366,8 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
         )}
       </div>
       <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
+      </>
+      )}
     </div>
   );
 }

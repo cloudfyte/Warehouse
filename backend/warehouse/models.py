@@ -538,6 +538,19 @@ class StitchingJob(models.Model):
 
 # ─── finished goods & tagging ─────────────────────────────────────────────────
 
+# Codes a person can read off a tag: I and O are absent so they cannot be misread
+# as 1 and 0, and the set is the same one the purchase-bill cloth codes use.
+_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _price_code(price):
+    """Two random characters, the rupee price, then two more — e.g. K7 1299 AB."""
+    def pair():
+        return "".join(_secrets.choice(_CODE_ALPHABET) for _ in range(2))
+    rupees = int(round(float(price or 0)))
+    return f"{pair()}{rupees}{pair()}"
+
+
 class FinishedProduct(models.Model):
     """A tagged, ready-to-sell garment — either stitched in-house or imported."""
     class Source(models.TextChoices):
@@ -562,6 +575,10 @@ class FinishedProduct(models.Model):
 
     barcode = models.CharField(max_length=60, unique=True, editable=False)
     barcode_svg = models.TextField(blank=True)
+    # Codes this product used to carry. The code has the price inside it, so
+    # repricing has to mint a new one — but tags are already sewn onto garments
+    # on the rack, and those have to keep scanning. Comma separated.
+    previous_barcodes = models.TextField(blank=True, editable=False)
     tags_printed = models.BooleanField(default=False)
     active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -574,8 +591,27 @@ class FinishedProduct(models.Model):
         if not self.sku:
             self.sku = _serial("FP", FinishedProduct)
         if not self.barcode:
-            self.barcode = f"GRM{timezone.now().strftime('%y%m%d')}{_secrets.randbelow(1_000_000):06d}"
+            self.barcode = self.mint_barcode()
         super().save(*args, **kwargs)
+
+    def mint_barcode(self):
+        """
+        A fresh code carrying this product's current price.
+
+        Shape is two random characters, the rupee price, then two more — the
+        same shape as the cloth codes on purchase bills, so the shop floor reads
+        one scheme rather than two. The random ends keep the price from standing
+        out to a customer reading the tag, and keep two products at the same
+        price apart.
+        """
+        for _ in range(20):
+            code = _price_code(self.sale_price)
+            if not FinishedProduct.objects.filter(barcode=code).exclude(pk=self.pk).exists():
+                return code
+        raise ValueError("Could not mint a unique barcode after 20 attempts.")
+
+    def past_codes(self):
+        return [c for c in (self.previous_barcodes or "").split(",") if c]
 
     @property
     def profit_margin(self):

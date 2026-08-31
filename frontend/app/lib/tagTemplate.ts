@@ -33,8 +33,12 @@ export interface TagProduct {
   clothColor?: { name: string } | null
 }
 
+// Age group and the FP number came off the tag: nobody on the shop floor reads
+// "MEN" off a garment they can see, and the FP number is what the barcode is
+// for. Brand takes the line the FP number used to have. All of it is still
+// available in Settings for anyone who wants it back.
 export const DEFAULT_TAG_ORDER = [
-  "barcode", "barcode-text", "item-info", "size", "age-group", "price", "sku",
+  "brand", "barcode", "barcode-text", "item-info", "size", "price",
 ];
 
 /** Every component that can appear on a tag, in the order Settings lists them. */
@@ -62,6 +66,10 @@ export function normaliseOrder(raw: unknown): string[] {
 }
 
 const cap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+
+/** "pista green" -> "Pista Green". A colour is a name, so every word is capitalised. */
+const titleCase = (s?: string) =>
+  (s || "").split(/\s+/).filter(Boolean).map(cap).join(" ");
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -155,7 +163,7 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings): string {
       const colour = ts.tagShowColor !== false ? (product.clothColor?.name || "") : "";
       blocks.push(
         `<div class="name">${esc(cap(product.itemType.name))}</div>` +
-        (colour ? `<div class="desc">${esc(cap(colour))}</div>` : "")
+        (colour ? `<div class="desc">Color: ${esc(titleCase(colour))}</div>` : "")
       );
     } else if (key === "size" && ts.tagShowSize !== false && product.size) {
       blocks.push(`<div class="desc">Size: ${esc(cap(product.size))}</div>`);
@@ -206,6 +214,47 @@ function renderDocument(product: TagProduct, ts: TagSettings, autoPrint: boolean
   </style></head><body>
   ${tagInnerHtml(product, ts)}
   ${script}
+  </body></html>`;
+}
+
+/**
+ * Many tags in one print job — the barcode generator's output.
+ *
+ * Each tag is its own physical label on the roll, so each gets its own page at
+ * the tag's own size. Rendering goes through the same tagInnerHtml and tagCss
+ * as the single-tag print, so a sheet can never drift from what a one-off tag
+ * looks like.
+ */
+export function tagSheetDocument(
+  entries: { product: TagProduct; copies: number }[],
+  ts: TagSettings,
+): string {
+  const w = ts.tagWidthMm ?? 54;
+  const h = ts.tagHeightMm ?? 65;
+
+  const pages = entries.flatMap(({ product, copies }) =>
+    Array.from({ length: Math.max(0, Math.floor(copies)) },
+      () => `<div class="sheet-page">${tagInnerHtml(product, ts)}</div>`)
+  );
+
+  return `<!DOCTYPE html><html><head>
+  <meta charset="UTF-8"><title>Tags</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #fff; color: #000; }
+    .sheet-page { width: ${w}mm; height: ${h}mm; overflow: hidden; page-break-after: always; }
+    .sheet-page:last-child { page-break-after: auto; }
+    ${tagCss(ts)}
+    @page { size: ${w}mm ${h}mm; margin: 0; }
+  </style></head><body>
+  ${pages.join("\n")}
+  <script>
+    window.onafterprint = function () { window.close(); };
+    window.onload = function () {
+      window.print();
+      setTimeout(function () { window.close(); }, 500);
+    };
+  <\/script>
   </body></html>`;
 }
 
