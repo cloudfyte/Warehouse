@@ -113,20 +113,32 @@ def to_urls_csv(value: str) -> str:
 
 
 def _split_entries(value: str) -> list[str]:
-    """Split a comma-separated list whose entries may themselves contain commas."""
+    """
+    Split a comma-separated list of images whose entries contain commas of their own.
+
+    A data URL carries exactly one comma, between its header and its payload
+    ("data:image/png;base64,iVBOR..."), and base64 has no comma in its alphabet.
+    So a header is always followed by precisely one payload chunk, and that is
+    what this consumes.
+
+    The previous version decided instead, chunk by chunk, whether a chunk looked
+    like the start of a new entry — and a base64 payload does, because "/" is a
+    base64 character and every path has one too. Photos were therefore torn away
+    from their headers, leaving a bare "data:image/png;base64" that decoded to
+    nothing and failed as "Malformed image upload."
+    """
     entries: list[str] = []
-    for chunk in value.split(","):
-        chunk = chunk.strip()
+    chunks = value.split(",")
+    i = 0
+    while i < len(chunks):
+        chunk = chunks[i].strip()
+        i += 1
         if not chunk:
             continue
-        # A data URL's own commas produce chunks that do not start a new entry;
-        # glue those back onto the entry being built.
-        if entries and not (chunk.startswith("data:") or _looks_like_path(chunk)):
-            entries[-1] = f"{entries[-1]},{chunk}"
+        if chunk.startswith("data:"):
+            payload = chunks[i].strip() if i < len(chunks) else ""
+            i += 1
+            entries.append(f"{chunk},{payload}")
         else:
             entries.append(chunk)
     return entries
-
-
-def _looks_like_path(chunk: str) -> bool:
-    return chunk.startswith(_PASSTHROUGH_PREFIXES) or "/" in chunk.split("?")[0]
