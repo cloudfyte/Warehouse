@@ -66,10 +66,17 @@ const cap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** Unit price — salePrice is the batch total, so divide when quantity > 1. */
+/**
+ * The price to print on one garment's tag.
+ *
+ * This used to divide by quantity, on the belief that salePrice held a batch
+ * total. It does not — the move-to-finished-goods form asks for "sale price
+ * per piece" and the service stores that number untouched. So the division was
+ * printing a fraction of the real price onto physical tags: a Rs.1,200 shirt
+ * in a batch of 50 came out as Rs.24.
+ */
 export function unitPrice(p: TagProduct): number {
-  const total = Number(p.salePrice);
-  return p.quantity > 1 ? total / p.quantity : total;
+  return Number(p.salePrice);
 }
 
 /**

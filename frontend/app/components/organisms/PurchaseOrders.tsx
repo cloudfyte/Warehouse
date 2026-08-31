@@ -43,9 +43,9 @@ function Badge({ s }: { s: string }) {
 interface POItem { kind: "RAW_CLOTH" | "READYMADE"; categoryId: string; colorId: string; meters: number; itemTypeId: string; itemName: string; ageGroup: string; size: string; qty: number; unitPrice: number }
 const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "", meters: 0, itemTypeId: "", itemName: "", ageGroup: "", size: "", qty: 0, unitPrice: 0 });
 
-const STATUSES = ["DRAFT", "PLACED", "DISPATCHED", "RECEIVED", "VERIFIED", "CANCELLED"];
+const STATUSES = ["DRAFT", "PLACED", "DISPATCHED", "PARTIALLY_RECEIVED", "RECEIVED", "VERIFIED", "CANCELLED"];
 const PER_PAGE = 20;
-const PO_NEXT: Record<string, string> = { DRAFT: "PLACED", PLACED: "DISPATCHED", DISPATCHED: "RECEIVED", RECEIVED: "VERIFIED" };
+const PO_NEXT: Record<string, string> = { DRAFT: "PLACED", PLACED: "DISPATCHED", DISPATCHED: "RECEIVED", PARTIALLY_RECEIVED: "RECEIVED", RECEIVED: "VERIFIED" };
 
 const CONDITION_LABEL: Record<string, string> = { GOOD: "Good Condition", PARTIAL_DAMAGE: "Partial Damage", DAMAGED: "Damaged" };
 const CONDITION_COLOR: Record<string, string> = { GOOD: "#10b981", PARTIAL_DAMAGE: "#f59e0b", DAMAGED: "#ef4444" };
@@ -61,23 +61,42 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
   const [error, setError] = useState("");
 
   // Receive Goods modal state
-  interface ReceiveRow { poItemId: string; label: string; kind: string; receivedMeters: string; receivedQuantity: string; binLocation: string; }
+  interface ReceiveRow {
+    poItemId: string; label: string; kind: string;
+    /** Ordered, already delivered, and still owed — a delivery is booked against the balance. */
+    ordered: number; already: number; outstanding: number;
+    receivedMeters: string; receivedQuantity: string; binLocation: string;
+  }
   const [showReceive, setShowReceive] = useState(false);
   const [receiveRows, setReceiveRows] = useState<ReceiveRow[]>([]);
   const [receiveSaving, setReceiveSaving] = useState(false);
   const [receiveErr, setReceiveErr] = useState("");
 
+  /**
+   * A supplier delivers an order over several trips, so this opens on the
+   * balance still owed rather than the full ordered amount — and drops lines
+   * that have already arrived in full, so the second lorry only asks about
+   * what is actually on it.
+   */
   function openReceive(po: PurchaseOrder) {
-    setReceiveRows(po.items.map(it => ({
-      poItemId: it.id,
-      label: it.itemKind === "RAW_CLOTH"
-        ? `${it.clothCategory?.name || "Cloth"} — ${it.clothColor?.name || "any color"}`
-        : (it.itemType?.name || it.itemName || "Readymade"),
-      kind: it.itemKind,
-      receivedMeters: String(it.orderedMeters ?? ""),
-      receivedQuantity: String(it.orderedQuantity ?? ""),
-      binLocation: "",
-    })));
+    const rows = po.items.map(it => {
+      const isCloth = it.itemKind === "RAW_CLOTH";
+      const ordered = Number((isCloth ? it.orderedMeters : it.orderedQuantity) ?? 0);
+      const already = Number((isCloth ? it.receivedMeters : it.receivedQuantity) ?? 0);
+      const outstanding = Math.max(ordered - already, 0);
+      return {
+        poItemId: it.id,
+        label: isCloth
+          ? `${it.clothCategory?.name || "Cloth"} — ${it.clothColor?.name || "any color"}`
+          : (it.itemType?.name || it.itemName || "Readymade"),
+        kind: it.itemKind,
+        ordered, already, outstanding,
+        receivedMeters: isCloth ? String(outstanding) : "",
+        receivedQuantity: isCloth ? "" : String(outstanding),
+        binLocation: "",
+      };
+    }).filter(r => r.outstanding > 0);
+    setReceiveRows(rows);
     setReceiveErr(""); setShowReceive(true);
   }
 
@@ -92,13 +111,29 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
           : { receivedQuantity: r.receivedQuantity ? +r.receivedQuantity : undefined }),
         binLocation: r.binLocation || undefined,
       }));
-      await onMutate(
-        `mutation R($poId:ID!,$items:[ReceiptItemInput!]!){receivePurchaseOrder(poId:$poId,receiptItems:$items){purchaseOrder{id status actualDelivery receivedBy{id username}}}}`,
+      const res = await onMutate(
+        `mutation R($poId:ID!,$items:[ReceiptItemInput!]!){receivePurchaseOrder(poId:$poId,receiptItems:$items){purchaseOrder{id status actualDelivery receivedBy{id username} items{id receivedMeters receivedQuantity}}}}`,
         { poId: detail.id, items }
       );
-      setDetail(d => d ? { ...d, status: "RECEIVED" } : null);
+      // Whether this delivery completed the order is the server's call — it is the
+      // only side that knows what every other line still has outstanding. Assuming
+      // RECEIVED here is what hid the remaining goods on a part delivery.
+      const updated = res?.receivePurchaseOrder?.purchaseOrder;
+      const newStatus: string = updated?.status ?? "RECEIVED";
+      const receivedById: Record<string, { receivedMeters?: number; receivedQuantity?: number }> =
+        Object.fromEntries((updated?.items ?? []).map((i: { id: string }) => [i.id, i]));
+      setDetail(d => d ? {
+        ...d,
+        status: newStatus,
+        items: d.items.map(it => receivedById[it.id] ? { ...it, ...receivedById[it.id] } : it),
+      } : null);
       setShowReceive(false);
-      showToast("Goods received and stock updated.", "success");
+      showToast(
+        newStatus === "PARTIALLY_RECEIVED"
+          ? "Delivery added to stock. The rest of this order is still outstanding."
+          : "Goods received and stock updated.",
+        "success",
+      );
     } catch (e: unknown) {
       const msg = friendlyError(e);
       setReceiveErr(msg); showToast(msg, "error");
@@ -522,7 +557,10 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
             <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 20 }}>
               {["DRAFT", "PLACED", "DISPATCHED", "RECEIVED", "VERIFIED"].map((s, i, arr) => {
                 const statusOrder = ["DRAFT", "PLACED", "DISPATCHED", "RECEIVED", "VERIFIED"];
-                const currentIdx = statusOrder.indexOf(detail.status);
+                // Part-received is not its own step — it sits at dispatched with
+                // Received still open, which is exactly what it means.
+                const currentIdx = statusOrder.indexOf(
+                  detail.status === "PARTIALLY_RECEIVED" ? "DISPATCHED" : detail.status);
                 const stepIdx = statusOrder.indexOf(s);
                 const done = stepIdx <= currentIdx;
                 return (
@@ -559,7 +597,10 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 disabled={loading}
                 style={{ width: "100%", marginBottom: 8 }}
               >
-                {loading ? "Updating…" : PO_NEXT[detail.status] === "RECEIVED" ? "Receive Goods" : `Mark as ${PO_STATUS_LABELS[PO_NEXT[detail.status]]}`}
+                {loading ? "Updating…"
+                  : detail.status === "PARTIALLY_RECEIVED" ? "Receive Remaining Goods"
+                  : PO_NEXT[detail.status] === "RECEIVED" ? "Receive Goods"
+                  : `Mark as ${PO_STATUS_LABELS[PO_NEXT[detail.status]]}`}
               </Button>
             )}
             {canEdit && !["CANCELLED", "VERIFIED"].includes(detail.status) && (
@@ -625,7 +666,9 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       {showReceive && detail && (
         <Modal
           title="Receive Goods"
-          subtitle={`Confirm quantities received for ${detail.poNumber}. Stock will be added to inventory.`}
+          subtitle={detail.status === "PARTIALLY_RECEIVED"
+            ? `${detail.poNumber} — booking another delivery. Only what is still owed is listed.`
+            : `Confirm quantities received for ${detail.poNumber}. Stock will be added to inventory.`}
           width={520}
           zIndex={200}
           onClose={() => setShowReceive(false)}
@@ -641,15 +684,19 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         >
             {receiveRows.map((row, i) => (
               <div key={row.poItemId} style={{ background: "var(--bg)", borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>{row.label}</div>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{row.label}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+                  {row.ordered} ordered · {row.already} already received ·{" "}
+                  <strong style={{ color: "var(--accent)" }}>{row.outstanding} still owed</strong>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   {row.kind === "RAW_CLOTH" ? (
-                    <Field label="Received Meters *">
+                    <Field label="Receiving Now (m) *">
                       <Input type="number" value={row.receivedMeters} min="0" step="0.01"
                         onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, receivedMeters: e.target.value } : x))} />
                     </Field>
                   ) : (
-                    <Field label="Received Qty (pcs) *">
+                    <Field label="Receiving Now (pcs) *">
                       <Input type="number" value={row.receivedQuantity} min="0" step="1"
                         onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, receivedQuantity: e.target.value } : x))} />
                     </Field>

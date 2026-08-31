@@ -5,7 +5,9 @@ from warehouse.models import EmployeeProfile
 from warehouse.permissions import require_role
 from warehouse.services.audit import log_action
 from warehouse.services.notify import notify_managers
-from warehouse.services.purchase_bill import create_purchase_bill, generate_bill_from_po
+from warehouse.services.purchase_bill import (
+    create_purchase_bill, generate_bill_from_po, update_purchase_bill_gst,
+)
 from warehouse.schema.types import PurchaseBillType
 
 
@@ -98,3 +100,36 @@ class GenerateBillFromPO(graphene.Mutation):
         except Exception:
             pass
         return GenerateBillFromPO(purchase_bill=bill)
+
+
+class BillGstLineInput(graphene.InputObjectType):
+    id = graphene.ID(required=True)
+    gst_rate = graphene.Float(required=True)
+
+
+class UpdatePurchaseBillGst(graphene.Mutation):
+    """Restate the GST on a saved bill — see the service for why this is needed."""
+    class Arguments:
+        bill_id = graphene.ID(required=True)
+        gst_rate = graphene.Float()
+        items = graphene.List(BillGstLineInput)
+
+    purchase_bill = graphene.Field(PurchaseBillType)
+
+    @login_required
+    def mutate(self, info, bill_id, gst_rate=None, items=None):
+        user = info.context.user
+        bill = update_purchase_bill_gst(
+            user=user, bill_id=bill_id, gst_rate=gst_rate,
+            items=[dict(i) for i in items] if items else None,
+        )
+        try:
+            log_action(
+                entity_type="PurchaseBill", entity_id=bill.pk, action="UPDATED",
+                actor=user,
+                detail={"bill_number": bill.bill_number, "gst_restated": True,
+                        "tax": str(bill.tax_amount), "total": str(bill.total_amount)},
+            )
+        except Exception:
+            pass
+        return UpdatePurchaseBillGst(purchase_bill=bill)

@@ -13,6 +13,39 @@ from warehouse.permissions import get_scoped, get_warehouse
 from warehouse.services.uploads import save_data_url
 
 
+def _split_gst(item_gst_records, supplier, sys_settings):
+    """
+    Total GST across the lines, split into CGST+SGST or IGST.
+
+    An intra-state supply — supplier registered in our own state — splits the
+    tax in half as CGST and SGST; everything else is a single IGST figure. Both
+    states have to be known before we can call a supply intra-state: a blank
+    state is an unknown, not a match, so it falls through to IGST.
+    """
+    tax = sum(
+        (line_total * rate / 100).quantize(Decimal("0.01"))
+        for line_total, rate in item_gst_records if rate > 0
+    ) or Decimal("0.00")
+    if tax <= 0:
+        zero = Decimal("0.00")
+        return zero, zero, zero, zero
+
+    supplier_state = (supplier.state or "").strip().lower()
+    company_state = (sys_settings.company_state or "").strip().lower()
+    if supplier_state and company_state and supplier_state == company_state:
+        cgst = (tax / 2).quantize(Decimal("0.01"))
+        return tax, cgst, tax - cgst, Decimal("0.00")
+    return tax, Decimal("0.00"), Decimal("0.00"), tax
+
+
+def _payment_status(paid, total):
+    if paid == 0:
+        return PurchaseBill.PaymentStatus.PENDING
+    if paid >= total:
+        return PurchaseBill.PaymentStatus.PAID
+    return PurchaseBill.PaymentStatus.PARTIAL
+
+
 def create_purchase_bill(
     *, user, supplier_id, warehouse_id,
     items, total_amount=None, amount_paid=0,
@@ -75,7 +108,18 @@ def create_purchase_bill(
                 unit = Decimal(str(item.get("unit_price") or 0))
                 line_total = qty * unit
 
-            item_gst_rate = Decimal(str(item.get("gst_rate") or 0))
+            # A blank rate means "whatever this item type is configured at" —
+            # which is what generating a bill from a PO has always done. Reading
+            # it as a plain zero here is why bills printed with no GST at all.
+            # An explicitly entered 0 still means zero.
+            raw_rate = item.get("gst_rate")
+            if raw_rate in (None, ""):
+                configured = (ItemType.objects
+                              .filter(pk=item.get("item_type_id"))
+                              .values_list("gst_rate", flat=True).first()) if item.get("item_type_id") else None
+                item_gst_rate = Decimal(str(configured or 0))
+            else:
+                item_gst_rate = Decimal(str(raw_rate))
 
             PurchaseBillItem.objects.create(
                 bill=bill,
@@ -133,23 +177,7 @@ def create_purchase_bill(
 
         # GST computation
         if gst_enabled:
-            tax_amount = sum(
-                (lt * rate / 100).quantize(Decimal("0.01"))
-                for lt, rate in item_gst_records if rate > 0
-            )
-            supplier_state = (supplier.state or "").strip().lower()
-            company_state = (sys_settings.company_state or "").strip().lower()
-            is_intra = bool(supplier_state and company_state and supplier_state == company_state)
-            if is_intra and tax_amount > 0:
-                cgst = (tax_amount / 2).quantize(Decimal("0.01"))
-                sgst = tax_amount - cgst
-                igst = Decimal("0.00")
-            elif tax_amount > 0:
-                cgst = Decimal("0.00")
-                sgst = Decimal("0.00")
-                igst = tax_amount
-            else:
-                cgst = sgst = igst = Decimal("0.00")
+            tax_amount, cgst, sgst, igst = _split_gst(item_gst_records, supplier, sys_settings)
             final_total = computed_total + tax_amount
         else:
             tax_amount = cgst = sgst = igst = Decimal("0.00")
@@ -163,12 +191,7 @@ def create_purchase_bill(
         if paid > final_total:
             raise GraphQLError("Amount paid cannot exceed total amount.")
 
-        if paid == 0:
-            status = PurchaseBill.PaymentStatus.PENDING
-        elif paid >= final_total:
-            status = PurchaseBill.PaymentStatus.PAID
-        else:
-            status = PurchaseBill.PaymentStatus.PARTIAL
+        status = _payment_status(paid, final_total)
 
         bill.taxable_amount = computed_total
         bill.tax_amount = tax_amount
@@ -250,22 +273,7 @@ def generate_bill_from_po(*, po_id, user):
             item_gst_records.append((line_total, gst_rate))
 
         if gst_enabled and item_gst_records:
-            tax_amount = sum(
-                (lt * rate / 100).quantize(Decimal("0.01"))
-                for lt, rate in item_gst_records if rate > 0
-            )
-            supplier_state = (po.supplier.state or "").strip().lower()
-            company_state = (sys_settings.company_state or "").strip().lower()
-            is_intra = bool(supplier_state and company_state and supplier_state == company_state)
-            if is_intra and tax_amount > 0:
-                cgst = (tax_amount / 2).quantize(Decimal("0.01"))
-                sgst = tax_amount - cgst
-                igst = Decimal("0.00")
-            elif tax_amount > 0:
-                cgst = sgst = Decimal("0.00")
-                igst = tax_amount
-            else:
-                cgst = sgst = igst = Decimal("0.00")
+            tax_amount, cgst, sgst, igst = _split_gst(item_gst_records, po.supplier, sys_settings)
             final_total = computed_total + tax_amount
         else:
             tax_amount = cgst = sgst = igst = Decimal("0.00")
@@ -283,4 +291,76 @@ def generate_bill_from_po(*, po_id, user):
             "total_amount", "payment_status",
         ])
 
+    return bill
+
+
+def update_purchase_bill_gst(*, user, bill_id, items=None, gst_rate=None):
+    """
+    Restate the GST on a bill that is already saved.
+
+    A bill entered while the GST setting was switched off — or before the
+    supplier's rate was known — stores zero tax, and nothing in the app could
+    ever change that afterwards, so it printed with no GST section for good.
+    This recomputes the tax, the CGST/SGST/IGST split and the total from rates
+    given now.
+
+    Pass ``items`` as [{id, gst_rate}] to set specific lines, or ``gst_rate`` to
+    apply one rate to every line. The taxable value is never touched — only the
+    tax on top of it — so this cannot be used to quietly restate what was bought.
+    """
+    from warehouse.models import EmployeeProfile, SystemSettings
+    from warehouse.permissions import require_role
+
+    # Restating tax on a saved purchase is an accounting correction.
+    require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
+
+    if items is None and gst_rate is None:
+        raise GraphQLError("Give a GST rate to apply, or the rate for each line.")
+
+    with transaction.atomic():
+        bill = get_scoped(user, PurchaseBill, bill_id, lock=True)
+        sys_settings = SystemSettings.load()
+        if not sys_settings.gst_on_purchases:
+            raise GraphQLError(
+                "GST on purchases is switched off in Settings — turn it on before "
+                "adding GST to a bill."
+            )
+
+        by_id = {str(entry["id"]): entry.get("gst_rate") for entry in (items or [])}
+        records = []
+        for line in bill.items.select_for_update():
+            if str(line.pk) in by_id:
+                rate = Decimal(str(by_id[str(line.pk)] or 0))
+            elif gst_rate is not None:
+                rate = Decimal(str(gst_rate))
+            else:
+                rate = line.gst_rate or Decimal("0.00")
+            if rate < 0 or rate > 100:
+                raise GraphQLError(f"GST rate must be between 0 and 100 — got {rate}.")
+            if rate != line.gst_rate:
+                line.gst_rate = rate
+                line.save(update_fields=["gst_rate"])
+            records.append((line.total_price or Decimal("0.00"), rate))
+
+        taxable = sum((lt for lt, _ in records), Decimal("0.00"))
+        tax, cgst, sgst, igst = _split_gst(records, bill.supplier, sys_settings)
+        total = taxable + tax
+
+        if bill.amount_paid > total:
+            raise GraphQLError(
+                f"This bill already has {bill.amount_paid} paid against it, which is more "
+                f"than the restated total of {total}. Adjust the payments first."
+            )
+
+        bill.taxable_amount = taxable
+        bill.tax_amount = tax
+        bill.cgst_amount = cgst
+        bill.sgst_amount = sgst
+        bill.igst_amount = igst
+        bill.total_amount = total
+        bill.payment_status = _payment_status(bill.amount_paid, total)
+        bill.save(update_fields=[
+            "taxable_amount", "tax_amount", "cgst_amount", "sgst_amount", "igst_amount",
+            "total_amount", "payment_status",
+        ])
     return bill

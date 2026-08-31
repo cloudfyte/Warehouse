@@ -246,6 +246,7 @@ class PurchaseOrder(models.Model):
         DRAFT = "DRAFT", "Draft"
         PLACED = "PLACED", "Placed"
         DISPATCHED = "DISPATCHED", "Dispatched"
+        PARTIALLY_RECEIVED = "PARTIALLY_RECEIVED", "Partially Received"
         RECEIVED = "RECEIVED", "Received"
         VERIFIED = "VERIFIED", "Verified"
         CANCELLED = "CANCELLED", "Cancelled"

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Camera, Download, Printer, Bluetooth } from "lucide-react";
+import { Camera, Download, Printer, Bluetooth, Pencil } from "lucide-react";
 import type { FinishedProduct } from "@/app/types";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { downloadCsv } from "@/app/lib/csv";
@@ -18,6 +18,7 @@ import { buildTagEscPos } from "@/app/lib/useBluetooth";
 
 import { tagDocument, type TagSettings } from "@/app/lib/tagTemplate";
 import Drawer from "@/app/components/atoms/Drawer";
+import Field from "@/app/components/molecules/Field";
 
 interface Props {
   products: FinishedProduct[]
@@ -50,6 +51,60 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
   const [scanResult, setScanResult] = useState<{ found: boolean; product?: FinishedProduct } | null>(null);
 
   const canManage = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
+  // Repricing is an admin/manager call; a store keeper can still fix a size or
+  // colour that was picked wrong on the way in. Mirrors the service's own gate.
+  const canReprice = isSuperAdmin || isAdmin || isManager;
+
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ salePrice: "", costPrice: "", size: "", ageGroup: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editErr, setEditErr] = useState("");
+
+  function openEdit(p: FinishedProduct) {
+    setEditForm({
+      salePrice: String(p.salePrice ?? ""),
+      costPrice: String(p.costPrice ?? ""),
+      size: p.size || "",
+      ageGroup: p.ageGroup || "",
+    });
+    setEditErr(""); setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!selected) return;
+    setEditSaving(true); setEditErr("");
+    try {
+      // Only send what the user may change — the service refuses pricing from a
+      // store keeper, so offering it and then failing would be a worse message.
+      const vars: Record<string, unknown> = {
+        id: selected.id,
+        size: editForm.size || undefined,
+        ageGroup: editForm.ageGroup || undefined,
+      };
+      if (canReprice) {
+        vars.salePrice = editForm.salePrice === "" ? undefined : +editForm.salePrice;
+        vars.costPrice = editForm.costPrice === "" ? undefined : +editForm.costPrice;
+      }
+      await onMutate(
+        `mutation E($id:ID!,$salePrice:Float,$costPrice:Float,$size:String,$ageGroup:String){`
+        + `updateFinishedProduct(id:$id,salePrice:$salePrice,costPrice:$costPrice,size:$size,ageGroup:$ageGroup)`
+        + `{finishedProduct{id salePrice costPrice size ageGroup profitMargin}}}`,
+        vars,
+      );
+      setSelected(prev => prev ? {
+        ...prev,
+        salePrice: canReprice && editForm.salePrice !== "" ? +editForm.salePrice : prev.salePrice,
+        costPrice: canReprice && editForm.costPrice !== "" ? +editForm.costPrice : prev.costPrice,
+        size: editForm.size || prev.size,
+        ageGroup: editForm.ageGroup || prev.ageGroup,
+      } : prev);
+      setEditing(false);
+      showToast("Product updated.", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not save the changes.";
+      setEditErr(msg); showToast(msg, "error");
+    } finally { setEditSaving(false); }
+  }
   const filtered = products.filter(p =>
     (p.sku.toLowerCase().includes(search.toLowerCase()) || p.itemType.name.toLowerCase().includes(search.toLowerCase()) || p.barcode.includes(search)) &&
     (!sourceFilter || p.source === sourceFilter)
@@ -137,7 +192,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
           subtitle={selected.itemType.name}
           width={460}
           zIndex={100}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); setEditing(false); }}
         >
             <div style={{ background: "var(--bg)", borderRadius: 10, padding: 16, marginBottom: 16, fontSize: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -148,7 +203,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                   ["Source", selected.source === "IN_HOUSE" ? "Stitched" : "Imported"],
                   ["Quantity", `${selected.quantity} pcs`],
                   ["Cost Price", formatMoney(selected.costPrice)],
-                  ["Unit Price", formatMoney(selected.quantity > 1 ? selected.salePrice / selected.quantity : selected.salePrice)],
+                  ["Sale Price / pc", formatMoney(selected.salePrice)],
                   ["Profit", formatMoney(selected.profitMargin)],
                   ["Warehouse", selected.warehouse.name],
                   ["Tags Printed", selected.tagsPrinted ? "Yes" : "No"],
@@ -158,6 +213,51 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 ))}
               </div>
             </div>
+
+            {canManage && !editing && (
+              <Button variant="secondary" onClick={() => openEdit(selected)}
+                style={{ width: "100%", marginBottom: 16 }}>
+                <Pencil size={14} /> Edit Details
+              </Button>
+            )}
+
+            {canManage && editing && (
+              <div style={{ background: "var(--bg)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {canReprice && (
+                    <>
+                      <Field label="Sale Price / pc" hint="What one piece sells for. This is the price printed on the tag.">
+                        <Input type="number" min="0" step="0.01" value={editForm.salePrice}
+                          onChange={e => setEditForm(f => ({ ...f, salePrice: e.target.value }))} />
+                      </Field>
+                      <Field label="Cost Price / pc">
+                        <Input type="number" min="0" step="0.01" value={editForm.costPrice}
+                          onChange={e => setEditForm(f => ({ ...f, costPrice: e.target.value }))} />
+                      </Field>
+                    </>
+                  )}
+                  <Field label="Size">
+                    <Input value={editForm.size} placeholder="e.g. 40"
+                      onChange={e => setEditForm(f => ({ ...f, size: e.target.value }))} />
+                  </Field>
+                  <Field label="Age Group">
+                    <Input value={editForm.ageGroup} placeholder="e.g. ADULT"
+                      onChange={e => setEditForm(f => ({ ...f, ageGroup: e.target.value }))} />
+                  </Field>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 12px" }}>
+                  Quantity is not editable here — it comes from the stitching job or
+                  batch these pieces were moved from. Use a stock adjustment to correct it.
+                </div>
+                {editErr && <div style={{ color: "var(--danger)", fontSize: 12, marginBottom: 10 }}>{editErr}</div>}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Button variant="primary" onClick={saveEdit} disabled={editSaving} style={{ flex: 1 }}>
+                    {editSaving ? "Saving…" : "Save Changes"}
+                  </Button>
+                  <Button variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
             {selected.barcodeSvg && (
               <div style={{ background: "#fff", borderRadius: 8, padding: 12, marginBottom: 16 }}
                 dangerouslySetInnerHTML={{ __html: selected.barcodeSvg }} />
@@ -179,7 +279,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 itemName: selected.itemType.name,
                 size: selected.size,
                 ageGroup: selected.ageGroup || undefined,
-                salePrice: selected.quantity > 1 ? selected.salePrice / selected.quantity : selected.salePrice,
+                salePrice: selected.salePrice,
                 barcode: selected.barcode,
                 companyName: systemSettings?.tagBrandName || systemSettings?.companyName || "Sri Warehouse",
                 tagline: systemSettings?.tagTagline || undefined,

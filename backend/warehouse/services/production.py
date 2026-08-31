@@ -304,3 +304,60 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             # else keep READY — more pieces still to be moved
 
         return fp
+
+
+# Editable without touching stock. Quantity is deliberately absent: it is derived
+# from the stitching job or readymade batch the goods came from, and letting it
+# be typed over would mint or destroy pieces that the rest of the pipeline has
+# already accounted for.
+_FP_DESCRIPTIVE = ("size", "age_group", "cloth_color_id", "cloth_category_id", "item_type_id")
+_FP_PRICING = ("cost_price", "sale_price")
+
+
+def update_finished_product(*, user, id, **changes):
+    """
+    Correct the details of goods already in finished stock.
+
+    Repricing is an admin/manager decision; fixing a size or a colour that was
+    picked wrong on the way in is ordinary store-keeper work, so the two are
+    gated separately.
+    """
+    from warehouse.permissions import accessible_warehouses, require_role
+
+    changes = {k: v for k, v in changes.items() if v is not None}
+    if not changes:
+        raise GraphQLError("Nothing to update.")
+
+    require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
+                 EmployeeProfile.Role.STORE_KEEPER)
+    if any(k in changes for k in _FP_PRICING):
+        require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
+
+    # Scoped by warehouse: ids are sequential, so a bare get(pk=) let anyone
+    # reprice stock in a warehouse they are not assigned to.
+    try:
+        fp = FinishedProduct.objects.get(pk=id, warehouse__in=accessible_warehouses(user))
+    except FinishedProduct.DoesNotExist as exc:
+        raise GraphQLError("Finished product not found.") from exc
+
+    updated = []
+    if "tags_printed" in changes:
+        fp.tags_printed = bool(changes["tags_printed"])
+        updated.append("tags_printed")
+
+    for field in _FP_PRICING:
+        if field in changes:
+            price = Decimal(str(changes[field]))
+            if price < 0:
+                raise GraphQLError("Prices cannot be negative.")
+            setattr(fp, field, price)
+            updated.append(field)
+
+    for field in _FP_DESCRIPTIVE:
+        if field in changes:
+            value = changes[field]
+            setattr(fp, field, value.strip() if isinstance(value, str) else value)
+            updated.append(field)
+
+    fp.save(update_fields=updated + ["updated_at"])
+    return fp

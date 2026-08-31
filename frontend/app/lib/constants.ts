@@ -12,6 +12,7 @@ export const ROLE_LABELS: Record<string, string> = {
 
 export const PO_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Draft", PLACED: "Placed", DISPATCHED: "Dispatched",
+  PARTIALLY_RECEIVED: "Part Received",
   RECEIVED: "Received", VERIFIED: "Verified", CANCELLED: "Cancelled",
 };
 
@@ -86,6 +87,7 @@ export const QUOTATION_STATUS_LABELS: Record<string, string> = {
 
 export const STATUS_BADGE_COLORS: Record<string, string> = {
   DRAFT: "#555", PLACED: "#2196f3", DISPATCHED: "#ff9800",
+  PARTIALLY_RECEIVED: "#f59e0b",
   RECEIVED: "#4caf50", VERIFIED: "#1b5e20", CANCELLED: "#f44336",
   REQUESTED: "#9c27b0", PROCESSING: "#ff9800", READY: "#03a9f4",
   DELIVERED: "#4caf50", PENDING: "#ff9800", IN_PROGRESS: "#2196f3",

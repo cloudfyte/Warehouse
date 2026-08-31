@@ -100,6 +100,17 @@ def update_purchase_order_status(*, user, id, status, actual_delivery=None):
                     f"Goods for this order are already in stock ({po.status.lower()}); "
                     f"it can only move on to verified."
                 )
+        # A part-received order advances by booking the rest of the delivery, not
+        # by picking a status from a dropdown. Marking it received by hand would
+        # close it while goods are still owed; sending it back to placed would
+        # contradict the stock already booked against it. Verifying is allowed —
+        # that is how you short-close an order the supplier never completed.
+        if po.status == PurchaseOrder.Status.PARTIALLY_RECEIVED:
+            if status not in (PurchaseOrder.Status.VERIFIED, PurchaseOrder.Status.CANCELLED):
+                raise GraphQLError(
+                    "This order is part-received. Receive the rest of the goods to complete it, "
+                    "or verify it to close it short."
+                )
 
         po.status = status
         if actual_delivery:
@@ -108,11 +119,39 @@ def update_purchase_order_status(*, user, id, status, actual_delivery=None):
     return po
 
 
+def _requested(receipt, key):
+    """
+    The amount on one receipt line, or None when the caller left it out.
+
+    ``.get(key, default)`` would be wrong here: a client that explicitly sends
+    zero means zero, and that has to reach the validation below rather than be
+    quietly swapped for the whole outstanding balance.
+    """
+    value = receipt.get(key)
+    return None if value is None or value == "" else value
+
+
 def receive_purchase_order(*, po_id, user, receipt_items):
     """
-    Mark PO as received and create raw cloth batches / readymade stock records.
+    Book a delivery against a purchase order and create the stock it brought in.
+
+    A supplier rarely sends 100 pieces in one lorry — 30 arrive now, 30 in two
+    days, the rest next week. So a receipt is cumulative: each call adds to what
+    an item has already received and leaves the order open at
+    PARTIALLY_RECEIVED until every line is complete. Only then does it become
+    RECEIVED.
+
+    Every delivery still creates its own RawClothBatch / ReadymadeStock row, so
+    those rows are the receipt history — each one carries the date, the cost and
+    the bin it landed in for that particular lorry.
+
     receipt_items = [{po_item_id, received_meters?, received_quantity?, bin_location?, cost_per_meter?, notes?}]
+    A line whose outstanding balance is already zero is skipped, so the caller
+    can send every line of the order each time without special-casing.
     """
+    receivable = (PurchaseOrder.Status.PLACED,
+                  PurchaseOrder.Status.DISPATCHED,
+                  PurchaseOrder.Status.PARTIALLY_RECEIVED)
     with transaction.atomic():
         # The status check has to hold the row: read outside the lock, two clicks
         # on Receive both saw PLACED and each created a full set of stock rows.
@@ -122,11 +161,13 @@ def receive_purchase_order(*, po_id, user, receipt_items):
               .filter(pk=po_id).first())
         if po is None:
             raise GraphQLError("Purchase order not found in your warehouses.")
-        if po.status not in (PurchaseOrder.Status.PLACED, PurchaseOrder.Status.DISPATCHED):
+        if po.status not in receivable:
             raise GraphQLError(
-                f"Only placed or dispatched orders can be received — this one is {po.status.lower()}."
+                f"Only placed, dispatched or part-received orders can be received — "
+                f"this one is {po.get_status_display().lower()}."
             )
 
+        booked_anything = False
         for receipt in receipt_items:
             try:
                 poi = PurchaseOrderItem.objects.select_for_update().get(pk=receipt["po_item_id"], purchase_order=po)
@@ -134,10 +175,25 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                 raise GraphQLError("PO item not found.") from exc
 
             if poi.item_kind == PurchaseOrderItem.ItemKind.RAW_CLOTH:
-                meters = Decimal(str(receipt.get("received_meters", poi.ordered_meters or 0)))
+                ordered = poi.ordered_meters or Decimal("0")
+                already = poi.received_meters or Decimal("0")
+                outstanding = ordered - already
+                asked = _requested(receipt, "received_meters")
+                if asked is None:
+                    if outstanding <= 0:
+                        continue  # this line is already complete
+                    meters = outstanding
+                else:
+                    meters = Decimal(str(asked))
                 if meters <= 0:
                     raise GraphQLError("Received meters must be greater than zero.")
-                poi.received_meters = meters
+                if meters > outstanding:
+                    raise GraphQLError(
+                        f"Only {outstanding}m of this item are still outstanding "
+                        f"({already}m of {ordered}m already received). "
+                        f"Edit the order if the supplier sent more than you ordered."
+                    )
+                poi.received_meters = already + meters
                 poi.save(update_fields=["received_meters"])
                 RawClothBatch.objects.create(
                     po_item=poi,
@@ -147,15 +203,31 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                     warehouse=po.warehouse,
                     total_meters=meters,
                     available_meters=meters,
-                    cost_per_meter=Decimal(str(receipt.get("cost_per_meter", poi.unit_price or 0))),
+                    cost_per_meter=Decimal(str(receipt.get("cost_per_meter") or poi.unit_price or 0)),
                     bin_location=receipt.get("bin_location", ""),
                     notes=receipt.get("notes", ""),
                 )
+                booked_anything = True
             else:
-                qty = int(receipt.get("received_quantity", poi.ordered_quantity or 0))
+                ordered = poi.ordered_quantity or 0
+                already = poi.received_quantity or 0
+                outstanding = ordered - already
+                asked = _requested(receipt, "received_quantity")
+                if asked is None:
+                    if outstanding <= 0:
+                        continue  # this line is already complete
+                    qty = outstanding
+                else:
+                    qty = int(asked)
                 if qty <= 0:
                     raise GraphQLError("Received quantity must be greater than zero.")
-                poi.received_quantity = qty
+                if qty > outstanding:
+                    raise GraphQLError(
+                        f"Only {outstanding} pieces of this item are still outstanding "
+                        f"({already} of {ordered} already received). "
+                        f"Edit the order if the supplier sent more than you ordered."
+                    )
+                poi.received_quantity = already + qty
                 poi.save(update_fields=["received_quantity"])
                 ReadymadeStock.objects.create(
                     po_item=poi,
@@ -169,13 +241,29 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                     cost_price=poi.unit_price,
                     notes=receipt.get("notes", ""),
                 )
+                booked_anything = True
 
-        po.status = PurchaseOrder.Status.RECEIVED
+        if not booked_anything:
+            raise GraphQLError("Nothing left to receive on this order — every item is already complete.")
+
         from django.utils import timezone
+        po.status = (PurchaseOrder.Status.RECEIVED if _fully_received(po)
+                     else PurchaseOrder.Status.PARTIALLY_RECEIVED)
         po.actual_delivery = timezone.now().date()
         po.received_by = user
         po.save(update_fields=["status", "actual_delivery", "received_by"])
     return po
+
+
+def _fully_received(po):
+    """True once every line of the order has had its full ordered amount delivered."""
+    for item in po.items.all():
+        if item.item_kind == PurchaseOrderItem.ItemKind.RAW_CLOTH:
+            if (item.received_meters or Decimal("0")) < (item.ordered_meters or Decimal("0")):
+                return False
+        elif (item.received_quantity or 0) < (item.ordered_quantity or 0):
+            return False
+    return True
 
 
 def _validate_item(item):

@@ -297,6 +297,125 @@ class PurchaseOrderReceipt(StockFixture):
         self.assertEqual(RawClothBatch.objects.filter(po_item=item).count(), 1)
 
 
+    def _placed_readymade_po(self, pieces=100):
+        po = PurchaseOrder.objects.create(
+            supplier=self.supplier,
+            order_type=PurchaseOrder.OrderType.READYMADE,
+            warehouse=self.warehouse,
+            status=PurchaseOrder.Status.PLACED,
+            created_by=self.admin,
+        )
+        item = PurchaseOrderItem.objects.create(
+            purchase_order=po,
+            item_kind=PurchaseOrderItem.ItemKind.READYMADE,
+            item_type=self.item_type,
+            ordered_quantity=pieces,
+            unit_price=Decimal("200.00"),
+            total_price=Decimal("200.00") * pieces,
+        )
+        return po, item
+
+    def test_a_hundred_pieces_can_arrive_in_three_lorries(self):
+        """The order stays open until the last piece lands, and nothing is lost on the way."""
+        po, item = self._placed_readymade_po(pieces=100)
+
+        for sent in (30, 30, 40):
+            receive_purchase_order(
+                po_id=po.id, user=self.admin,
+                receipt_items=[{"po_item_id": item.id, "received_quantity": sent}],
+            )
+            po.refresh_from_db()
+            item.refresh_from_db()
+
+        self.assertEqual(item.received_quantity, 100)
+        self.assertEqual(po.status, PurchaseOrder.Status.RECEIVED)
+
+        # One stock row per delivery, and together they account for every piece.
+        rows = ReadymadeStock.objects.filter(po_item=item)
+        self.assertEqual(rows.count(), 3)
+        self.assertEqual(sum(r.quantity_received for r in rows), 100)
+
+    def test_an_order_is_part_received_until_the_balance_arrives(self):
+        po, item = self._placed_readymade_po(pieces=100)
+
+        receive_purchase_order(
+            po_id=po.id, user=self.admin,
+            receipt_items=[{"po_item_id": item.id, "received_quantity": 30}],
+        )
+        po.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(po.status, PurchaseOrder.Status.PARTIALLY_RECEIVED)
+        self.assertEqual(item.received_quantity, 30)
+
+    def test_the_supplier_cannot_deliver_more_than_was_ordered(self):
+        po, item = self._placed_readymade_po(pieces=100)
+        receive_purchase_order(
+            po_id=po.id, user=self.admin,
+            receipt_items=[{"po_item_id": item.id, "received_quantity": 80}],
+        )
+
+        with self.assertRaises(GraphQLError):
+            receive_purchase_order(
+                po_id=po.id, user=self.admin,
+                receipt_items=[{"po_item_id": item.id, "received_quantity": 30}],
+            )
+
+        item.refresh_from_db()
+        self.assertEqual(item.received_quantity, 80)
+        self.assertEqual(ReadymadeStock.objects.filter(po_item=item).count(), 1)
+
+    def test_omitting_the_quantity_receives_only_what_is_still_outstanding(self):
+        """The UI can send every line each time; complete lines are skipped, not doubled."""
+        po, item = self._placed_readymade_po(pieces=100)
+        receive_purchase_order(
+            po_id=po.id, user=self.admin,
+            receipt_items=[{"po_item_id": item.id, "received_quantity": 30}],
+        )
+
+        receive_purchase_order(
+            po_id=po.id, user=self.admin,
+            receipt_items=[{"po_item_id": item.id}],
+        )
+
+        item.refresh_from_db()
+        po.refresh_from_db()
+        self.assertEqual(item.received_quantity, 100)
+        self.assertEqual(po.status, PurchaseOrder.Status.RECEIVED)
+
+    def test_a_part_received_order_cannot_be_closed_by_hand(self):
+        from warehouse.services.purchase_order import update_purchase_order_status
+
+        po, item = self._placed_readymade_po(pieces=100)
+        receive_purchase_order(
+            po_id=po.id, user=self.admin,
+            receipt_items=[{"po_item_id": item.id, "received_quantity": 30}],
+        )
+
+        with self.assertRaises(GraphQLError):
+            update_purchase_order_status(
+                user=self.admin, id=po.id, status=PurchaseOrder.Status.RECEIVED)
+
+        po.refresh_from_db()
+        self.assertEqual(po.status, PurchaseOrder.Status.PARTIALLY_RECEIVED)
+
+    def test_a_short_delivery_can_be_closed_by_verifying_it(self):
+        from warehouse.services.purchase_order import update_purchase_order_status
+
+        po, item = self._placed_readymade_po(pieces=100)
+        receive_purchase_order(
+            po_id=po.id, user=self.admin,
+            receipt_items=[{"po_item_id": item.id, "received_quantity": 30}],
+        )
+
+        update_purchase_order_status(
+            user=self.admin, id=po.id, status=PurchaseOrder.Status.VERIFIED)
+
+        po.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(po.status, PurchaseOrder.Status.VERIFIED)
+        self.assertEqual(item.received_quantity, 30)
+
+
 class SupplierReturnsLeaveStock(StockFixture):
     def test_returning_cloth_removes_it_from_the_batch(self):
         create_supplier_return(
@@ -703,3 +822,61 @@ class QueryCountsDoNotGrowWithRows(StockFixture):
             f"profile re-read {len(profile_reads)} times:\n" +
             "\n".join(q["sql"][:120] for q in profile_reads),
         )
+
+
+class FinishedProductEditing(StockFixture):
+    """Correcting goods already in stock must not become a way to invent stock."""
+
+    def setUp(self):
+        super().setUp()
+        self.product = FinishedProduct.objects.create(
+            item_type=self.item_type,
+            cloth_category=self.category,
+            cloth_color=self.color,
+            size="40",
+            source=FinishedProduct.Source.IMPORTED,
+            quantity=12,
+            warehouse=self.warehouse,
+            cost_price=Decimal("500.00"),
+            sale_price=Decimal("900.00"),
+        )
+
+    def test_sale_price_is_stored_per_piece_not_as_a_batch_total(self):
+        """A 12-piece batch priced at 900 means 900 a piece — the tag prints this number."""
+        from warehouse.services.production import update_finished_product
+
+        update_finished_product(user=self.admin, id=self.product.id, sale_price=1200)
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.sale_price, Decimal("1200.00"))
+        self.assertEqual(self.product.quantity, 12)
+
+    def test_details_can_be_corrected_without_touching_quantity(self):
+        from warehouse.services.production import update_finished_product
+
+        update_finished_product(user=self.admin, id=self.product.id, size="42", age_group="ADULT")
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.size, "42")
+        self.assertEqual(self.product.age_group, "ADULT")
+        self.assertEqual(self.product.quantity, 12)
+
+    def test_a_store_keeper_cannot_reprice_stock(self):
+        from warehouse.services.production import update_finished_product
+
+        keeper = self._employee("keeper", EmployeeProfile.Role.STORE_KEEPER)
+
+        with self.assertRaises(GraphQLError):
+            update_finished_product(user=keeper.user, id=self.product.id, sale_price=1)
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.sale_price, Decimal("900.00"))
+
+    def test_a_negative_price_is_refused(self):
+        from warehouse.services.production import update_finished_product
+
+        with self.assertRaises(GraphQLError):
+            update_finished_product(user=self.admin, id=self.product.id, sale_price=-5)
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.sale_price, Decimal("900.00"))

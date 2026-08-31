@@ -6,7 +6,7 @@ from warehouse.models import EmployeeProfile
 from warehouse.permissions import accessible_warehouses, require_role
 from warehouse.services.production import (
     create_cutting_assignment, create_finished_products, create_stitching_job,
-    update_cutting_assignment, update_stitching_job,
+    update_cutting_assignment, update_finished_product, update_stitching_job,
 )
 from warehouse.schema.types import CuttingAssignmentType, FinishedProductType, StitchingJobType
 
@@ -104,34 +104,20 @@ class UpdateFinishedProduct(graphene.Mutation):
         id = graphene.ID(required=True)
         tags_printed = graphene.Boolean()
         sale_price = graphene.Float()
+        cost_price = graphene.Float()
+        size = graphene.String()
+        age_group = graphene.String()
+        cloth_color_id = graphene.ID()
+        cloth_category_id = graphene.ID()
+        item_type_id = graphene.ID()
 
     finished_product = graphene.Field(FinishedProductType)
 
     @login_required
     def mutate(self, info, id, **kwargs):
-        from warehouse.models import FinishedProduct
-
-        user = info.context.user
-        # Marking a tag printed is a store-keeper action; repricing stock is not.
-        require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
-                     EmployeeProfile.Role.STORE_KEEPER)
-        if kwargs.get("sale_price") is not None:
-            require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
-
-        # Scoped by warehouse: ids are sequential, so a bare get(pk=) let anyone
-        # reprice stock in a warehouse they are not assigned to.
-        try:
-            fp = FinishedProduct.objects.get(pk=id, warehouse__in=accessible_warehouses(user))
-        except FinishedProduct.DoesNotExist as exc:
-            raise GraphQLError("Finished product not found.") from exc
-
-        if kwargs.get("tags_printed") is not None:
-            fp.tags_printed = kwargs["tags_printed"]
-        if kwargs.get("sale_price") is not None:
-            from decimal import Decimal
-            fp.sale_price = Decimal(str(kwargs["sale_price"]))
-        fp.save()
-        return UpdateFinishedProduct(finished_product=fp)
+        return UpdateFinishedProduct(
+            finished_product=update_finished_product(
+                user=info.context.user, id=id, **kwargs))
 
 
 class CreateFinishedProducts(graphene.Mutation):

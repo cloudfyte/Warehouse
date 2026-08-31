@@ -153,6 +153,42 @@ export default function PurchaseBills({
 }: Props) {
   const canCreate = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
   const gstEnabled = !!systemSettings?.gstOnPurchases;
+  // Restating tax on a saved purchase is an accounting correction, so it stops
+  // at manager. Mirrors the gate in the service.
+  const canFixGst = isSuperAdmin || isAdmin || isManager;
+
+  const [gstEdit, setGstEdit] = useState<{ bill: PurchaseBill; rates: Record<string, string> } | null>(null);
+  const [gstBlanket, setGstBlanket] = useState("");
+  const [gstSaving, setGstSaving] = useState(false);
+  const [gstErr, setGstErr] = useState("");
+
+  function openGstEdit(bill: PurchaseBill) {
+    setGstEdit({
+      bill,
+      rates: Object.fromEntries(bill.items.map(it => [String(it.id), String(it.gstRate ?? "")])),
+    });
+    setGstBlanket(""); setGstErr("");
+  }
+
+  async function saveGst() {
+    if (!gstEdit) return;
+    setGstSaving(true); setGstErr("");
+    try {
+      await onMutate(
+        `mutation G($billId:ID!,$items:[BillGstLineInput]){updatePurchaseBillGst(billId:$billId,items:$items)`
+        + `{purchaseBill{id taxableAmount taxAmount cgstAmount sgstAmount igstAmount totalAmount paymentStatus}}}`,
+        {
+          billId: gstEdit.bill.id,
+          items: Object.entries(gstEdit.rates).map(([id, rate]) => ({ id, gstRate: parseFloat(rate) || 0 })),
+        },
+      );
+      setGstEdit(null);
+      showToast("GST updated. The bill and its print now show the tax.", "success");
+    } catch (e: unknown) {
+      const msg = friendlyError(e);
+      setGstErr(msg); showToast(msg, "error");
+    } finally { setGstSaving(false); }
+  }
   function getBillEscData(bill: PurchaseBill): Uint8Array {
     return buildBillEscPos({
       billNumber: bill.billNumber,
@@ -406,7 +442,8 @@ export default function PurchaseBills({
       <div class="header">
         <div class="header-left">
           <h1>${bill.billNumber}</h1>
-          <div style="font-size:13px;color:#555;margin-top:4px">Purchase Bill</div>
+          <div style="font-size:13px;color:#555;margin-top:4px">Goods Received Note</div>
+          <div style="font-size:11px;color:#999;margin-top:2px">Internal record of goods received — not a tax invoice. The supplier issues the invoice.</div>
           ${bill.invoiceRef ? `<div style="font-size:12px;color:#888;margin-top:2px">Supplier Ref: ${bill.invoiceRef}</div>` : ""}
           <div style="margin-top:6px"><span class="badge" style="background:${st.color}">${st.label}</span></div>
         </div>
@@ -508,6 +545,20 @@ export default function PurchaseBills({
                       <Stat label="Pending" value={`${formatMoney(bill.amountPending)}`} color={bill.amountPending > 0 ? "#e65100" : undefined} />
                       <Stat label="Warehouse" value={bill.warehouse.name} />
                     </div>
+
+                    {canFixGst && gstEnabled && (
+                      <div style={{ marginBottom: 14 }}>
+                        <Button variant="secondary" onClick={() => openGstEdit(bill)}
+                          style={{ fontSize: 13, padding: "6px 12px" }}>
+                          {bill.taxAmount > 0 ? "Correct GST" : "Add GST to this bill"}
+                        </Button>
+                        {bill.taxAmount === 0 && (
+                          <span style={{ marginLeft: 10, fontSize: 12, color: "var(--muted)" }}>
+                            No tax was recorded, so the printed bill shows none.
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Items */}
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: "var(--muted)" }}>
@@ -652,6 +703,61 @@ export default function PurchaseBills({
         </div>
       )}
       <Pagination page={page} total={bills.length} perPage={PER_PAGE} onChange={setPage} />
+
+      {/* GST correction — for bills saved before GST was switched on */}
+      {gstEdit && (
+        <Modal
+          title="GST on this bill"
+          subtitle={`${gstEdit.bill.billNumber} — set the rate for each line. Only the tax changes; what was bought stays as it is.`}
+          width={520}
+          zIndex={300}
+          onClose={() => setGstEdit(null)}
+          onSubmit={saveGst}
+          footer={
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="primary" type="submit" disabled={gstSaving} style={{ flex: 1 }}>
+                {gstSaving ? "Saving…" : "Save GST"}
+              </Button>
+              <Button variant="secondary" onClick={() => setGstEdit(null)}>Cancel</Button>
+            </div>
+          }
+        >
+          <Field label="Apply one rate to every line" hint="A shortcut — you can still change individual lines below.">
+            <div style={{ display: "flex", gap: 8 }}>
+              <Input type="number" min="0" max="100" step="0.01" placeholder="e.g. 12"
+                value={gstBlanket} onChange={e => setGstBlanket(e.target.value)} />
+              <Button variant="secondary" disabled={!gstBlanket}
+                onClick={() => setGstEdit(g => g ? {
+                  ...g,
+                  rates: Object.fromEntries(Object.keys(g.rates).map(id => [id, gstBlanket])),
+                } : g)}>
+                Apply
+              </Button>
+            </div>
+          </Field>
+
+          {gstEdit.bill.items.map((item, i) => (
+            <div key={item.id ?? i} style={{ background: "var(--bg)", borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>
+                {item.itemKind === "RAW_CLOTH"
+                  ? [item.clothCategory?.name, item.clothColor?.name].filter(Boolean).join(" · ")
+                  : [item.itemType?.name, item.size].filter(Boolean).join(" · ")}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+                Taxable {formatMoney(item.totalPrice)}
+              </div>
+              <Field label="GST %">
+                <Input type="number" min="0" max="100" step="0.01"
+                  value={gstEdit.rates[String(item.id)] ?? ""}
+                  onChange={e => setGstEdit(g => g ? {
+                    ...g, rates: { ...g.rates, [String(item.id)]: e.target.value },
+                  } : g)} />
+              </Field>
+            </div>
+          ))}
+          {gstErr && <ErrorBanner msg={gstErr} />}
+        </Modal>
+      )}
 
       {/* Record Payment Modal */}
       {payBillId && payingBill && (
