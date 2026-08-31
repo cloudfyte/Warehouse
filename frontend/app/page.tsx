@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useToasts, showToast, type ToastItem } from "@/app/lib/toast";
 import { graphql, refreshAccessToken, DASHBOARD_QUERY, SETTINGS_QUERY } from "@/app/lib/graphql";
 import { friendlyError } from "@/app/lib/errors";
+import ConnectionError from "@/app/components/organisms/ConnectionError";
 import { applyBrandColors, applyDarkMode } from "@/app/lib/theme";
 import { TAB_TITLES } from "@/app/lib/constants";
 import {
@@ -12,6 +13,7 @@ import {
   Users, Warehouse, Bell, Settings2, ChevronLeft, ChevronRight,
   Sun, Moon, LogOut, BarChart2, Menu, X, User, ClipboardList,
   ArrowLeftRight, AlertCircle, FileText, TrendingUp, BookOpen, List, ShieldCheck,
+  WifiOff,
 } from "lucide-react";
 
 import Login from "@/app/components/organisms/Login";
@@ -234,12 +236,15 @@ export default function Home() {
   }, []);
 
   const loadData = useCallback(async (jwt: string) => {
-    setLoading(true); setError("");
+    setLoading(true);
     try {
       const result = await graphql<AppData>(DASHBOARD_QUERY, {}, jwt);
       const latestToken = localStorage.getItem("jwt");
       if (latestToken && latestToken !== jwt) setToken(latestToken);
       setData(result);
+      // Cleared on success, not on attempt — clearing up front made the
+      // offline banner blink out and back every time the 60 s poll retried.
+      setError("");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "";
       if (msg === "SESSION_EXPIRED" || msg.toLowerCase().includes("not authenticated")) {
@@ -360,13 +365,19 @@ export default function Home() {
 
   if (!data && loading) return <AppSkeleton />;
 
-  if (error) {
+  // Only take over the screen when there is nothing to take over. A failed
+  // background refresh used to hit this branch too, so one dropped poll — a
+  // deploy restarting the containers, a moment of bad wifi — threw away a
+  // screen the user was working on. With data in hand it is a banner instead,
+  // and the app stays usable on what it already loaded.
+  if (error && !data) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100dvh", gap: 12 }}>
-        <div style={{ color: "#f44336", fontSize: 15 }}>{error}</div>
-        <button type="button" onClick={() => token && loadData(token)} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer" }}>Retry</button>
-        <button type="button" onClick={handleLogout} style={{ fontSize: 13, color: "var(--muted)", border: "none", background: "none", cursor: "pointer" }}>Log out</button>
-      </div>
+      <ConnectionError
+        message={error}
+        retrying={loading}
+        onRetry={() => token && loadData(token)}
+        onLogout={handleLogout}
+      />
     );
   }
 
@@ -596,6 +607,32 @@ export default function Home() {
 
       {/* ── Main content ── */}
       <main style={{ marginLeft: isMobile ? 0 : SIDEBAR_W, flex: 1, minWidth: 0, transition: "margin-left 0.2s" }}>
+        {/* A refresh failed but we still have data — say so without throwing
+            the screen away. It clears itself as soon as a poll succeeds. */}
+        {error && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+            padding: "9px 16px", background: "#fff8e6", borderBottom: "1px solid #f5d78e",
+            color: "#8a5a00", fontSize: 12.5,
+          }}>
+            <WifiOff size={15} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 180 }}>
+              {error} Showing the last data loaded.
+            </span>
+            <button
+              type="button"
+              onClick={() => token && loadData(token)}
+              disabled={loading}
+              style={{
+                border: "1px solid #e0b355", background: "#fff", color: "#8a5a00",
+                borderRadius: 6, padding: "4px 12px", fontSize: 12, fontWeight: 600,
+                cursor: loading ? "default" : "pointer", opacity: loading ? 0.6 : 1,
+              }}
+            >
+              {loading ? "Retrying…" : "Retry"}
+            </button>
+          </div>
+        )}
         {/* Topbar */}
         <div style={{
           position: "sticky", top: 0, zIndex: 5,

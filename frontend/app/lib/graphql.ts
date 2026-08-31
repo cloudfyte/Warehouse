@@ -45,6 +45,21 @@ export async function refreshAccessToken(): Promise<string | null> {
 
 const EXPIRED_PHRASES = ["signature has expired", "token is expired", "expired"];
 
+/**
+ * A fetch that never resolved — the server was mid-restart, the wifi dropped,
+ * the phone changed towers. These are the only failures worth retrying: the
+ * request provably never reached the server, so replaying it cannot duplicate
+ * anything.
+ */
+function isNetworkFailure(err: unknown) {
+  if (!(err instanceof TypeError)) return false;
+  const m = err.message.toLowerCase();
+  return m.includes("failed to fetch")   // Chrome, Edge
+    || m.includes("load failed")          // Safari
+    || m.includes("networkerror")         // Firefox
+    || m.includes("network request failed");
+}
+
 export async function graphql<T>(
   query: string,
   variables: Record<string, unknown> = {},
@@ -53,6 +68,13 @@ export async function graphql<T>(
   try {
     return await _fetch<T>(query, variables, token);
   } catch (err: unknown) {
+    // A deploy recreates the containers, so every request in that window fails
+    // outright. One retry a second later rides out the restart instead of
+    // showing the customer a connection error mid-demo.
+    if (isNetworkFailure(err)) {
+      await new Promise(r => setTimeout(r, 1200));
+      return _fetch<T>(query, variables, token);
+    }
     const msg = err instanceof Error ? err.message.toLowerCase() : "";
     // Auto-refresh on expiry, then retry once
     if (token && EXPIRED_PHRASES.some(p => msg.includes(p))) {
