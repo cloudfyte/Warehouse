@@ -483,7 +483,7 @@ export default function PurchaseBills({
   return (
     <div>
       <PageHeader
-        title="Purchase Bills"
+        title="Supplier Invoices"
         sub="Direct supplier purchases — items go to stock immediately"
         actions={<>
           <Button variant="secondary" size="sm" onClick={() => downloadCsv(`purchase-bills-${new Date().toISOString().slice(0,10)}.csv`, bills.map(b => ({ "Bill #": b.billNumber, Date: b.billDate?.slice(0,10), Supplier: b.supplier?.name, Warehouse: b.warehouse?.name, "Invoice Ref": b.invoiceRef, Total: b.totalAmount, Paid: b.amountPaid, Pending: b.amountPending, Status: b.paymentStatus })))}>
@@ -844,7 +844,7 @@ export default function PurchaseBills({
                 <Field label="Purchase Date">
                   <Input type="date" value={billDate} onChange={e => setBillDate(e.target.value)} />
                 </Field>
-                <Field label="Supplier Invoice # (optional)">
+                <Field label="Supplier Invoice #" hint="The number on the bill the supplier gave you. This record exists to track what you owe them — it is not a bill you issue.">
                   <Input value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} placeholder="e.g. INV-2024-001" />
                 </Field>
               </FormGrid>

@@ -149,8 +149,11 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings): string {
   for (const key of order) {
     if (key === "logo" && ts.tagLogoData) {
       blocks.push(`<img src="${esc(ts.tagLogoData)}" style="height:${ts.tagLogoSize ?? 30}px;display:block;" />`);
-    } else if (key === "brand" && (ts.tagBrandName || ts.companyName)) {
-      blocks.push(`<div class="brand">${esc(ts.tagBrandName || ts.companyName || "")}</div>`);
+    } else if (key === "brand" && ts.tagBrandName) {
+      // Deliberately not falling back to companyName: that is the registered
+      // legal name ("... Garment Business") and it does not fit a 54mm tag.
+      // The brand row appears once someone sets a short brand name.
+      blocks.push(`<div class="brand">${esc(ts.tagBrandName)}</div>`);
       if (ts.tagTagline) blocks.push(`<div class="tagline">${esc(ts.tagTagline)}</div>`);
     } else if (key === "barcode" && ts.tagShowBarcode !== false) {
       // With no SVG this row can only repeat the number the barcode-text row
@@ -273,29 +276,41 @@ export function tagPreviewDocument(product: TagProduct, ts: TagSettings): string
  * absolute mm coordinates, no viewBox, 33mm wide. Using the same shape means
  * the preview crops and positions it exactly as the real one will.
  */
-function sampleBarcodeSvg(): string {
+function sampleBarcodeSvg(code: string): string {
+  // Code128 spends about 11 modules per character plus start, checksum and a
+  // wider stop pattern, so width scales with the length of the code. The old
+  // sample was fixed at 33mm — the width of a 15-character GRM number — which
+  // made the preview show a barcode almost twice as wide as the short codes
+  // now printed, and every layout tuned against it came out wrong.
+  const widthMm = 2 * QUIET_ZONE_MM + MODULE_MM * 11 * (code.length + 3);
   const bars: string[] = [];
-  let x = 2;
+  let x = QUIET_ZONE_MM;
   // Deterministic widths, so the preview does not flicker between renders.
   const widths = [0.4, 0.2, 0.6, 0.2, 0.4, 0.8, 0.2, 0.6, 0.4, 0.2];
-  for (let i = 0; x < 31; i++) {
+  for (let i = 0; x < widthMm - QUIET_ZONE_MM; i++) {
     const w = widths[i % widths.length];
     bars.push(`<rect x="${x.toFixed(3)}mm" y="1.000mm" width="${w.toFixed(3)}mm" height="15.000mm" style="fill:black;"/>`);
     x += w + (i % 3 === 0 ? 0.6 : 0.4);
   }
-  return `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="33.000mm" height="23.411mm">`
+  return `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="${widthMm.toFixed(3)}mm" height="23.411mm">`
     + `<g>${bars.join("")}</g></svg>`;
 }
+
+const MODULE_MM = 0.2;      // python-barcode's default module width
+const QUIET_ZONE_MM = 2;
 
 /** A representative product, so the preview shows realistic proportions. */
 export const SAMPLE_TAG_PRODUCT: TagProduct = {
   sku: "FP-202608-0008",
-  barcode: "GRM260826023310",
+  // Same shape a real product now carries: two random characters, the price,
+  // two more. A sample from the old GRM scheme was twice as long, so the
+  // preview was tuned against a barcode the printer will never produce.
+  barcode: "K72499AB",
   size: "38",
   ageGroup: "Adult",
   quantity: 1,
   salePrice: 2499,
   itemType: { name: "Indowestern" },
   clothColor: { name: "Pista Green" },
-  barcodeSvg: sampleBarcodeSvg(),
+  barcodeSvg: sampleBarcodeSvg("K72499AB"),
 };

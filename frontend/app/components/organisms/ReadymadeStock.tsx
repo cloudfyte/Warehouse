@@ -106,7 +106,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
               <tr>
                 <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
                   {items.length === 0
-                    ? "No readymade stock. Receive a Purchase Order or Purchase Bill to add readymade items."
+                    ? "No readymade stock. Receive a Purchase Order, or record a supplier invoice, to add readymade items."
                     : "No items match your search."}
                 </td>
               </tr>

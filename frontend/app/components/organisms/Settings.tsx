@@ -318,7 +318,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
               <Input value={form.gstin || ""} onChange={e => set("gstin")(e.target.value)} placeholder="e.g. 33AABCU9603R1ZX" />
             </Field>
             <Toggle
-              label="Apply GST on Purchase Bills (Input Tax Credit)"
+              label="Apply GST on supplier invoices (Input Tax Credit)"
               description="When ON, each bill item shows a GST % field. Tax is split as CGST+SGST (intra-state) or IGST (inter-state) based on supplier state vs company state."
               checked={!!form.gstOnPurchases}
               onChange={tog("gstOnPurchases")}

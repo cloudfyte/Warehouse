@@ -65,7 +65,7 @@ export default function RawCloth({ batches }: Props) {
               <tr>
                 <td colSpan={9} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
                   {batches.length === 0
-                    ? "No raw cloth batches. Receive a Purchase Order or Purchase Bill to add cloth stock."
+                    ? "No raw cloth batches. Receive a Purchase Order, or record a supplier invoice, to add cloth stock."
                     : "No batches match your search."}
                 </td>
               </tr>

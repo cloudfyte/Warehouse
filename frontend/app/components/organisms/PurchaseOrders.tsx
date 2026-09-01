@@ -149,7 +149,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         `mutation G($poId:ID!){generateBillFromPo(poId:$poId){purchaseBill{id billNumber}}}`,
         { poId }
       );
-      showToast("Purchase Bill created — check Purchase Bills tab.", "success");
+      showToast("Supplier invoice recorded — see the Supplier Invoices tab.", "success");
       if (onNavigateToBills) onNavigateToBills();
     } catch (e: unknown) {
       showToast(friendlyError(e), "error");
@@ -648,7 +648,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                   disabled={loading}
                   style={{ width: "100%", marginTop: 8, background: "#0ea5e9", border: "none" }}
                 >
-                  {loading ? "Generating…" : "📄 Generate Purchase Bill"}
+                  {loading ? "Recording…" : "📄 Record Supplier Invoice"}
                 </Button>
               );
             })()}

@@ -108,7 +108,7 @@ function SupplierHistory({ supplier, purchaseBills, purchaseOrders, supplierRetu
 
       {bills.length > 0 && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Purchase Bills</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Supplier Invoices</div>
           <div style={{ border: "1px solid var(--line)", borderRadius: 9, overflow: "hidden", marginBottom: 18 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>

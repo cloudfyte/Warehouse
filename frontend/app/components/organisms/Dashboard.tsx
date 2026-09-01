@@ -405,7 +405,7 @@ function Dashboard({
               </div>
               <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 20 }}>Delivered orders only</div>
 
-              <SectionLabel>Supplier Payments (Purchase Bills)</SectionLabel>
+              <SectionLabel>Supplier Payments (Invoices)</SectionLabel>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
                 <StatCard
                   label="Total Purchased"

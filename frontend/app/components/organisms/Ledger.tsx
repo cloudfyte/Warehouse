@@ -89,7 +89,7 @@ function buildSupplierLedger(supplierId: string, purchaseBills: PurchaseBill[]):
       date: bill.billDate,
       type: "bill",
       reference: bill.billNumber,
-      description: `Purchase Bill${bill.invoiceRef ? ` — ${bill.invoiceRef}` : ""}`,
+      description: `Supplier Invoice${bill.invoiceRef ? ` — ${bill.invoiceRef}` : ""}`,
       debit: bill.totalAmount,
       credit: 0,
       balance: 0,

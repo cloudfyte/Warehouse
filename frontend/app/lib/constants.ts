@@ -54,7 +54,7 @@ export const TAB_TITLES: Record<Tab, string> = {
   suppliers: "Suppliers",
   buyers: "Buyers",
   purchase_orders: "Purchase Orders",
-  purchase_bills: "Purchase Bills",
+  purchase_bills: "Supplier Invoices",
   raw_cloth: "Raw Cloth",
   readymade_stock: "Readymade Stock",
   cutting: "Cutting",

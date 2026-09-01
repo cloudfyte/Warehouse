@@ -21,7 +21,7 @@ const ALL_TABS: { key: string; label: string; group: string }[] = [
   { key: "suppliers",        label: "Suppliers",         group: "Procurement" },
   { key: "buyers",           label: "Buyers",            group: "Procurement" },
   { key: "purchase_orders",  label: "Purchase Orders",   group: "Procurement" },
-  { key: "purchase_bills",   label: "Purchase Bills",    group: "Procurement" },
+  { key: "purchase_bills",   label: "Supplier Invoices", group: "Procurement" },
   { key: "quotations",       label: "Quotations",        group: "Procurement" },
   { key: "raw_cloth",        label: "Raw Cloth",         group: "Inventory" },
   { key: "readymade_stock",  label: "Readymade Stock",   group: "Inventory" },
