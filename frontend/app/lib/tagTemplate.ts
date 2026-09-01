@@ -138,7 +138,20 @@ export function tagCss(ts: TagSettings): string {
 }
 
 /** The rows of the tag, in the configured order. */
-export function tagInnerHtml(product: TagProduct, ts: TagSettings): string {
+/**
+ * Free text added to one print run only, never saved to Settings.
+ *
+ * A batch of tags often needs a line the permanent layout should not carry —
+ * a collection name, a season, a counter it is going to. Vyapar calls these
+ * Header, Line 1 and Line 2, and the shop floor is used to them.
+ */
+export interface TagExtraLines {
+  header?: string;
+  line1?: string;
+  line2?: string;
+}
+
+export function tagInnerHtml(product: TagProduct, ts: TagSettings, extra: TagExtraLines = {}): string {
   const order = normaliseOrder(ts.tagComponentOrder);
   const barcodeSvg = cleanBarcodeSvg(product.barcodeSvg);
   const mrp = unitPrice(product).toLocaleString("en-IN", {
@@ -181,6 +194,13 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings): string {
     }
   }
 
+  if (extra.header?.trim()) {
+    blocks.unshift(`<div class="brand">${esc(extra.header.trim())}</div>`);
+  }
+  for (const line of [extra.line1, extra.line2]) {
+    if (line?.trim()) blocks.push(`<div class="desc">${esc(line.trim())}</div>`);
+  }
+
   // Never print an empty tag.
   if (!blocks.length) {
     blocks.push(`<div class="barcode-text">${esc(product.barcode)}</div>`);
@@ -190,7 +210,7 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings): string {
 }
 
 /** The complete tag document, sized to the label. */
-function renderDocument(product: TagProduct, ts: TagSettings, autoPrint: boolean): string {
+function renderDocument(product: TagProduct, ts: TagSettings, autoPrint: boolean, extra: TagExtraLines = {}): string {
   const w = ts.tagWidthMm ?? 54;
   const h = ts.tagHeightMm ?? 65;
   // afterprint must be registered BEFORE print(): print() blocks until the
@@ -215,7 +235,7 @@ function renderDocument(product: TagProduct, ts: TagSettings, autoPrint: boolean
     ${tagCss(ts)}
     @page { size: ${w}mm ${h}mm; margin: 0; }
   </style></head><body>
-  ${tagInnerHtml(product, ts)}
+  ${tagInnerHtml(product, ts, extra)}
   ${script}
   </body></html>`;
 }
@@ -231,13 +251,14 @@ function renderDocument(product: TagProduct, ts: TagSettings, autoPrint: boolean
 export function tagSheetDocument(
   entries: { product: TagProduct; copies: number }[],
   ts: TagSettings,
+  extra: TagExtraLines = {},
 ): string {
   const w = ts.tagWidthMm ?? 54;
   const h = ts.tagHeightMm ?? 65;
 
   const pages = entries.flatMap(({ product, copies }) =>
     Array.from({ length: Math.max(0, Math.floor(copies)) },
-      () => `<div class="sheet-page">${tagInnerHtml(product, ts)}</div>`)
+      () => `<div class="sheet-page">${tagInnerHtml(product, ts, extra)}</div>`)
   );
 
   return `<!DOCTYPE html><html><head>
@@ -267,8 +288,8 @@ export function tagDocument(product: TagProduct, ts: TagSettings): string {
 }
 
 /** The same document without auto-print, for the Settings preview iframe. */
-export function tagPreviewDocument(product: TagProduct, ts: TagSettings): string {
-  return renderDocument(product, ts, false);
+export function tagPreviewDocument(product: TagProduct, ts: TagSettings, extra: TagExtraLines = {}): string {
+  return renderDocument(product, ts, false, extra);
 }
 
 /**

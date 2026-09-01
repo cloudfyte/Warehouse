@@ -4,9 +4,10 @@ import { Printer, Plus, X, Search } from "lucide-react";
 import type { FinishedProduct } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import { showToast } from "@/app/lib/toast";
-import { tagSheetDocument, tagPreviewDocument, type TagSettings } from "@/app/lib/tagTemplate";
+import { tagSheetDocument, tagPreviewDocument, type TagSettings, type TagExtraLines } from "@/app/lib/tagTemplate";
 import Input from "@/app/components/atoms/Input";
 import Button from "@/app/components/atoms/Button";
+import Field from "@/app/components/molecules/Field";
 
 interface Props {
   products: FinishedProduct[];
@@ -34,6 +35,8 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
   const [search, setSearch] = useState("");
   const [queue, setQueue] = useState<QueueRow[]>([]);
   const [printing, setPrinting] = useState(false);
+  // Not saved to Settings — this is text for one run of labels.
+  const [extra, setExtra] = useState<TagExtraLines>({ header: "", line1: "", line2: "" });
 
   const queuedIds = useMemo(() => new Set(queue.map(r => r.product.id)), [queue]);
 
@@ -79,6 +82,7 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
       win.document.write(tagSheetDocument(
         printable.map(r => ({ product: r.product, copies: r.copies })),
         systemSettings || {},
+        extra,
       ));
       win.document.close();
 
@@ -144,6 +148,32 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
           </Button>
         </div>
 
+        <div style={{
+          border: "1px solid var(--line)", borderRadius: 12,
+          padding: "12px 14px", marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Extra text for this batch
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <Field label="Header" hint="Top of the tag.">
+              <Input value={extra.header ?? ""} placeholder="e.g. SRI WEDDING"
+                onChange={e => setExtra(x => ({ ...x, header: e.target.value }))} />
+            </Field>
+            <Field label="Line 1">
+              <Input value={extra.line1 ?? ""} placeholder="e.g. Wedding Collection"
+                onChange={e => setExtra(x => ({ ...x, line1: e.target.value }))} />
+            </Field>
+            <Field label="Line 2">
+              <Input value={extra.line2 ?? ""} placeholder="e.g. Season 2026"
+                onChange={e => setExtra(x => ({ ...x, line2: e.target.value }))} />
+            </Field>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
+            Printed on this batch only — nothing here changes your saved tag layout.
+          </div>
+        </div>
+
         {/* Queue */}
         {queue.length === 0 ? (
           <div style={{
@@ -201,7 +231,7 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
           {previewProduct ? (
             <iframe
               title="Tag preview"
-              srcDoc={tagPreviewDocument(previewProduct, systemSettings || {})}
+              srcDoc={tagPreviewDocument(previewProduct, systemSettings || {}, extra)}
               style={{ width: "100%", height: "100%", border: "none" }}
             />
           ) : (
