@@ -33,6 +33,7 @@ interface SettingsData {
   tagGapMm?: number; tagBarcodeHeightMm?: number
   tagBarcodeTextFontSize?: number; tagNameFontSize?: number
   tagDescFontSize?: number; tagPriceFontSize?: number; tagSkuFontSize?: number
+  barcodePrefixDigits?: number; barcodeSuffixDigits?: number
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -203,6 +204,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $tagAlign:String,$tagVerticalAlign:String,$tagPadTop:Float,$tagPadRight:Float,$tagPadBottom:Float,$tagPadLeft:Float,
           $tagGapMm:Float,$tagBarcodeHeightMm:Float,$tagBarcodeTextFontSize:Float,$tagNameFontSize:Float,
           $tagDescFontSize:Float,$tagPriceFontSize:Float,$tagSkuFontSize:Float
+          $barcodePrefixDigits:Int,$barcodeSuffixDigits:Int
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -218,6 +220,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagAlign:$tagAlign,tagVerticalAlign:$tagVerticalAlign,tagPadTop:$tagPadTop,tagPadRight:$tagPadRight,tagPadBottom:$tagPadBottom,tagPadLeft:$tagPadLeft,
           tagGapMm:$tagGapMm,tagBarcodeHeightMm:$tagBarcodeHeightMm,tagBarcodeTextFontSize:$tagBarcodeTextFontSize,tagNameFontSize:$tagNameFontSize,
           tagDescFontSize:$tagDescFontSize,tagPriceFontSize:$tagPriceFontSize,tagSkuFontSize:$tagSkuFontSize
+          barcodePrefixDigits:$barcodePrefixDigits,barcodeSuffixDigits:$barcodeSuffixDigits
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -254,6 +257,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagBarcodeTextFontSize: num(form.tagBarcodeTextFontSize), tagNameFontSize: num(form.tagNameFontSize),
           tagDescFontSize: num(form.tagDescFontSize), tagPriceFontSize: num(form.tagPriceFontSize),
           tagSkuFontSize: num(form.tagSkuFontSize),
+          barcodePrefixDigits: form.barcodePrefixDigits === undefined ? undefined : Number(form.barcodePrefixDigits),
+          barcodeSuffixDigits: form.barcodeSuffixDigits === undefined ? undefined : Number(form.barcodeSuffixDigits),
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -492,7 +497,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Print Area (white section only)</div>
                   <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, background: "color-mix(in srgb,var(--primary) 8%,transparent)", borderRadius: 6, padding: "6px 10px" }}>
-                    Sri Wedding default: <strong>54mm × 65mm</strong> — measure your tag's white section
+                    Sri Wedding default: <strong>54mm × 65mm</strong> — measure your tag&apos;s white section
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                     <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", width: 40 }}>Width</span>
@@ -666,6 +671,29 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                           style={inputBox} />
                       </label>
                     ))}
+                  </div>
+
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      Barcode number
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      {([["barcodePrefixDigits", "Digits before price", 3],
+                         ["barcodeSuffixDigits", "Digits after price", 3]] as const).map(([k, label, dflt]) => (
+                        <label key={k} style={{ fontSize: 10, color: "var(--muted)" }}>{label}
+                          <input type="number" step={1} min="0" max="6"
+                            value={form[k] ?? dflt}
+                            onChange={e => set(k)(e.target.value === "" ? "" : +e.target.value)}
+                            style={inputBox} />
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>
+                      The price sits in the middle: {(form.barcodePrefixDigits ?? 3) > 0 ? "2".repeat(form.barcodePrefixDigits ?? 3) : ""}
+                      <strong style={{ color: "var(--ink)" }}>3000</strong>
+                      {(form.barcodeSuffixDigits ?? 3) > 0 ? "1".repeat(form.barcodeSuffixDigits ?? 3) : ""}.
+                      Changing this affects products made from now on; existing tags keep scanning.
+                    </div>
                   </div>
                 </div>
 

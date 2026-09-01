@@ -302,15 +302,15 @@ const QUIET_ZONE_MM = 2;
 /** A representative product, so the preview shows realistic proportions. */
 export const SAMPLE_TAG_PRODUCT: TagProduct = {
   sku: "FP-202608-0008",
-  // Same shape a real product now carries: two random characters, the price,
-  // two more. A sample from the old GRM scheme was twice as long, so the
-  // preview was tuned against a barcode the printer will never produce.
-  barcode: "K72499AB",
+  // Same shape a real product now carries: random digits, the price, random
+  // digits. A sample from the old GRM scheme was twice as long, so the preview
+  // was tuned against a barcode the printer will never produce.
+  barcode: "2042499123",
   size: "38",
   ageGroup: "Adult",
   quantity: 1,
   salePrice: 2499,
   itemType: { name: "Indowestern" },
   clothColor: { name: "Pista Green" },
-  barcodeSvg: sampleBarcodeSvg("K72499AB"),
+  barcodeSvg: sampleBarcodeSvg("2042499123"),
 };

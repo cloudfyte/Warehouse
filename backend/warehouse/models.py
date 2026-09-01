@@ -544,15 +544,24 @@ class StitchingJob(models.Model):
 
 # Codes a person can read off a tag: I and O are absent so they cannot be misread
 # as 1 and 0, and the set is the same one the purchase-bill cloth codes use.
-_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+# How many random digits sit either side of the price. Kept in settings so a
+# shop can widen them if it ever runs out of room at one price point.
+BARCODE_PAD_DEFAULT = 3
+BARCODE_PAD_MAX = 6
 
 
-def _price_code(price):
-    """Two random characters, the rupee price, then two more — e.g. K7 1299 AB."""
-    def pair():
-        return "".join(_secrets.choice(_CODE_ALPHABET) for _ in range(2))
+def _price_code(price, prefix_digits=BARCODE_PAD_DEFAULT, suffix_digits=BARCODE_PAD_DEFAULT):
+    """
+    Random digits, the rupee price, then more random digits — e.g. 204 3000 123.
+
+    Digits only: a numeric code scans on the cheapest hardware, and letters gave
+    the shop floor nothing a number does not. The random ends keep the price from
+    reading straight off the tag and keep two products at the same price apart.
+    """
+    def digits(n):
+        return "".join(str(_secrets.randbelow(10)) for _ in range(n))
     rupees = int(round(float(price or 0)))
-    return f"{pair()}{rupees}{pair()}"
+    return f"{digits(prefix_digits)}{rupees}{digits(suffix_digits)}"
 
 
 class FinishedProduct(models.Model):
@@ -599,20 +608,13 @@ class FinishedProduct(models.Model):
         super().save(*args, **kwargs)
 
     def mint_barcode(self):
-        """
-        A fresh code carrying this product's current price.
-
-        Shape is two random characters, the rupee price, then two more — the
-        same shape as the cloth codes on purchase bills, so the shop floor reads
-        one scheme rather than two. The random ends keep the price from standing
-        out to a customer reading the tag, and keep two products at the same
-        price apart.
-        """
-        for _ in range(20):
-            code = _price_code(self.sale_price)
+        """A fresh numeric code carrying this product's current price."""
+        prefix, suffix = barcode_pad_lengths()
+        for _ in range(40):
+            code = _price_code(self.sale_price, prefix, suffix)
             if not FinishedProduct.objects.filter(barcode=code).exclude(pk=self.pk).exists():
                 return code
-        raise ValueError("Could not mint a unique barcode after 20 attempts.")
+        raise ValueError("Could not mint a unique barcode after 40 attempts.")
 
     def past_codes(self):
         return [c for c in (self.previous_barcodes or "").split(",") if c]
@@ -1285,6 +1287,12 @@ class SystemSettings(models.Model):
     tag_desc_font_size = models.FloatField(default=8.0, help_text="Colour / size font size (pt)")
     tag_price_font_size = models.FloatField(default=12.0, help_text="MRP font size (pt)")
     tag_sku_font_size = models.FloatField(default=6.5, help_text="SKU font size (pt)")
+    barcode_prefix_digits = models.PositiveSmallIntegerField(
+        default=BARCODE_PAD_DEFAULT,
+        help_text="Random digits before the price in a product barcode (0-6)")
+    barcode_suffix_digits = models.PositiveSmallIntegerField(
+        default=BARCODE_PAD_DEFAULT,
+        help_text="Random digits after the price in a product barcode (0-6)")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="settings_updates"
@@ -1310,3 +1318,23 @@ class SystemSettings(models.Model):
 
     def __str__(self):
         return f"System settings — {self.app_name}"
+
+
+def barcode_pad_lengths():
+    """
+    How many random digits go either side of the price.
+
+    Falls back to the default if settings cannot be read — minting a barcode
+    must never be the thing that fails, and a default-shaped code is still a
+    valid, unique, price-carrying code.
+    """
+    try:
+        s = SystemSettings.load()
+        prefix = min(max(int(s.barcode_prefix_digits), 0), BARCODE_PAD_MAX)
+        suffix = min(max(int(s.barcode_suffix_digits), 0), BARCODE_PAD_MAX)
+    except Exception:
+        return BARCODE_PAD_DEFAULT, BARCODE_PAD_DEFAULT
+    # An all-random-free code would collide for every product at one price.
+    if prefix + suffix == 0:
+        return BARCODE_PAD_DEFAULT, BARCODE_PAD_DEFAULT
+    return prefix, suffix

@@ -897,13 +897,25 @@ class BarcodesCarryThePrice(StockFixture):
             sale_price=sale_price,
         )
 
-    def test_the_code_contains_the_price_between_two_random_pairs(self):
+    def test_the_code_is_digits_with_the_price_in_the_middle(self):
         product = self._product(Decimal("1299.00"))
 
-        self.assertEqual(len(product.barcode), 8)          # 2 + 4 + 2
-        self.assertEqual(product.barcode[2:-2], "1299")
-        self.assertTrue(product.barcode[:2].isalnum())
-        self.assertTrue(product.barcode[-2:].isalnum())
+        self.assertTrue(product.barcode.isdigit(), product.barcode)
+        self.assertEqual(len(product.barcode), 3 + 4 + 3)
+        self.assertEqual(product.barcode[3:-3], "1299")
+
+    def test_the_random_padding_follows_settings(self):
+        from warehouse.models import SystemSettings
+
+        s = SystemSettings.load()
+        s.barcode_prefix_digits = 2
+        s.barcode_suffix_digits = 2
+        s.save()
+
+        product = self._product(Decimal("3000.00"))
+
+        self.assertEqual(len(product.barcode), 2 + 4 + 2)
+        self.assertEqual(product.barcode[2:-2], "3000")
 
     def test_two_products_at_the_same_price_get_different_codes(self):
         first = self._product(Decimal("1299.00"))
@@ -920,7 +932,7 @@ class BarcodesCarryThePrice(StockFixture):
         update_finished_product(user=self.admin, id=product.id, sale_price=1499)
 
         product.refresh_from_db()
-        self.assertEqual(product.barcode[2:-2], "1499")
+        self.assertEqual(product.barcode[3:-3], "1499")
         self.assertNotEqual(product.barcode, printed_on_the_rack)
         self.assertIn(printed_on_the_rack, product.past_codes())
         # The rack is now wrong, so the tag has to be printed again.
