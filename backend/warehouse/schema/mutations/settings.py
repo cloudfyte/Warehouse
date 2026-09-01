@@ -85,6 +85,7 @@ class UpdateSystemSettings(graphene.Mutation):
         tag_sku_font_size = graphene.Float()
         barcode_prefix_digits = graphene.Int()
         barcode_suffix_digits = graphene.Int()
+        barcode_price_source = graphene.String()
 
     settings = graphene.Field(SystemSettingsType)
 

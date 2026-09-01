@@ -607,11 +607,21 @@ class FinishedProduct(models.Model):
             self.barcode = self.mint_barcode()
         super().save(*args, **kwargs)
 
+    def barcode_price(self):
+        """
+        The figure buried in this product's code.
+
+        Defaults to cost: the sale price is printed on the tag in words and
+        rupees, so hiding it in the number as well tells nobody anything, while
+        the cost is the figure staff want and the customer must not have.
+        """
+        return self.cost_price if barcode_price_source() == "COST" else self.sale_price
+
     def mint_barcode(self):
-        """A fresh numeric code carrying this product's current price."""
+        """A fresh numeric code carrying this product's price."""
         prefix, suffix = barcode_pad_lengths()
         for _ in range(40):
-            code = _price_code(self.sale_price, prefix, suffix)
+            code = _price_code(self.barcode_price(), prefix, suffix)
             if not FinishedProduct.objects.filter(barcode=code).exclude(pk=self.pk).exists():
                 return code
         raise ValueError("Could not mint a unique barcode after 40 attempts.")
@@ -1293,6 +1303,12 @@ class SystemSettings(models.Model):
     barcode_suffix_digits = models.PositiveSmallIntegerField(
         default=BARCODE_PAD_DEFAULT,
         help_text="Random digits after the price in a product barcode (0-6)")
+    barcode_price_source = models.CharField(
+        max_length=10, default="COST",
+        choices=[("COST", "Cost price"), ("SALE", "Sale price")],
+        help_text="Which price is buried in a product barcode. Cost keeps a "
+                  "figure the customer cannot read off the tag; the sale price "
+                  "is already printed on it.")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="settings_updates"
@@ -1338,3 +1354,12 @@ def barcode_pad_lengths():
     if prefix + suffix == 0:
         return BARCODE_PAD_DEFAULT, BARCODE_PAD_DEFAULT
     return prefix, suffix
+
+
+def barcode_price_source():
+    """COST or SALE — which price goes inside a product barcode."""
+    try:
+        value = (SystemSettings.load().barcode_price_source or "COST").upper()
+    except Exception:
+        return "COST"
+    return value if value in ("COST", "SALE") else "COST"

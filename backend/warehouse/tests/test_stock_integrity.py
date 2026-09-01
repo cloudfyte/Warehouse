@@ -31,6 +31,12 @@ class StockFixture(TestCase):
     """The smallest world in which cloth can move: one of everything."""
 
     def setUp(self):
+        # SystemSettings.load() caches the singleton for five minutes. The test
+        # database rolls back between tests but the cache does not, so a test
+        # that changes a setting leaked its value into every test after it.
+        from django.core.cache import cache
+        cache.clear()
+
         self.admin = User.objects.create_user("admin", password="x")
         EmployeeProfile.objects.create(
             user=self.admin, role=EmployeeProfile.Role.ADMIN, active=True)
@@ -885,7 +891,7 @@ class FinishedProductEditing(StockFixture):
 class BarcodesCarryThePrice(StockFixture):
     """The price lives inside the code, so repricing must not orphan printed tags."""
 
-    def _product(self, sale_price=Decimal("1299.00")):
+    def _product(self, cost_price=Decimal("1299.00"), sale_price=Decimal("2999.00")):
         return FinishedProduct.objects.create(
             item_type=self.item_type,
             cloth_color=self.color,
@@ -893,16 +899,20 @@ class BarcodesCarryThePrice(StockFixture):
             source=FinishedProduct.Source.IMPORTED,
             quantity=5,
             warehouse=self.warehouse,
-            cost_price=Decimal("500.00"),
+            cost_price=cost_price,
             sale_price=sale_price,
         )
 
-    def test_the_code_is_digits_with_the_price_in_the_middle(self):
-        product = self._product(Decimal("1299.00"))
+    def test_the_code_buries_the_cost_not_the_sale_price(self):
+        """Staff read the cost off the code to see how far a discount can go."""
+        product = self._product(cost_price=Decimal("1299.00"), sale_price=Decimal("2999.00"))
 
         self.assertTrue(product.barcode.isdigit(), product.barcode)
         self.assertEqual(len(product.barcode), 3 + 4 + 3)
         self.assertEqual(product.barcode[3:-3], "1299")
+        # Deliberately no assertNotIn("2999", ...): random padding can spell the
+        # sale price across a boundary by chance, which made this flake. The
+        # position is the claim that matters.
 
     def test_the_random_padding_follows_settings(self):
         from warehouse.models import SystemSettings
@@ -912,24 +922,35 @@ class BarcodesCarryThePrice(StockFixture):
         s.barcode_suffix_digits = 2
         s.save()
 
-        product = self._product(Decimal("3000.00"))
+        product = self._product(cost_price=Decimal("3000.00"))
 
         self.assertEqual(len(product.barcode), 2 + 4 + 2)
         self.assertEqual(product.barcode[2:-2], "3000")
 
+    def test_a_shop_can_choose_to_bury_the_sale_price_instead(self):
+        from warehouse.models import SystemSettings
+
+        s = SystemSettings.load()
+        s.barcode_price_source = "SALE"
+        s.save()
+
+        product = self._product(cost_price=Decimal("500.00"), sale_price=Decimal("1750.00"))
+
+        self.assertEqual(product.barcode[3:-3], "1750")
+
     def test_two_products_at_the_same_price_get_different_codes(self):
-        first = self._product(Decimal("1299.00"))
-        second = self._product(Decimal("1299.00"))
+        first = self._product(cost_price=Decimal("1299.00"))
+        second = self._product(cost_price=Decimal("1299.00"))
 
         self.assertNotEqual(first.barcode, second.barcode)
 
-    def test_repricing_mints_a_new_code_and_keeps_the_old_one_scannable(self):
+    def test_recosting_mints_a_new_code_and_keeps_the_old_one_scannable(self):
         from warehouse.services.production import update_finished_product
 
-        product = self._product(Decimal("1299.00"))
+        product = self._product(cost_price=Decimal("1299.00"))
         printed_on_the_rack = product.barcode
 
-        update_finished_product(user=self.admin, id=product.id, sale_price=1499)
+        update_finished_product(user=self.admin, id=product.id, cost_price=1499)
 
         product.refresh_from_db()
         self.assertEqual(product.barcode[3:-3], "1499")
@@ -938,19 +959,32 @@ class BarcodesCarryThePrice(StockFixture):
         # The rack is now wrong, so the tag has to be printed again.
         self.assertFalse(product.tags_printed)
 
-    def test_repricing_twice_keeps_every_old_code(self):
+    def test_recosting_twice_keeps_every_old_code(self):
         from warehouse.services.production import update_finished_product
 
-        product = self._product(Decimal("1000.00"))
+        product = self._product(cost_price=Decimal("1000.00"))
         first = product.barcode
-        update_finished_product(user=self.admin, id=product.id, sale_price=1100)
+        update_finished_product(user=self.admin, id=product.id, cost_price=1100)
         product.refresh_from_db()
         second = product.barcode
-        update_finished_product(user=self.admin, id=product.id, sale_price=1200)
+        update_finished_product(user=self.admin, id=product.id, cost_price=1200)
         product.refresh_from_db()
 
         self.assertIn(first, product.past_codes())
         self.assertIn(second, product.past_codes())
+
+    def test_changing_the_sale_price_alone_leaves_the_code_alone(self):
+        """The code carries cost, so a repricing for customers must not churn tags."""
+        from warehouse.services.production import update_finished_product
+
+        product = self._product()
+        original_code = product.barcode
+
+        update_finished_product(user=self.admin, id=product.id, sale_price=4999)
+
+        product.refresh_from_db()
+        self.assertEqual(product.barcode, original_code)
+        self.assertEqual(product.past_codes(), [])
 
     def test_changing_something_other_than_price_leaves_the_code_alone(self):
         from warehouse.services.production import update_finished_product
@@ -980,7 +1014,8 @@ class RetiredBarcodesStillScan(StockFixture):
             cost_price=Decimal("500.00"), sale_price=Decimal("900.00"),
         )
         on_the_rack = product.barcode
-        update_finished_product(user=self.admin, id=product.id, sale_price=1200)
+        # Cost is what the code carries, so cost is what makes it change.
+        update_finished_product(user=self.admin, id=product.id, cost_price=1200)
         product.refresh_from_db()
 
         # Exactly the filter resolve_product_by_barcode runs.

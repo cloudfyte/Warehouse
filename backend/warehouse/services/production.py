@@ -340,7 +340,9 @@ def update_finished_product(*, user, id, **changes):
     except FinishedProduct.DoesNotExist as exc:
         raise GraphQLError("Finished product not found.") from exc
 
-    old_price = fp.sale_price
+    # Whatever figure the barcode buries — cost by default — decides whether the
+    # code has to be re-minted, not the sale price specifically.
+    old_encoded = fp.barcode_price()
     updated = []
     if "tags_printed" in changes:
         fp.tags_printed = bool(changes["tags_printed"])
@@ -363,7 +365,7 @@ def update_finished_product(*, user, id, **changes):
     # The price lives inside the barcode, so a new price means a new code. The
     # old one is kept and stays scannable: tags are already sewn onto garments
     # hanging on the rack, and repricing must not turn those into dead labels.
-    if "sale_price" in updated and fp.sale_price != old_price:
+    if fp.barcode_price() != old_encoded:
         retired = [c for c in ([fp.barcode] + fp.past_codes()) if c]
         fp.previous_barcodes = ",".join(dict.fromkeys(retired))
         fp.barcode = fp.mint_barcode()

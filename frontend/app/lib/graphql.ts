@@ -110,7 +110,7 @@ export const DASHBOARD_QUERY = `
       tagAlign tagVerticalAlign tagPadTop tagPadRight tagPadBottom tagPadLeft
       tagGapMm tagBarcodeHeightMm tagBarcodeTextFontSize tagNameFontSize
       tagDescFontSize tagPriceFontSize tagSkuFontSize
-      barcodePrefixDigits barcodeSuffixDigits
+      barcodePrefixDigits barcodeSuffixDigits barcodePriceSource
     }
     employeeProfile { id role phone active username email locations { id name code locationType }
       customRole { id name displayName color backendLevel tabPermissions isSystem } }

@@ -33,7 +33,7 @@ interface SettingsData {
   tagGapMm?: number; tagBarcodeHeightMm?: number
   tagBarcodeTextFontSize?: number; tagNameFontSize?: number
   tagDescFontSize?: number; tagPriceFontSize?: number; tagSkuFontSize?: number
-  barcodePrefixDigits?: number; barcodeSuffixDigits?: number
+  barcodePrefixDigits?: number; barcodeSuffixDigits?: number; barcodePriceSource?: string
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -204,7 +204,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $tagAlign:String,$tagVerticalAlign:String,$tagPadTop:Float,$tagPadRight:Float,$tagPadBottom:Float,$tagPadLeft:Float,
           $tagGapMm:Float,$tagBarcodeHeightMm:Float,$tagBarcodeTextFontSize:Float,$tagNameFontSize:Float,
           $tagDescFontSize:Float,$tagPriceFontSize:Float,$tagSkuFontSize:Float
-          $barcodePrefixDigits:Int,$barcodeSuffixDigits:Int
+          $barcodePrefixDigits:Int,$barcodeSuffixDigits:Int,$barcodePriceSource:String
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -220,7 +220,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagAlign:$tagAlign,tagVerticalAlign:$tagVerticalAlign,tagPadTop:$tagPadTop,tagPadRight:$tagPadRight,tagPadBottom:$tagPadBottom,tagPadLeft:$tagPadLeft,
           tagGapMm:$tagGapMm,tagBarcodeHeightMm:$tagBarcodeHeightMm,tagBarcodeTextFontSize:$tagBarcodeTextFontSize,tagNameFontSize:$tagNameFontSize,
           tagDescFontSize:$tagDescFontSize,tagPriceFontSize:$tagPriceFontSize,tagSkuFontSize:$tagSkuFontSize
-          barcodePrefixDigits:$barcodePrefixDigits,barcodeSuffixDigits:$barcodeSuffixDigits
+          barcodePrefixDigits:$barcodePrefixDigits,barcodeSuffixDigits:$barcodeSuffixDigits,barcodePriceSource:$barcodePriceSource
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -259,6 +259,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagSkuFontSize: num(form.tagSkuFontSize),
           barcodePrefixDigits: form.barcodePrefixDigits === undefined ? undefined : Number(form.barcodePrefixDigits),
           barcodeSuffixDigits: form.barcodeSuffixDigits === undefined ? undefined : Number(form.barcodeSuffixDigits),
+          barcodePriceSource: form.barcodePriceSource || undefined,
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -688,6 +689,17 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                         </label>
                       ))}
                     </div>
+                    <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginTop: 8 }}>
+                      Which price is buried
+                      <select
+                        value={form.barcodePriceSource ?? "COST"}
+                        onChange={e => set("barcodePriceSource")(e.target.value)}
+                        style={inputBox}
+                      >
+                        <option value="COST">Cost price — staff can see the discount floor</option>
+                        <option value="SALE">Sale price — already printed on the tag</option>
+                      </select>
+                    </label>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>
                       The price sits in the middle: {(form.barcodePrefixDigits ?? 3) > 0 ? "2".repeat(form.barcodePrefixDigits ?? 3) : ""}
                       <strong style={{ color: "var(--ink)" }}>3000</strong>
