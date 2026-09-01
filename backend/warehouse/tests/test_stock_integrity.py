@@ -951,3 +951,40 @@ class BarcodesCarryThePrice(StockFixture):
         product.refresh_from_db()
         self.assertEqual(product.barcode, original)
         self.assertEqual(product.past_codes(), [])
+
+
+class RetiredBarcodesStillScan(StockFixture):
+    """A tag sewn on before a reprice must still find its product."""
+
+    def test_a_retired_code_resolves_the_same_way_the_scanner_query_does(self):
+        from django.db.models import Q
+
+        from warehouse.services.production import update_finished_product
+
+        product = FinishedProduct.objects.create(
+            item_type=self.item_type, cloth_color=self.color, size="40",
+            source=FinishedProduct.Source.IMPORTED, quantity=5,
+            warehouse=self.warehouse,
+            cost_price=Decimal("500.00"), sale_price=Decimal("900.00"),
+        )
+        on_the_rack = product.barcode
+        update_finished_product(user=self.admin, id=product.id, sale_price=1200)
+        product.refresh_from_db()
+
+        # Exactly the filter resolve_product_by_barcode runs.
+        found = [
+            p for p in FinishedProduct.objects.filter(
+                Q(barcode=on_the_rack) | Q(previous_barcodes__contains=on_the_rack))
+            if p.barcode == on_the_rack or on_the_rack in p.past_codes()
+        ]
+
+        self.assertEqual([p.pk for p in found], [product.pk])
+        self.assertNotEqual(product.barcode, on_the_rack)
+
+    def test_a_code_that_never_existed_finds_nothing(self):
+        from django.db.models import Q
+
+        found = FinishedProduct.objects.filter(
+            Q(barcode="ZZ1ZZ") | Q(previous_barcodes__contains="ZZ1ZZ"))
+
+        self.assertEqual(found.count(), 0)
