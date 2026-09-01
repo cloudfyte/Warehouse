@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Download, Printer } from "lucide-react";
+import { Plus, Trash2, Download, Printer, Truck } from "lucide-react";
 import type { SalesOrder, Buyer, WarehouseLocation, FinishedProduct, ConfirmState } from "@/app/types";
 import ConfirmDialog from "@/app/components/molecules/ConfirmDialog";
 import { SO_STATUS_LABELS, STATUS_BADGE_COLORS, PAYMENT_MODE_LABELS } from "@/app/lib/constants";
@@ -19,6 +19,8 @@ import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
 import Drawer from "@/app/components/atoms/Drawer";
+import Modal from "@/app/components/atoms/Modal";
+import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 
 interface Props {
   orders: SalesOrder[]
@@ -138,6 +140,64 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
       showToast("Sales order created.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
+  }
+
+  const [dispatchFor, setDispatchFor] = useState<SalesOrder | null>(null);
+  const [dispatchForm, setDispatchForm] = useState({
+    transporterName: "", lrNumber: "", vehicleNumber: "", driverPhone: "",
+    dispatchDate: "", freightCharges: "", dispatchNotes: "", dispatchPhotos: "",
+  });
+  const [dispatchSaving, setDispatchSaving] = useState(false);
+  const [dispatchErr, setDispatchErr] = useState("");
+
+  function openDispatch(so: SalesOrder) {
+    setDispatchForm({
+      transporterName: so.transporterName || "",
+      lrNumber: so.lrNumber || "",
+      vehicleNumber: so.vehicleNumber || "",
+      driverPhone: so.driverPhone || "",
+      dispatchDate: so.dispatchDate || new Date().toISOString().slice(0, 10),
+      freightCharges: so.freightCharges ? String(so.freightCharges) : "",
+      dispatchNotes: so.dispatchNotes || "",
+      dispatchPhotos: "",
+    });
+    setDispatchErr(""); setDispatchFor(so);
+  }
+
+  async function saveDispatch() {
+    if (!dispatchFor) return;
+    const f = dispatchForm;
+    if (!f.lrNumber.trim() && !f.transporterName.trim()) {
+      setDispatchErr("Enter the transporter or the LR number — one of them has to identify the shipment.");
+      return;
+    }
+    setDispatchSaving(true); setDispatchErr("");
+    try {
+      await onMutate(
+        `mutation D($id:ID!,$tn:String,$lr:String,$vn:String,$dp:String,$dd:Date,$fc:Float,$dn:String,$ph:String){`
+        + `dispatchSalesOrder(id:$id,transporterName:$tn,lrNumber:$lr,vehicleNumber:$vn,driverPhone:$dp,`
+        + `dispatchDate:$dd,freightCharges:$fc,dispatchNotes:$dn,dispatchPhotos:$ph)`
+        + `{salesOrder{id status lrNumber transporterName vehicleNumber dispatchDate dispatchPhotos}}}`,
+        {
+          id: dispatchFor.id,
+          tn: f.transporterName || undefined, lr: f.lrNumber || undefined,
+          vn: f.vehicleNumber || undefined, dp: f.driverPhone || undefined,
+          dd: f.dispatchDate || undefined,
+          fc: f.freightCharges === "" ? undefined : +f.freightCharges,
+          dn: f.dispatchNotes || undefined, ph: f.dispatchPhotos || undefined,
+        },
+      );
+      setDetail(d => d && d.id === dispatchFor.id ? {
+        ...d, status: "DISPATCHED",
+        transporterName: f.transporterName, lrNumber: f.lrNumber,
+        vehicleNumber: f.vehicleNumber.toUpperCase(), dispatchDate: f.dispatchDate,
+      } : d);
+      setDispatchFor(null);
+      showToast("Dispatch recorded. The buyer has been sent the shipment details.", "success");
+    } catch (e: unknown) {
+      const msg = friendlyError(e);
+      setDispatchErr(msg); showToast(msg, "error");
+    } finally { setDispatchSaving(false); }
   }
 
   async function updateStatus(id: string, status: string) {
@@ -422,9 +482,56 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                 </div>
               ))}
             </div>
+
+            {(detail.lrNumber || detail.transporterName) && (
+              <div style={{ background: "var(--canvas)", borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontSize: 13 }}>
+                <div style={{ fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Truck size={14} /> Shipment
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {([
+                    ["Transporter", detail.transporterName],
+                    ["LR Number", detail.lrNumber],
+                    ["Vehicle", detail.vehicleNumber],
+                    ["Driver", detail.driverPhone],
+                    ["Dispatched", detail.dispatchDate ? formatDateShort(detail.dispatchDate) : ""],
+                    ["Freight", detail.freightCharges ? formatMoney(detail.freightCharges) : ""],
+                  ] as const).filter(([, v]) => v).map(([k, v]) => (
+                    <div key={k}>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>{k}</div>
+                      <div style={{ fontWeight: 600 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                {detail.dispatchNotes && (
+                  <div style={{ marginTop: 8, color: "var(--muted)" }}>{detail.dispatchNotes}</div>
+                )}
+                {detail.dispatchPhotos && (
+                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                    {detail.dispatchPhotos.split(",").filter(Boolean).map((src, j) => (
+                      <a key={j} href={src} target="_blank" rel="noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt={`Shipment photo ${j + 1}`}
+                          style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)", display: "block" }} />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {canEdit && SO_NEXT[detail.status] && (
-              <Button onClick={() => updateStatus(detail.id, SO_NEXT[detail.status])} disabled={loading} style={{ width: "100%", marginBottom: 8 }}>
-                {loading ? "Updating…" : `Mark as ${SO_STATUS_LABELS[SO_NEXT[detail.status]]}`}
+              <Button
+                onClick={() => SO_NEXT[detail.status] === "DISPATCHED"
+                  ? openDispatch(detail)
+                  : updateStatus(detail.id, SO_NEXT[detail.status])}
+                disabled={loading}
+                style={{ width: "100%", marginBottom: 8 }}
+              >
+                {loading ? "Updating…"
+                  : SO_NEXT[detail.status] === "DISPATCHED"
+                    ? <><Truck size={14} /> Dispatch & Record LR</>
+                    : `Mark as ${SO_STATUS_LABELS[SO_NEXT[detail.status]]}`}
               </Button>
             )}
             {canEdit && !["DELIVERED", "CANCELLED"].includes(detail.status) && (
@@ -468,6 +575,69 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
         </table>
       </div>
       <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
+
+      {/* Dispatch — shipment details recorded as the goods leave */}
+      {dispatchFor && (
+        <Modal
+          title="Dispatch Order"
+          subtitle={`${dispatchFor.orderNumber} · ${dispatchFor.buyer.name}`}
+          width={520}
+          zIndex={300}
+          onClose={() => setDispatchFor(null)}
+          onSubmit={saveDispatch}
+          footer={
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="primary" type="submit" disabled={dispatchSaving} style={{ flex: 1 }}>
+                {dispatchSaving ? "Recording…" : "Dispatch & Notify Buyer"}
+              </Button>
+              <Button variant="secondary" onClick={() => setDispatchFor(null)}>Cancel</Button>
+            </div>
+          }
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Field label="Transporter" hint="Courier or lorry service carrying the goods.">
+              <Input value={dispatchForm.transporterName} placeholder="e.g. VRL Logistics"
+                onChange={e => setDispatchForm(f => ({ ...f, transporterName: e.target.value }))} />
+            </Field>
+            <Field label="LR / Consignment No." hint="What you quote if the parcel goes missing.">
+              <Input value={dispatchForm.lrNumber} placeholder="e.g. VRL-99812"
+                onChange={e => setDispatchForm(f => ({ ...f, lrNumber: e.target.value }))} />
+            </Field>
+            <Field label="Vehicle Number">
+              <Input value={dispatchForm.vehicleNumber} placeholder="e.g. TS07 AB 1234"
+                onChange={e => setDispatchForm(f => ({ ...f, vehicleNumber: e.target.value }))} />
+            </Field>
+            <Field label="Driver Phone">
+              <Input value={dispatchForm.driverPhone} placeholder="10-digit number"
+                onChange={e => setDispatchForm(f => ({ ...f, driverPhone: e.target.value }))} />
+            </Field>
+            <Field label="Dispatch Date">
+              <Input type="date" value={dispatchForm.dispatchDate}
+                onChange={e => setDispatchForm(f => ({ ...f, dispatchDate: e.target.value }))} />
+            </Field>
+            <Field label="Freight Charges">
+              <Input type="number" min="0" step="0.01" value={dispatchForm.freightCharges} placeholder="0.00"
+                onChange={e => setDispatchForm(f => ({ ...f, freightCharges: e.target.value }))} />
+            </Field>
+          </div>
+
+          <Field label="Notes">
+            <Textarea rows={2} value={dispatchForm.dispatchNotes} placeholder="Number of parcels, markings, anything the buyer should know…"
+              onChange={e => setDispatchForm(f => ({ ...f, dispatchNotes: e.target.value }))}
+              style={{ minHeight: "unset" }} />
+          </Field>
+
+          <Field label="Shipment Photos" hint="The loaded parcel and the LR copy. This is what settles a dispute later.">
+            <PhotoPicker
+              value={dispatchForm.dispatchPhotos}
+              onChange={v => setDispatchForm(f => ({ ...f, dispatchPhotos: v }))}
+              max={5}
+            />
+          </Field>
+
+          {dispatchErr && <ErrorBanner msg={dispatchErr} />}
+        </Modal>
+      )}
 
       {confirmCancel !== null && (
         <ConfirmDialog

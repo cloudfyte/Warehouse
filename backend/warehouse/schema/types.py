@@ -113,9 +113,14 @@ class BuyerType(DjangoObjectType):
 
 
 class PurchaseOrderItemType(DjangoObjectType):
+    photos = graphene.String()
+
     class Meta:
         model = PurchaseOrderItem
         fields = "__all__"
+
+    def resolve_photos(self, info):
+        return to_urls_csv(self.photos)
 
 
 class PurchaseOrderType(DjangoObjectType):
@@ -296,6 +301,14 @@ class SalesOrderType(DjangoObjectType):
     total_amount = graphene.Float()
     amount_paid = graphene.Float()
     amount_due = graphene.Float()
+    dispatch_photos = graphene.String()
+    freight_charges = graphene.Float()
+
+    def resolve_dispatch_photos(self, info):
+        return to_urls_csv(self.dispatch_photos)
+
+    def resolve_freight_charges(self, info):
+        return float(self.freight_charges or 0)
 
     class Meta:
         model = SalesOrder

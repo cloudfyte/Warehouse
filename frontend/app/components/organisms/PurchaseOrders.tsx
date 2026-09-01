@@ -19,6 +19,7 @@ import Textarea from "@/app/components/atoms/Textarea";
 import FileInput from "@/app/components/atoms/FileInput";
 import Checkbox from "@/app/components/atoms/Checkbox";
 import Field from "@/app/components/molecules/Field";
+import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
@@ -40,8 +41,8 @@ function Badge({ s }: { s: string }) {
   return <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: (STATUS_BADGE_COLORS[s] || "#888") + "22", color: STATUS_BADGE_COLORS[s] || "#888" }}>{PO_STATUS_LABELS[s] || s}</span>;
 }
 
-interface POItem { kind: "RAW_CLOTH" | "READYMADE"; categoryId: string; colorId: string; meters: number; itemTypeId: string; itemName: string; ageGroup: string; size: string; qty: number; unitPrice: number }
-const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "", meters: 0, itemTypeId: "", itemName: "", ageGroup: "", size: "", qty: 0, unitPrice: 0 });
+interface POItem { kind: "RAW_CLOTH" | "READYMADE"; categoryId: string; colorId: string; meters: number; itemTypeId: string; itemName: string; ageGroup: string; size: string; qty: number; unitPrice: number; photos: string }
+const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "", meters: 0, itemTypeId: "", itemName: "", ageGroup: "", size: "", qty: 0, unitPrice: 0, photos: "" });
 
 const STATUSES = ["DRAFT", "PLACED", "DISPATCHED", "PARTIALLY_RECEIVED", "RECEIVED", "VERIFIED", "CANCELLED"];
 const PER_PAGE = 20;
@@ -232,8 +233,8 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     setLoading(true); setError("");
     try {
       const gqlItems = items.map(it => it.kind === "RAW_CLOTH"
-        ? { itemKind: "RAW_CLOTH", clothCategoryId: it.categoryId, clothColorId: it.colorId || undefined, orderedMeters: Number(it.meters), unitPrice: Number(it.unitPrice) }
-        : { itemKind: "READYMADE", itemTypeId: it.itemTypeId, clothColorId: it.colorId || undefined, itemName: it.itemName, ageGroup: it.ageGroup || undefined, size: it.size, orderedQuantity: Number(it.qty), unitPrice: Number(it.unitPrice) }
+        ? { itemKind: "RAW_CLOTH", clothCategoryId: it.categoryId, clothColorId: it.colorId || undefined, orderedMeters: Number(it.meters), unitPrice: Number(it.unitPrice), photos: it.photos || undefined }
+        : { itemKind: "READYMADE", itemTypeId: it.itemTypeId, clothColorId: it.colorId || undefined, itemName: it.itemName, ageGroup: it.ageGroup || undefined, size: it.size, orderedQuantity: Number(it.qty), unitPrice: Number(it.unitPrice), photos: it.photos || undefined }
       );
       await onMutate(
         `mutation C($sup:ID!,$wh:ID!,$type:String!,$del:Date,$notes:String,$items:[POItemInput!]!){createPurchaseOrder(supplierId:$sup,warehouseId:$wh,orderType:$type,expectedDelivery:$del,notes:$notes,items:$items){purchaseOrder{id poNumber}}}`,
@@ -515,6 +516,18 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                       </Field>
                     </div>
                   )}
+
+                  <Field
+                    label="Photos"
+                    hint="A picture of the shade or the sample. Far easier to match a delivery against than a colour name."
+                    style={{ marginTop: 12 }}
+                  >
+                    <PhotoPicker
+                      value={item.photos}
+                      onChange={v => updateItem(idx, { photos: v })}
+                      max={4}
+                    />
+                  </Field>
                 </div>
               ))}
 
@@ -587,6 +600,17 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                     ? <div style={{ color: "var(--muted)", marginTop: 2 }}>{item.orderedMeters}m ordered · {item.receivedMeters ?? 0}m received · ₹{item.unitPrice}/m</div>
                     : <div style={{ color: "var(--muted)", marginTop: 2 }}>{item.orderedQuantity} pcs ordered · {item.receivedQuantity ?? 0} received · ₹{item.unitPrice}/pc {item.size && `· ${item.size}`}</div>}
                   <div style={{ color: "var(--accent)", fontWeight: 600, marginTop: 4 }}>{formatMoney(item.totalPrice)}</div>
+                  {item.photos && (
+                    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                      {item.photos.split(",").filter(Boolean).map((src, j) => (
+                        <a key={j} href={src} target="_blank" rel="noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt={`Item photo ${j + 1}`}
+                            style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)", display: "block" }} />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -796,7 +820,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No purchase orders. Click "New Order" to create one.</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No purchase orders. Click &quot;New Order&quot; to create one.</td></tr>}
           </tbody>
         </table>
       </div>

@@ -73,6 +73,7 @@ export interface POItem {
   id: string; itemKind: string; clothCategory?: ClothCategory; clothColor?: ClothColor
   orderedMeters?: number; receivedMeters?: number; itemType?: ItemType
   itemName?: string; ageGroup?: string; size?: string; orderedQuantity?: number; receivedQuantity?: number
+  photos?: string
   unitPrice: number; totalPrice: number; notes: string
 }
 
@@ -138,6 +139,8 @@ export interface SalesOrder {
   warehouse: WarehouseLocation; subtotal: number; discount: number
   taxAmount: number; cgstAmount: number; sgstAmount: number; igstAmount: number
   totalAmount: number; amountPaid: number; amountDue: number; notes: string; items: SOItem[]; createdAt: string
+  transporterName?: string; lrNumber?: string; vehicleNumber?: string; driverPhone?: string
+  dispatchDate?: string; freightCharges?: number; dispatchNotes?: string; dispatchPhotos?: string
 }
 
 // ─── credit ───────────────────────────────────────────────────────────────────

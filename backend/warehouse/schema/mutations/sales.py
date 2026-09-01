@@ -5,7 +5,10 @@ from warehouse.models import EmployeeProfile
 from warehouse.permissions import require_role
 from warehouse.services.audit import log_action
 from warehouse.services.notify import notify_managers
-from warehouse.services.sales import create_sales_order, record_credit_payment, update_sales_order_status
+from warehouse.services.sales import (
+    create_sales_order, dispatch_sales_order, record_credit_payment,
+    update_sales_order_status,
+)
 from warehouse.schema.types import CreditTransactionType, SalesOrderType
 
 
@@ -89,3 +92,33 @@ class RecordCreditPayment(graphene.Mutation):
         log_action(entity_type="CreditTransaction", entity_id=credit_id, action="PAYMENT_RECORDED",
                    actor=info.context.user, detail={"amount": amount, "method": payment_method})
         return RecordCreditPayment(credit=credit)
+
+
+class DispatchSalesOrder(graphene.Mutation):
+    """Record the lorry receipt and shipment details, and mark the order dispatched."""
+    class Arguments:
+        id = graphene.ID(required=True)
+        transporter_name = graphene.String()
+        lr_number = graphene.String()
+        vehicle_number = graphene.String()
+        driver_phone = graphene.String()
+        dispatch_date = graphene.Date()
+        freight_charges = graphene.Float()
+        dispatch_notes = graphene.String()
+        dispatch_photos = graphene.String()
+
+    sales_order = graphene.Field(SalesOrderType)
+
+    @login_required
+    def mutate(self, info, id, **kwargs):
+        user = info.context.user
+        require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
+                     EmployeeProfile.Role.STORE_KEEPER)
+        so = dispatch_sales_order(user=user, id=id, **kwargs)
+        log_action(
+            entity_type="SalesOrder", entity_id=so.pk, action="DISPATCHED",
+            actor=user,
+            detail={"lr_number": so.lr_number, "transporter": so.transporter_name,
+                    "vehicle": so.vehicle_number},
+        )
+        return DispatchSalesOrder(sales_order=so)

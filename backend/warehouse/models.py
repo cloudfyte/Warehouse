@@ -308,6 +308,10 @@ class PurchaseOrderItem(models.Model):
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     total_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     notes = models.CharField(max_length=255, blank=True)
+    # What was ordered, as a picture: a shade of cloth or a sample garment is
+    # far easier to match against a delivery than a category and a colour name.
+    # Comma-separated storage paths, same as parcel inspection photos.
+    photos = models.TextField(blank=True, help_text="Comma-separated photo paths of the item ordered")
 
     def __str__(self):
         return f"{self.purchase_order.po_number} — {self.item_kind}"
@@ -657,6 +661,19 @@ class SalesOrder(models.Model):
     amount_paid = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     amount_due = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     notes = models.TextField(blank=True)
+
+    # ─── shipment, recorded when the goods leave the warehouse ───────────────
+    # The lorry receipt is the only proof the goods were handed over, and it is
+    # what a buyer quotes when a parcel goes missing. Filled at dispatch.
+    transporter_name = models.CharField(max_length=120, blank=True)
+    lr_number = models.CharField(max_length=60, blank=True, help_text="Lorry receipt / consignment note number")
+    vehicle_number = models.CharField(max_length=30, blank=True)
+    driver_phone = models.CharField(max_length=20, blank=True)
+    dispatch_date = models.DateField(null=True, blank=True)
+    freight_charges = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    dispatch_notes = models.TextField(blank=True)
+    dispatch_photos = models.TextField(blank=True, help_text="Comma-separated photo paths of the loaded parcel / LR copy")
+
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="sales_orders")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

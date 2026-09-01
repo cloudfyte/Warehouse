@@ -192,9 +192,17 @@ def update_sales_order_status(*, user, id, status, actual_delivery=None):
             from warehouse.tasks import send_whatsapp_order_notification
             from warehouse.models import SystemSettings
             settings = SystemSettings.load()
+            # The lorry receipt is what a buyer quotes when a parcel goes
+            # missing, so it belongs in the message rather than only in our books.
+            shipment = ""
+            if so.lr_number or so.transporter_name:
+                parts = [p for p in (so.transporter_name, so.lr_number and f"LR {so.lr_number}",
+                                     so.vehicle_number) if p]
+                shipment = f"Shipment: {' · '.join(parts)}\n"
             msg = (
                 f"Hello {so.buyer.name},\n"
                 f"Your order *{so.order_number}* has been dispatched from *{settings.company_name}*.\n"
+                f"{shipment}"
                 f"Total: {settings.currency_symbol}{so.total_amount:.2f}\n"
                 f"Thank you for your business!"
             )
@@ -255,3 +263,69 @@ def record_credit_payment(*, credit_id, amount, payment_method="CASH", reference
             send_whatsapp_order_notification.delay(buyer_phone, msg)
 
     return credit
+
+
+# Statuses a shipment can legitimately leave from. An order still being picked
+# can be dispatched — the goods are going out either way — but one already gone
+# or cancelled cannot.
+_SO_DISPATCHABLE = (
+    SalesOrder.Status.REQUESTED,
+    SalesOrder.Status.PROCESSING,
+    SalesOrder.Status.READY,
+)
+
+
+def dispatch_sales_order(
+    *, user, id, transporter_name="", lr_number="", vehicle_number="",
+    driver_phone="", dispatch_date=None, freight_charges=0,
+    dispatch_notes="", dispatch_photos="",
+):
+    """
+    Record how an order physically left the building, and mark it dispatched.
+
+    The lorry receipt number is the only proof the goods were handed to a
+    carrier, and it is the first thing anyone asks for when a parcel does not
+    arrive. Photos of the loaded parcel and the LR copy sit alongside it, so a
+    dispute is settled from the record rather than from memory.
+
+    Marking dispatched and recording the shipment are one action deliberately:
+    an order that has left without an LR is exactly the gap this closes.
+    """
+    from django.utils import timezone
+
+    from warehouse.services.uploads import save_data_urls_csv
+
+    if not str(lr_number or "").strip() and not str(transporter_name or "").strip():
+        raise GraphQLError(
+            "Record the transporter or the LR number — without one of them there is "
+            "nothing to trace the shipment by."
+        )
+
+    with transaction.atomic():
+        so = get_scoped(user, SalesOrder, id, lock=True)
+        if so.status not in _SO_DISPATCHABLE:
+            raise GraphQLError(
+                f"This order is {so.get_status_display().lower()} and cannot be dispatched."
+            )
+
+        freight = Decimal(str(freight_charges or 0))
+        if freight < 0:
+            raise GraphQLError("Freight charges cannot be negative.")
+
+        so.transporter_name = (transporter_name or "").strip()
+        so.lr_number = (lr_number or "").strip()
+        so.vehicle_number = (vehicle_number or "").strip().upper()
+        so.driver_phone = (driver_phone or "").strip()
+        so.dispatch_date = dispatch_date or timezone.now().date()
+        so.freight_charges = freight
+        so.dispatch_notes = (dispatch_notes or "").strip()
+        so.dispatch_photos = save_data_urls_csv(dispatch_photos or "", "dispatch")
+        so.save(update_fields=[
+            "transporter_name", "lr_number", "vehicle_number", "driver_phone",
+            "dispatch_date", "freight_charges", "dispatch_notes", "dispatch_photos",
+            "updated_at",
+        ])
+
+    # Status change goes through the one path that also notifies the buyer, and
+    # it runs after the shipment is saved so the message can quote the LR.
+    return update_sales_order_status(user=user, id=id, status=SalesOrder.Status.DISPATCHED)

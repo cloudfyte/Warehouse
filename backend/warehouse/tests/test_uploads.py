@@ -66,3 +66,60 @@ class SavingPhotos(TestCase):
     def test_a_disallowed_type_is_still_rejected(self):
         with self.assertRaises(GraphQLError):
             save_data_url("data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=")
+
+
+class PhotosOnPurchaseOrderLines(TestCase):
+    """A shade of cloth is easier to match against a delivery than a colour name."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from warehouse.models import (
+            ClothCategory, ClothColor, EmployeeProfile, WarehouseLocation, Supplier,
+        )
+
+        self.admin = User.objects.create_user("admin", password="x")
+        EmployeeProfile.objects.create(
+            user=self.admin, role=EmployeeProfile.Role.ADMIN, active=True)
+        self.warehouse = WarehouseLocation.objects.create(name="Main", code="MAIN")
+        self.supplier = Supplier.objects.create(name="Mill", active=True)
+        self.category = ClothCategory.objects.create(name="Silk", active=True)
+        self.color = ClothColor.objects.create(name="Pista Green", active=True)
+
+    def test_photos_on_a_line_are_stored_as_paths(self):
+        from warehouse.services.purchase_order import create_purchase_order
+
+        po = create_purchase_order(
+            user=self.admin, supplier_id=self.supplier.id,
+            order_type="RAW_CLOTH", warehouse_id=self.warehouse.id,
+            items=[{
+                "item_kind": "RAW_CLOTH",
+                "cloth_category_id": self.category.id,
+                "cloth_color_id": self.color.id,
+                "ordered_meters": 50,
+                "unit_price": 120,
+                "photos": ",".join([_png_data_url(), _png_data_url()]),
+            }],
+        )
+
+        line = po.items.first()
+        paths = line.photos.split(",")
+        self.assertEqual(len(paths), 2)
+        self.assertTrue(all(p.startswith("po-items/") for p in paths))
+        self.assertNotIn("data:", line.photos)
+
+    def test_a_line_without_photos_stores_nothing(self):
+        from warehouse.services.purchase_order import create_purchase_order
+
+        po = create_purchase_order(
+            user=self.admin, supplier_id=self.supplier.id,
+            order_type="RAW_CLOTH", warehouse_id=self.warehouse.id,
+            items=[{
+                "item_kind": "RAW_CLOTH",
+                "cloth_category_id": self.category.id,
+                "cloth_color_id": self.color.id,
+                "ordered_meters": 50, "unit_price": 120,
+            }],
+        )
+
+        self.assertEqual(po.items.first().photos, "")

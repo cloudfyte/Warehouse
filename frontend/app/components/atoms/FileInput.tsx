@@ -1,9 +1,9 @@
 "use client";
 import React from "react";
 
-interface FileInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  accept?: string;
-}
+// ComponentPropsWithRef rather than InputHTMLAttributes so callers can hold a
+// ref and clear the input after a pick — React 19 passes ref as a plain prop.
+type FileInputProps = React.ComponentPropsWithRef<"input">;
 
 export default function FileInput({ style, ...props }: FileInputProps) {
   return (

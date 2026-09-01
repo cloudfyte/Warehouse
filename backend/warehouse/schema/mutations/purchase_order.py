@@ -23,6 +23,7 @@ class POItemInput(graphene.InputObjectType):
     ordered_quantity = graphene.Int()
     unit_price = graphene.Float()
     notes = graphene.String()
+    photos = graphene.String()
 
 
 class ReceiptItemInput(graphene.InputObjectType):

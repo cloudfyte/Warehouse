@@ -8,6 +8,7 @@ from warehouse.models import (
     PurchaseOrderItem, RawClothBatch, ReadymadeStock, Supplier,
 )
 from warehouse.permissions import get_scoped, get_warehouse, scoped
+from warehouse.services.uploads import save_data_urls_csv
 
 
 def create_purchase_order(*, user, supplier_id, order_type, warehouse_id,
@@ -59,6 +60,7 @@ def create_purchase_order(*, user, supplier_id, order_type, warehouse_id,
                 unit_price=unit_price,
                 total_price=line_total,
                 notes=item.get("notes", ""),
+                photos=save_data_urls_csv(item.get("photos", ""), "po-items"),
             )
             total += line_total
         po.total_amount = total

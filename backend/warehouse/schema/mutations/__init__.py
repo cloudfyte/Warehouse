@@ -18,7 +18,7 @@ from .expense import CreateExpense, UpdateExpense, DeleteExpense
 from .purchase_bill import CreatePurchaseBill, GenerateBillFromPO, UpdatePurchaseBillGst
 from .purchase_order import CreatePurchaseOrder, ReceivePurchaseOrder, UpdatePurchaseOrderStatus
 from .stock import CreateRawClothBatch, CreateReadymadeStock
-from .sales import CreateSalesOrder, RecordCreditPayment, UpdateSalesOrderStatus
+from .sales import CreateSalesOrder, RecordCreditPayment, UpdateSalesOrderStatus, DispatchSalesOrder
 from .settings import UpdateSystemSettings
 from .supplier import CreateBuyer, CreateSupplier, UpdateBuyer, UpdateSupplier
 from .reorder_point import CreateReorderPoint, UpdateReorderPoint, DeleteReorderPoint
@@ -89,6 +89,7 @@ class Mutation(graphene.ObjectType):
     # Sales & credit
     create_sales_order = CreateSalesOrder.Field()
     update_sales_order_status = UpdateSalesOrderStatus.Field()
+    dispatch_sales_order = DispatchSalesOrder.Field()
     record_credit_payment = RecordCreditPayment.Field()
 
     # FCM push tokens

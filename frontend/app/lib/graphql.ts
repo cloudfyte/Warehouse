@@ -136,7 +136,7 @@ export const DASHBOARD_QUERY = `
       warehouse { id name code }
       createdBy { id username }
       receivedBy { id username }
-      items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes ageGroup size
+      items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes photos ageGroup size
         clothCategory { id name } clothColor { id name hexCode } itemType { id name } }
       parcelInspection {
         id parcelCondition quantityCheckPassed discrepancyNotes photos notes inspectionDate createdAt
@@ -198,6 +198,7 @@ export const DASHBOARD_QUERY = `
     salesOrders(limit: 100) {
       id orderNumber status paymentMode orderDate expectedDelivery actualDelivery
       subtotal discount taxAmount cgstAmount sgstAmount igstAmount totalAmount amountPaid amountDue notes createdAt
+      transporterName lrNumber vehicleNumber driverPhone dispatchDate freightCharges dispatchNotes dispatchPhotos
       buyer { id name phone }
       warehouse { id name code }
       items { id quantity unitPrice totalPrice finishedProduct { sku itemType { name } } }
