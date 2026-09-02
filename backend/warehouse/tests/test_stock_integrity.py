@@ -889,7 +889,7 @@ class FinishedProductEditing(StockFixture):
 
 
 class BarcodesCarryThePrice(StockFixture):
-    """The price lives inside the code, so repricing must not orphan printed tags."""
+    """The code hides the cost so staff can price a discount and customers cannot."""
 
     def _product(self, cost_price=Decimal("1299.00"), sale_price=Decimal("2999.00")):
         return FinishedProduct.objects.create(
@@ -903,29 +903,62 @@ class BarcodesCarryThePrice(StockFixture):
             sale_price=sale_price,
         )
 
-    def test_the_code_buries_the_cost_not_the_sale_price(self):
-        """Staff read the cost off the code to see how far a discount can go."""
-        product = self._product(cost_price=Decimal("1299.00"), sale_price=Decimal("2999.00"))
+    def _buried(self, product):
+        """The middle of the code, given the configured digit counts."""
+        from warehouse.models import barcode_rules
+
+        prefix, suffix, _ = barcode_rules()
+        return product.barcode[prefix:len(product.barcode) - suffix]
+
+    def test_the_code_is_two_digits_then_the_disguised_cost_then_one(self):
+        from warehouse.models import encoded_price
+
+        product = self._product(cost_price=Decimal("500.00"))
 
         self.assertTrue(product.barcode.isdigit(), product.barcode)
-        self.assertEqual(len(product.barcode), 3 + 4 + 3)
-        self.assertEqual(product.barcode[3:-3], "1299")
-        # Deliberately no assertNotIn("2999", ...): random padding can spell the
-        # sale price across a boundary by chance, which made this flake. The
-        # position is the claim that matters.
+        self.assertEqual(self._buried(product), "1050")          # 500 x 2.1
+        self.assertEqual(str(encoded_price(Decimal("500.00"))), "1050")
+        self.assertEqual(len(product.barcode), 2 + 4 + 1)
+
+    def test_the_buried_figure_is_never_the_cost_itself(self):
+        """A plain cost could be read straight off the tag by anyone."""
+        product = self._product(cost_price=Decimal("500.00"))
+
+        self.assertNotEqual(self._buried(product), "500")
+
+    def test_dividing_by_the_multiplier_gives_the_cost_back(self):
+        from warehouse.models import barcode_rules
+
+        product = self._product(cost_price=Decimal("1299.00"))
+        _, _, multiplier = barcode_rules()
+
+        recovered = Decimal(self._buried(product)) / multiplier
+
+        self.assertEqual(round(recovered), 1299)
+
+    def test_the_multiplier_follows_settings(self):
+        from warehouse.models import SystemSettings
+
+        s = SystemSettings.load()
+        s.barcode_price_multiplier = Decimal("3.000")
+        s.save()
+
+        product = self._product(cost_price=Decimal("400.00"))
+
+        self.assertEqual(self._buried(product), "1200")          # 400 x 3
 
     def test_the_random_padding_follows_settings(self):
         from warehouse.models import SystemSettings
 
         s = SystemSettings.load()
-        s.barcode_prefix_digits = 2
+        s.barcode_prefix_digits = 3
         s.barcode_suffix_digits = 2
         s.save()
 
-        product = self._product(cost_price=Decimal("3000.00"))
+        product = self._product(cost_price=Decimal("500.00"))
 
-        self.assertEqual(len(product.barcode), 2 + 4 + 2)
-        self.assertEqual(product.barcode[2:-2], "3000")
+        self.assertEqual(len(product.barcode), 3 + 4 + 2)
+        self.assertEqual(self._buried(product), "1050")
 
     def test_a_shop_can_choose_to_bury_the_sale_price_instead(self):
         from warehouse.models import SystemSettings
@@ -934,11 +967,11 @@ class BarcodesCarryThePrice(StockFixture):
         s.barcode_price_source = "SALE"
         s.save()
 
-        product = self._product(cost_price=Decimal("500.00"), sale_price=Decimal("1750.00"))
+        product = self._product(cost_price=Decimal("500.00"), sale_price=Decimal("1000.00"))
 
-        self.assertEqual(product.barcode[3:-3], "1750")
+        self.assertEqual(self._buried(product), "2100")          # 1000 x 2.1
 
-    def test_two_products_at_the_same_price_get_different_codes(self):
+    def test_two_products_at_the_same_cost_get_different_codes(self):
         first = self._product(cost_price=Decimal("1299.00"))
         second = self._product(cost_price=Decimal("1299.00"))
 
@@ -947,16 +980,15 @@ class BarcodesCarryThePrice(StockFixture):
     def test_recosting_mints_a_new_code_and_keeps_the_old_one_scannable(self):
         from warehouse.services.production import update_finished_product
 
-        product = self._product(cost_price=Decimal("1299.00"))
+        product = self._product(cost_price=Decimal("500.00"))
         printed_on_the_rack = product.barcode
 
-        update_finished_product(user=self.admin, id=product.id, cost_price=1499)
+        update_finished_product(user=self.admin, id=product.id, cost_price=600)
 
         product.refresh_from_db()
-        self.assertEqual(product.barcode[3:-3], "1499")
+        self.assertEqual(self._buried(product), "1260")          # 600 x 2.1
         self.assertNotEqual(product.barcode, printed_on_the_rack)
         self.assertIn(printed_on_the_rack, product.past_codes())
-        # The rack is now wrong, so the tag has to be printed again.
         self.assertFalse(product.tags_printed)
 
     def test_recosting_twice_keeps_every_old_code(self):
@@ -974,7 +1006,7 @@ class BarcodesCarryThePrice(StockFixture):
         self.assertIn(second, product.past_codes())
 
     def test_changing_the_sale_price_alone_leaves_the_code_alone(self):
-        """The code carries cost, so a repricing for customers must not churn tags."""
+        """The code carries cost, so repricing for customers must not churn tags."""
         from warehouse.services.production import update_finished_product
 
         product = self._product()

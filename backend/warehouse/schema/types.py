@@ -20,6 +20,7 @@ from warehouse.models import (
     CuttingAssignment,
     EmployeeProfile,
     FinishedProduct,
+    FinishedProductOption,
     ItemType,
     Notification,
     OTPCode,
@@ -109,6 +110,12 @@ class SupplierType(DjangoObjectType):
 class BuyerType(DjangoObjectType):
     class Meta:
         model = Buyer
+        fields = "__all__"
+
+
+class FinishedProductOptionType(DjangoObjectType):
+    class Meta:
+        model = FinishedProductOption
         fields = "__all__"
 
 

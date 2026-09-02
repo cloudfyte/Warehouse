@@ -11,7 +11,7 @@ from .notifications import MarkNotificationsRead
 from .stock_adjustment import CreateStockAdjustment, DeleteStockAdjustment
 from .supplier_payment import CreateSupplierPayment, DeleteSupplierPayment
 from .production import (
-    CreateCuttingAssignment, CreateFinishedProducts, UpdateFinishedProduct,
+    CreateCuttingAssignment, CreateFinishedProducts, CreateProductMatrix, UpdateFinishedProduct,
     CreateStitchingJob, UpdateCuttingAssignment, UpdateStitchingJob,
 )
 from .expense import CreateExpense, UpdateExpense, DeleteExpense
@@ -85,6 +85,7 @@ class Mutation(graphene.ObjectType):
     update_stitching_job = UpdateStitchingJob.Field()
     create_finished_products = CreateFinishedProducts.Field()
     update_finished_product = UpdateFinishedProduct.Field()
+    create_product_matrix = CreateProductMatrix.Field()
 
     # Sales & credit
     create_sales_order = CreateSalesOrder.Field()

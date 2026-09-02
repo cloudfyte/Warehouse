@@ -752,8 +752,11 @@ export default function Home() {
         {currentTab === "finished_products" && (
           <FinishedProducts
             products={data?.finishedProducts || []}
+            itemTypes={data?.itemTypes || []}
+            warehouses={data?.warehouseLocations || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
             onMutate={mutate}
+            onRefresh={() => token && loadData(token)}
             gql={runQuery}
             systemSettings={data?.systemSettings}
           />

@@ -5,8 +5,9 @@ from graphql_jwt.decorators import login_required
 from warehouse.models import EmployeeProfile
 from warehouse.permissions import accessible_warehouses, require_role
 from warehouse.services.production import (
-    create_cutting_assignment, create_finished_products, create_stitching_job,
-    update_cutting_assignment, update_finished_product, update_stitching_job,
+    create_cutting_assignment, create_finished_products, create_product_matrix,
+    create_stitching_job, update_cutting_assignment, update_finished_product,
+    update_stitching_job,
 )
 from warehouse.schema.types import CuttingAssignmentType, FinishedProductType, StitchingJobType
 
@@ -143,3 +144,43 @@ class CreateFinishedProducts(graphene.Mutation):
             user=info.context.user, quantity=quantity, warehouse_id=warehouse_id,
             cost_price=cost_price, sale_price=sale_price, **kwargs,
         ))
+
+
+class VariantOptionInput(graphene.InputObjectType):
+    name = graphene.String(required=True)
+    value = graphene.String(required=True)
+
+
+class VariantRowInput(graphene.InputObjectType):
+    options = graphene.List(graphene.NonNull(VariantOptionInput), required=True)
+    quantity = graphene.Int()
+    cost_price = graphene.Float()
+    sale_price = graphene.Float()
+
+
+class CreateProductMatrix(graphene.Mutation):
+    """Create one finished product per dimension combination in a single action."""
+    class Arguments:
+        item_type_id = graphene.ID(required=True)
+        warehouse_id = graphene.ID(required=True)
+        cloth_category_id = graphene.ID()
+        source = graphene.String()
+        rows = graphene.List(graphene.NonNull(VariantRowInput), required=True)
+
+    finished_products = graphene.List(FinishedProductType)
+
+    @login_required
+    def mutate(self, info, item_type_id, warehouse_id, rows, **kwargs):
+        products = create_product_matrix(
+            user=info.context.user,
+            item_type_id=item_type_id,
+            warehouse_id=warehouse_id,
+            rows=[{
+                "options": [dict(o) for o in (r.options or [])],
+                "quantity": r.quantity,
+                "cost_price": r.cost_price,
+                "sale_price": r.sale_price,
+            } for r in rows],
+            **kwargs,
+        )
+        return CreateProductMatrix(finished_products=products)

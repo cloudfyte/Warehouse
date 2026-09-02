@@ -546,22 +546,34 @@ class StitchingJob(models.Model):
 # as 1 and 0, and the set is the same one the purchase-bill cloth codes use.
 # How many random digits sit either side of the price. Kept in settings so a
 # shop can widen them if it ever runs out of room at one price point.
-BARCODE_PAD_DEFAULT = 3
 BARCODE_PAD_MAX = 6
+BARCODE_PREFIX_DEFAULT = 2
+BARCODE_SUFFIX_DEFAULT = 1
+# The buried figure is the cost times this. Staff divide to get back to the
+# floor; a customer reading the tag sees a number that is not a price they
+# recognise. Configurable because the multiplier is the whole secret — a shop
+# that thinks its staff have shared it needs to change it, not file a bug.
+BARCODE_MULTIPLIER_DEFAULT = Decimal("2.1")
 
 
-def _price_code(price, prefix_digits=BARCODE_PAD_DEFAULT, suffix_digits=BARCODE_PAD_DEFAULT):
+def _price_code(price, prefix_digits=BARCODE_PREFIX_DEFAULT,
+                suffix_digits=BARCODE_SUFFIX_DEFAULT,
+                multiplier=BARCODE_MULTIPLIER_DEFAULT):
     """
-    Random digits, the rupee price, then more random digits — e.g. 204 3000 123.
+    Random digits, the disguised price, then more random digits — e.g. 45 1050 7.
 
     Digits only: a numeric code scans on the cheapest hardware, and letters gave
-    the shop floor nothing a number does not. The random ends keep the price from
-    reading straight off the tag and keep two products at the same price apart.
+    the shop floor nothing a number does not. The random ends keep the figure from
+    reading as a price and keep two products at the same cost apart.
     """
     def digits(n):
         return "".join(str(_secrets.randbelow(10)) for _ in range(n))
-    rupees = int(round(float(price or 0)))
-    return f"{digits(prefix_digits)}{rupees}{digits(suffix_digits)}"
+    return f"{digits(prefix_digits)}{encoded_price(price, multiplier)}{digits(suffix_digits)}"
+
+
+def encoded_price(price, multiplier=BARCODE_MULTIPLIER_DEFAULT):
+    """The figure that actually appears inside a barcode."""
+    return int(round(Decimal(str(price or 0)) * Decimal(str(multiplier))))
 
 
 class FinishedProduct(models.Model):
@@ -618,10 +630,10 @@ class FinishedProduct(models.Model):
         return self.cost_price if barcode_price_source() == "COST" else self.sale_price
 
     def mint_barcode(self):
-        """A fresh numeric code carrying this product's price."""
-        prefix, suffix = barcode_pad_lengths()
+        """A fresh numeric code carrying this product's disguised price."""
+        prefix, suffix, multiplier = barcode_rules()
         for _ in range(40):
-            code = _price_code(self.barcode_price(), prefix, suffix)
+            code = _price_code(self.barcode_price(), prefix, suffix, multiplier)
             if not FinishedProduct.objects.filter(barcode=code).exclude(pk=self.pk).exists():
                 return code
         raise ValueError("Could not mint a unique barcode after 40 attempts.")
@@ -637,6 +649,30 @@ class FinishedProduct(models.Model):
 
     def __str__(self):
         return f"{self.sku} — {self.item_type}"
+
+
+class FinishedProductOption(models.Model):
+    """
+    One dimension of a finished product — "Size: 40", "Sleeve: Full".
+
+    Stored as rows rather than columns so a garment can be described by whatever
+    dimensions it actually varies in. The columns FinishedProduct already has
+    (size, age_group, cloth_colour) stay, and the well-known dimension names are
+    mirrored into them, so tags, filters and every existing query keep working
+    while new dimensions cost nothing but a row.
+    """
+    finished_product = models.ForeignKey(
+        FinishedProduct, on_delete=models.CASCADE, related_name="options")
+    name = models.CharField(max_length=60)
+    value = models.CharField(max_length=120)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        unique_together = [("finished_product", "name")]
+
+    def __str__(self):
+        return f"{self.name}: {self.value}"
 
 
 # ─── sales orders (outbound) ──────────────────────────────────────────────────
@@ -1298,11 +1334,15 @@ class SystemSettings(models.Model):
     tag_price_font_size = models.FloatField(default=12.0, help_text="MRP font size (pt)")
     tag_sku_font_size = models.FloatField(default=6.5, help_text="SKU font size (pt)")
     barcode_prefix_digits = models.PositiveSmallIntegerField(
-        default=BARCODE_PAD_DEFAULT,
+        default=BARCODE_PREFIX_DEFAULT,
         help_text="Random digits before the price in a product barcode (0-6)")
     barcode_suffix_digits = models.PositiveSmallIntegerField(
-        default=BARCODE_PAD_DEFAULT,
+        default=BARCODE_SUFFIX_DEFAULT,
         help_text="Random digits after the price in a product barcode (0-6)")
+    barcode_price_multiplier = models.DecimalField(
+        max_digits=6, decimal_places=3, default=BARCODE_MULTIPLIER_DEFAULT,
+        help_text="Cost is multiplied by this before going into the barcode, so "
+                  "the figure does not read as a price. Divide by it to get the cost back.")
     barcode_price_source = models.CharField(
         max_length=10, default="COST",
         choices=[("COST", "Cost price"), ("SALE", "Sale price")],
@@ -1336,24 +1376,28 @@ class SystemSettings(models.Model):
         return f"System settings — {self.app_name}"
 
 
-def barcode_pad_lengths():
+def barcode_rules():
     """
-    How many random digits go either side of the price.
+    Random digit counts either side, and the multiplier that disguises the price.
 
-    Falls back to the default if settings cannot be read — minting a barcode
-    must never be the thing that fails, and a default-shaped code is still a
-    valid, unique, price-carrying code.
+    Falls back to defaults if settings cannot be read — minting a barcode must
+    never be the thing that fails, and a default-shaped code is still a valid,
+    unique code.
     """
+    fallback = (BARCODE_PREFIX_DEFAULT, BARCODE_SUFFIX_DEFAULT, BARCODE_MULTIPLIER_DEFAULT)
     try:
         s = SystemSettings.load()
         prefix = min(max(int(s.barcode_prefix_digits), 0), BARCODE_PAD_MAX)
         suffix = min(max(int(s.barcode_suffix_digits), 0), BARCODE_PAD_MAX)
+        multiplier = Decimal(str(s.barcode_price_multiplier or BARCODE_MULTIPLIER_DEFAULT))
     except Exception:
-        return BARCODE_PAD_DEFAULT, BARCODE_PAD_DEFAULT
-    # An all-random-free code would collide for every product at one price.
+        return fallback
+    # No random digits at all would give every product at one cost the same code.
     if prefix + suffix == 0:
-        return BARCODE_PAD_DEFAULT, BARCODE_PAD_DEFAULT
-    return prefix, suffix
+        prefix, suffix = BARCODE_PREFIX_DEFAULT, BARCODE_SUFFIX_DEFAULT
+    if multiplier <= 0:
+        multiplier = BARCODE_MULTIPLIER_DEFAULT
+    return prefix, suffix, multiplier
 
 
 def barcode_price_source():

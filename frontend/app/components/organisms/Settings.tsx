@@ -34,6 +34,7 @@ interface SettingsData {
   tagBarcodeTextFontSize?: number; tagNameFontSize?: number
   tagDescFontSize?: number; tagPriceFontSize?: number; tagSkuFontSize?: number
   barcodePrefixDigits?: number; barcodeSuffixDigits?: number; barcodePriceSource?: string
+  barcodePriceMultiplier?: number
 }
 
 interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
@@ -204,7 +205,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $tagAlign:String,$tagVerticalAlign:String,$tagPadTop:Float,$tagPadRight:Float,$tagPadBottom:Float,$tagPadLeft:Float,
           $tagGapMm:Float,$tagBarcodeHeightMm:Float,$tagBarcodeTextFontSize:Float,$tagNameFontSize:Float,
           $tagDescFontSize:Float,$tagPriceFontSize:Float,$tagSkuFontSize:Float
-          $barcodePrefixDigits:Int,$barcodeSuffixDigits:Int,$barcodePriceSource:String
+          $barcodePrefixDigits:Int,$barcodeSuffixDigits:Int,$barcodePriceSource:String,$barcodePriceMultiplier:Float
         ){updateSystemSettings(
           appName:$appName,appSubtitle:$appSubtitle,companyName:$companyName,companyState:$companyState,currencySymbol:$currencySymbol,taxPercent:$taxPercent,
           primaryColor:$primaryColor,accentColor:$accentColor,
@@ -220,7 +221,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagAlign:$tagAlign,tagVerticalAlign:$tagVerticalAlign,tagPadTop:$tagPadTop,tagPadRight:$tagPadRight,tagPadBottom:$tagPadBottom,tagPadLeft:$tagPadLeft,
           tagGapMm:$tagGapMm,tagBarcodeHeightMm:$tagBarcodeHeightMm,tagBarcodeTextFontSize:$tagBarcodeTextFontSize,tagNameFontSize:$tagNameFontSize,
           tagDescFontSize:$tagDescFontSize,tagPriceFontSize:$tagPriceFontSize,tagSkuFontSize:$tagSkuFontSize
-          barcodePrefixDigits:$barcodePrefixDigits,barcodeSuffixDigits:$barcodeSuffixDigits,barcodePriceSource:$barcodePriceSource
+          barcodePrefixDigits:$barcodePrefixDigits,barcodeSuffixDigits:$barcodeSuffixDigits,barcodePriceSource:$barcodePriceSource,barcodePriceMultiplier:$barcodePriceMultiplier
         ){settings{id}}}`,
         {
           appName: form.appName, appSubtitle: form.appSubtitle,
@@ -260,6 +261,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           barcodePrefixDigits: form.barcodePrefixDigits === undefined ? undefined : Number(form.barcodePrefixDigits),
           barcodeSuffixDigits: form.barcodeSuffixDigits === undefined ? undefined : Number(form.barcodeSuffixDigits),
           barcodePriceSource: form.barcodePriceSource || undefined,
+          barcodePriceMultiplier: form.barcodePriceMultiplier === undefined ? undefined : Number(form.barcodePriceMultiplier),
         }
       );
       applyBrandColors({ primaryColor: form.primaryColor, accentColor: form.accentColor });
@@ -679,8 +681,8 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                       Barcode number
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                      {([["barcodePrefixDigits", "Digits before price", 3],
-                         ["barcodeSuffixDigits", "Digits after price", 3]] as const).map(([k, label, dflt]) => (
+                      {([["barcodePrefixDigits", "Digits before", 2],
+                         ["barcodeSuffixDigits", "Digits after", 1]] as const).map(([k, label, dflt]) => (
                         <label key={k} style={{ fontSize: 10, color: "var(--muted)" }}>{label}
                           <input type="number" step={1} min="0" max="6"
                             value={form[k] ?? dflt}
@@ -700,8 +702,20 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                         <option value="SALE">Sale price — already printed on the tag</option>
                       </select>
                     </label>
+                    <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginTop: 8 }}>
+                      Multiply the price by
+                      <input type="number" step={0.1} min="0.1"
+                        value={form.barcodePriceMultiplier ?? 2.1}
+                        onChange={e => set("barcodePriceMultiplier")(e.target.value === "" ? "" : +e.target.value)}
+                        style={inputBox} />
+                    </label>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>
-                      The price sits in the middle: {(form.barcodePrefixDigits ?? 3) > 0 ? "2".repeat(form.barcodePrefixDigits ?? 3) : ""}
+                      A cost of <strong style={{ color: "var(--ink)" }}>500</strong> is buried as{" "}
+                      <strong style={{ color: "var(--ink)" }}>{Math.round(500 * (Number(form.barcodePriceMultiplier) || 2.1))}</strong>,
+                      so it does not read as a price. Divide by the multiplier to get the cost back.
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>
+                      The figure sits in the middle: {(form.barcodePrefixDigits ?? 3) > 0 ? "2".repeat(form.barcodePrefixDigits ?? 3) : ""}
                       <strong style={{ color: "var(--ink)" }}>3000</strong>
                       {(form.barcodeSuffixDigits ?? 3) > 0 ? "1".repeat(form.barcodeSuffixDigits ?? 3) : ""}.
                       Changing this affects products made from now on; existing tags keep scanning.

@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Printer, Plus, X, Search } from "lucide-react";
+import { Printer, Plus, X, Search, Pencil, RefreshCw } from "lucide-react";
 import type { FinishedProduct } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import { showToast } from "@/app/lib/toast";
@@ -37,6 +37,55 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
   const [printing, setPrinting] = useState(false);
   // Not saved to Settings — this is text for one run of labels.
   const [extra, setExtra] = useState<TagExtraLines>({ header: "", line1: "", line2: "" });
+
+  // Fixing a wrong price without leaving the screen. Cost is the figure buried
+  // in the barcode, so correcting it here re-mints the code — and you see the
+  // new one in the preview before any label is printed.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ costPrice: "", salePrice: "", size: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editErr, setEditErr] = useState("");
+
+  function openEdit(product: FinishedProduct) {
+    setDraft({
+      costPrice: String(product.costPrice ?? ""),
+      salePrice: String(product.salePrice ?? ""),
+      size: product.size || "",
+    });
+    setEditErr("");
+    setEditingId(product.id);
+  }
+
+  async function saveEdit(product: FinishedProduct) {
+    setSavingEdit(true); setEditErr("");
+    try {
+      const res = await onMutate(
+        `mutation E($id:ID!,$cp:Float,$sp:Float,$size:String){`
+        + `updateFinishedProduct(id:$id,costPrice:$cp,salePrice:$sp,size:$size)`
+        + `{finishedProduct{id costPrice salePrice size barcode barcodeSvg tagsPrinted}}}`,
+        {
+          id: product.id,
+          cp: draft.costPrice === "" ? undefined : +draft.costPrice,
+          sp: draft.salePrice === "" ? undefined : +draft.salePrice,
+          size: draft.size || undefined,
+        },
+      ) as { updateFinishedProduct?: { finishedProduct?: Partial<FinishedProduct> } };
+
+      // Take the server's version: it decides whether the code was re-minted,
+      // and the preview must show the code that will actually be printed.
+      const updated = res?.updateFinishedProduct?.finishedProduct;
+      if (updated) {
+        setQueue(q => q.map(r => r.product.id === product.id
+          ? { ...r, product: { ...r.product, ...updated } as FinishedProduct }
+          : r));
+      }
+      setEditingId(null);
+      showToast("Product updated.", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not save the change.";
+      setEditErr(msg); showToast(msg, "error");
+    } finally { setSavingEdit(false); }
+  }
 
   const queuedIds = useMemo(() => new Set(queue.map(r => r.product.id)), [queue]);
 
@@ -98,7 +147,10 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
     }
   }
 
-  const previewProduct = queue[0]?.product;
+  // Follow whatever is being edited, so a corrected price and its new barcode
+  // are what you are looking at. Otherwise the first item in the batch.
+  const previewProduct =
+    queue.find(r => r.product.id === editingId)?.product ?? queue[0]?.product;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: 20, alignItems: "start" }}>
@@ -185,36 +237,80 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
         ) : (
           <div style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
             {queue.map(row => (
-              <div key={row.product.id} style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "10px 14px", borderBottom: "1px solid var(--line)",
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>
-                    {row.product.itemType.name}
-                    {row.product.size ? ` · ${row.product.size}` : ""}
+              <div key={row.product.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>
+                      {row.product.itemType.name}
+                      {row.product.size ? ` · ${row.product.size}` : ""}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", fontFamily: "monospace" }}>
+                      {row.product.barcode} · MRP {formatMoney(row.product.salePrice)} · cost {formatMoney(row.product.costPrice)}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", fontFamily: "monospace" }}>
-                    {row.product.barcode} · {formatMoney(row.product.salePrice)}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>Labels</span>
+                    <Input
+                      type="number" min="0" step="1"
+                      value={String(row.copies)}
+                      onChange={e => setCopies(row.product.id, e.target.value)}
+                      style={{ width: 72, textAlign: "center" }}
+                    />
                   </div>
+                  <button
+                    type="button"
+                    aria-label={`Edit ${row.product.itemType.name}`}
+                    onClick={() => editingId === row.product.id ? setEditingId(null) : openEdit(row.product)}
+                    style={{
+                      background: "none", border: "none", flex: "none", padding: 6,
+                      color: editingId === row.product.id ? "var(--primary)" : "var(--muted)",
+                    }}
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${row.product.itemType.name}`}
+                    onClick={() => setQueue(q => q.filter(r => r.product.id !== row.product.id))}
+                    style={{ background: "none", border: "none", color: "var(--muted)", flex: "none", padding: 6 }}
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
-                  <span style={{ fontSize: 12, color: "var(--muted)" }}>Labels</span>
-                  <Input
-                    type="number" min="0" step="1"
-                    value={String(row.copies)}
-                    onChange={e => setCopies(row.product.id, e.target.value)}
-                    style={{ width: 72, textAlign: "center" }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  aria-label={`Remove ${row.product.itemType.name}`}
-                  onClick={() => setQueue(q => q.filter(r => r.product.id !== row.product.id))}
-                  style={{ background: "none", border: "none", color: "var(--muted)", flex: "none", padding: 6 }}
-                >
-                  <X size={16} />
-                </button>
+
+                {editingId === row.product.id && (
+                  <div style={{ background: "var(--bg)", padding: "12px 14px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                      <Field label="Cost / pc" hint="This is the number inside the barcode.">
+                        <Input type="number" min="0" step="0.01" value={draft.costPrice}
+                          onChange={e => setDraft(d => ({ ...d, costPrice: e.target.value }))} />
+                      </Field>
+                      <Field label="MRP / pc" hint="Printed on the tag.">
+                        <Input type="number" min="0" step="0.01" value={draft.salePrice}
+                          onChange={e => setDraft(d => ({ ...d, salePrice: e.target.value }))} />
+                      </Field>
+                      <Field label="Size">
+                        <Input value={draft.size} placeholder="e.g. 40"
+                          onChange={e => setDraft(d => ({ ...d, size: e.target.value }))} />
+                      </Field>
+                    </div>
+
+                    {draft.costPrice !== "" && +draft.costPrice !== Number(row.product.costPrice) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--accent)", marginBottom: 10 }}>
+                        <RefreshCw size={13} />
+                        Changing the cost mints a new barcode. Tags already on the rack keep scanning.
+                      </div>
+                    )}
+                    {editErr && <div style={{ color: "var(--danger)", fontSize: 12, marginBottom: 10 }}>{editErr}</div>}
+
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Button variant="primary" onClick={() => saveEdit(row.product)} disabled={savingEdit}>
+                        {savingEdit ? "Saving…" : "Save"}
+                      </Button>
+                      <Button variant="secondary" onClick={() => setEditingId(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

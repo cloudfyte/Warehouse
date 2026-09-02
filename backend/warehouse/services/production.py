@@ -7,7 +7,7 @@ from django.utils import timezone
 from graphql import GraphQLError
 
 from warehouse.models import CuttingAssignment, EmployeeProfile, FinishedProduct, ItemType, RawClothBatch, StitchingJob
-from warehouse.permissions import get_scoped, get_warehouse
+from warehouse.permissions import get_scoped, get_warehouse, require_role
 from warehouse.services.barcode import generate_barcode_svg
 from warehouse.services.notify import notify_managers, notify_user
 
@@ -376,3 +376,106 @@ def update_finished_product(*, user, id, **changes):
 
     fp.save(update_fields=updated + ["updated_at"])
     return fp
+
+
+# Dimension names that also live as columns on FinishedProduct. Mirroring them
+# keeps tags, filters and every existing query working while arbitrary new
+# dimensions cost nothing but an option row.
+_MIRRORED = {
+    "size": "size",
+    "age": "age_group",
+    "age group": "age_group",
+    "agegroup": "age_group",
+}
+_COLOUR_NAMES = {"colour", "color", "cloth colour", "cloth color"}
+
+
+def create_product_matrix(*, user, item_type_id, warehouse_id, rows,
+                          cloth_category_id=None, source="IMPORTED"):
+    """
+    Create one finished product per dimension combination, in a single action.
+
+    rows = [{options: [{name, value}], quantity, cost_price, sale_price}]
+
+    The combinations are worked out on the client so each one can have its
+    quantity and prices adjusted before anything is saved — a size run is rarely
+    the same count in every size, and discovering that after the fact means
+    editing rows one by one.
+    """
+    from warehouse.models import ClothColor, FinishedProductOption, ItemType
+
+    warehouse = get_warehouse(user, warehouse_id)
+    require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
+                 EmployeeProfile.Role.STORE_KEEPER)
+
+    if not rows:
+        raise GraphQLError("Add at least one combination.")
+    if not ItemType.objects.filter(pk=item_type_id).exists():
+        raise GraphQLError("Item type not found.")
+
+    source = (source or "IMPORTED").upper()
+    if source not in FinishedProduct.Source.values:
+        raise GraphQLError("Source must be IN_HOUSE or IMPORTED.")
+
+    created = []
+    with transaction.atomic():
+        for index, row in enumerate(rows):
+            options = row.get("options") or []
+            if not options:
+                raise GraphQLError("Every combination needs at least one dimension.")
+
+            quantity = int(row.get("quantity") or 0)
+            if quantity < 0:
+                raise GraphQLError("Quantity cannot be negative.")
+            cost = Decimal(str(row.get("cost_price") or 0))
+            sale = Decimal(str(row.get("sale_price") or 0))
+            if cost < 0 or sale < 0:
+                raise GraphQLError("Prices cannot be negative.")
+
+            mirrored = {}
+            colour = None
+            seen = set()
+            for option in options:
+                name = (option.get("name") or "").strip()
+                value = (option.get("value") or "").strip()
+                if not name or not value:
+                    raise GraphQLError("Every dimension needs a name and a value.")
+                key = name.lower()
+                if key in seen:
+                    raise GraphQLError(f"'{name}' appears twice in one combination.")
+                seen.add(key)
+
+                if key in _MIRRORED:
+                    mirrored[_MIRRORED[key]] = value
+                elif key in _COLOUR_NAMES:
+                    # Matched, never created: an unrecognised colour becomes an
+                    # option row rather than quietly adding to the master list.
+                    colour = ClothColor.objects.filter(name__iexact=value).first()
+
+            product = FinishedProduct.objects.create(
+                item_type_id=item_type_id,
+                cloth_category_id=cloth_category_id,
+                cloth_color=colour,
+                size=mirrored.get("size", ""),
+                age_group=mirrored.get("age_group", ""),
+                source=source,
+                quantity=quantity,
+                warehouse=warehouse,
+                cost_price=cost,
+                sale_price=sale,
+            )
+            product.barcode_svg = generate_barcode_svg(product.barcode)
+            product.save(update_fields=["barcode_svg"])
+
+            FinishedProductOption.objects.bulk_create([
+                FinishedProductOption(
+                    finished_product=product,
+                    name=(o.get("name") or "").strip(),
+                    value=(o.get("value") or "").strip(),
+                    sort_order=i,
+                )
+                for i, o in enumerate(options)
+            ])
+            created.append(product)
+
+    return created

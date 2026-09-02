@@ -1,11 +1,11 @@
 "use client";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Tag } from "lucide-react";
 import { ItemType } from "@/app/types";
 import { showToast } from "@/app/lib/toast";
 import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
-import Select from "@/app/components/atoms/Select";
+import CreatableSelect from "@/app/components/atoms/CreatableSelect";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import Field from "@/app/components/molecules/Field";
@@ -22,11 +22,23 @@ interface Props {
 }
 
 const GST_OPTIONS = [0, 5, 12, 18, 28];
-const CATEGORY_OPTIONS = ["SHERWANI", "KURTA", "PANT", "COAT", "SHIRT", "BRIDAL", "CASUAL", "ACCESSORIES", "OTHER"];
+// Starting points only. The list below also picks up whatever categories are
+// already in use, and a new one can be typed straight into the field — the
+// category is a plain label on the item type, not a record of its own, so
+// there is nothing to create before it can be used.
+const CATEGORY_SEEDS = ["SHERWANI", "KURTA", "PANT", "COAT", "SHIRT", "BRIDAL", "CASUAL", "ACCESSORIES", "OTHER"];
 
 const EMPTY_FORM = { name: "", category: "", clothLengthPerPiece: "0", hsnCode: "", gstRate: "0" };
 
 export default function ItemTypes({ itemTypes, isSuperAdmin, isAdmin, isManager, gql, onRefresh }: Props) {
+  // Seeds plus every category already in use, so the list grows as the
+  // catalogue does rather than staying frozen at whatever was hardcoded.
+  const categoryOptions = useMemo(() => {
+    const names = new Set(CATEGORY_SEEDS);
+    itemTypes.forEach(it => { if (it.category) names.add(it.category.toUpperCase()); });
+    return [...names].sort().map(name => ({ id: name, name }));
+  }, [itemTypes]);
+
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ItemType | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -186,12 +198,18 @@ export default function ItemTypes({ itemTypes, isSuperAdmin, isAdmin, isManager,
               <Field label="Name" required>
                 <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Sherwani" />
               </Field>
-              <Field label="Category">
-                <Select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                  <option value="">Select category</option>
-                  {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                </Select>
-              </Field>
+              <CreatableSelect
+                label="Category"
+                options={categoryOptions}
+                value={form.category}
+                onChange={v => setForm(f => ({ ...f, category: v }))}
+                onCreate={async name => {
+                  const created = name.trim().toUpperCase();
+                  setForm(f => ({ ...f, category: created }));
+                  return created;
+                }}
+                placeholder="Select or add a category…"
+              />
               <FormGrid cols={2} gap={12}>
                 <Field label="Cloth / Piece (m)">
                   <Input type="number" value={form.clothLengthPerPiece} onChange={e => setForm(f => ({ ...f, clothLengthPerPiece: e.target.value }))} min="0" step="0.25" />

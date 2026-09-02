@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Camera, Download, Printer, Bluetooth, Pencil } from "lucide-react";
-import type { FinishedProduct } from "@/app/types";
+import { Camera, Download, Printer, Bluetooth, Pencil, Grid3x3 } from "lucide-react";
+import type { FinishedProduct, ItemType, WarehouseLocation } from "@/app/types";
 import { formatMoney, formatDateShort } from "@/app/lib/formatters";
 import { downloadCsv } from "@/app/lib/csv";
 import BarcodeScanner from "@/app/components/atoms/BarcodeScanner";
@@ -20,9 +20,13 @@ import { tagDocument, type TagSettings } from "@/app/lib/tagTemplate";
 import Drawer from "@/app/components/atoms/Drawer";
 import Field from "@/app/components/molecules/Field";
 import BarcodeGenerator from "@/app/components/organisms/BarcodeGenerator";
+import ProductMatrixBuilder from "@/app/components/organisms/ProductMatrixBuilder";
 
 interface Props {
   products: FinishedProduct[]
+  itemTypes?: ItemType[]
+  warehouses?: WarehouseLocation[]
+  onRefresh?: () => void
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isStoreKeeper: boolean
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +45,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   win.document.close();
 }
 
-export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql, systemSettings }: Props) {
+export default function FinishedProducts({ products, itemTypes = [], warehouses = [], onRefresh, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql, systemSettings }: Props) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -50,6 +54,7 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
   const [markingPrinted, setMarkingPrinted] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [view, setView] = useState<"list" | "tags">("list");
+  const [showMatrix, setShowMatrix] = useState(false);
   const [scanResult, setScanResult] = useState<{ found: boolean; product?: FinishedProduct } | null>(null);
 
   const canManage = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
@@ -144,6 +149,16 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
     <div style={{ padding: 24 }}>
       {showScanner && <BarcodeScanner onDetected={handleBarcode} onClose={() => setShowScanner(false)} />}
 
+      {showMatrix && (
+        <ProductMatrixBuilder
+          itemTypes={itemTypes}
+          warehouses={warehouses}
+          onMutate={onMutate}
+          onCreated={() => onRefresh?.()}
+          onClose={() => setShowMatrix(false)}
+        />
+      )}
+
       {scanResult && !scanResult.found && (
         <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a2e", color: "#fff", padding: "14px 24px", borderRadius: 12, zIndex: 100, fontSize: 14, fontWeight: 600, boxShadow: "0 8px 32px #0006" }}>
           No product found for that barcode
@@ -171,6 +186,11 @@ export default function FinishedProducts({ products, isAdmin, isSuperAdmin, isMa
                 </button>
               ))}
             </div>
+            {canManage && (
+              <Button variant="primary" onClick={() => setShowMatrix(true)}>
+                <Grid3x3 size={14} /> Add Products
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => setShowScanner(true)}>
               <Camera size={14} /> Scan Barcode
             </Button>
