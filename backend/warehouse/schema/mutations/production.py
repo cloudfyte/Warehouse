@@ -168,12 +168,15 @@ class CreateProductMatrix(graphene.Mutation):
         cloth_category_id = graphene.ID()
         source = graphene.String()
         rows = graphene.List(graphene.NonNull(VariantRowInput), required=True)
+        set_name = graphene.String()
+        set_quantity = graphene.Int()
 
     finished_products = graphene.List(FinishedProductType)
+    product_set = graphene.Field("warehouse.schema.types.ProductSetType")
 
     @login_required
     def mutate(self, info, item_type_id, warehouse_id, rows, **kwargs):
-        products = create_product_matrix(
+        products, product_set = create_product_matrix(
             user=info.context.user,
             item_type_id=item_type_id,
             warehouse_id=warehouse_id,
@@ -186,4 +189,4 @@ class CreateProductMatrix(graphene.Mutation):
             } for r in rows],
             **kwargs,
         )
-        return CreateProductMatrix(finished_products=products)
+        return CreateProductMatrix(finished_products=products, product_set=product_set)

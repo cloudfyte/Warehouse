@@ -51,6 +51,11 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
   ]);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [defaults, setDefaults] = useState({ quantity: "1", costPrice: "", salePrice: "", minStock: "" });
+  // A size run is the usual reason to generate a matrix and the usual thing to
+  // sell as a set, so it can be bundled in the same action.
+  const [asSet, setAsSet] = useState(false);
+  const [setName, setSetName] = useState("");
+  const [setQuantity, setSetQuantity] = useState("0");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -86,15 +91,18 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
     if (!warehouseId) { setError("Pick a warehouse."); return; }
     const payload = (rows || []).filter(r => r.options.length);
     if (!payload.length) { setError("Generate the combinations first."); return; }
+    if (asSet && !setName.trim()) { setError("Give the set a name, or turn the set off."); return; }
 
     setSaving(true); setError("");
     try {
       await onMutate(
-        `mutation M($it:ID!,$wh:ID!,$src:String,$rows:[VariantRowInput!]!){`
-        + `createProductMatrix(itemTypeId:$it,warehouseId:$wh,source:$src,rows:$rows)`
-        + `{finishedProducts{id sku barcode}}}`,
+        `mutation M($it:ID!,$wh:ID!,$src:String,$rows:[VariantRowInput!]!,$setName:String,$setQty:Int){`
+        + `createProductMatrix(itemTypeId:$it,warehouseId:$wh,source:$src,rows:$rows,setName:$setName,setQuantity:$setQty)`
+        + `{finishedProducts{id sku barcode} productSet{id setNumber}}}`,
         {
           it: itemTypeId, wh: warehouseId, src: source,
+          setName: asSet ? setName.trim() : undefined,
+          setQty: asSet ? (parseInt(setQuantity, 10) || 0) : undefined,
           rows: payload.map(r => ({
             options: r.options,
             quantity: parseInt(r.quantity, 10) || 0,
@@ -104,7 +112,12 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
           })),
         },
       );
-      showToast(`${payload.length} product${payload.length === 1 ? "" : "s"} created.`, "success");
+      showToast(
+        asSet
+          ? `${payload.length} products created and bundled as "${setName.trim()}".`
+          : `${payload.length} product${payload.length === 1 ? "" : "s"} created.`,
+        "success",
+      );
       onCreated();
       onClose();
     } catch (e: unknown) {
@@ -217,6 +230,37 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
           </div>
         )}
       </div>
+
+      {/* ── Bundle the run as a set ── */}
+      {rows && rows.length > 0 && (
+        <div style={{
+          border: "1px solid var(--line)", borderRadius: 12,
+          padding: "12px 14px", marginBottom: 12,
+        }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+            <input type="checkbox" checked={asSet} onChange={e => setAsSet(e.target.checked)} />
+            Also bundle these as a set
+          </label>
+          {asSet && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 12, marginTop: 10 }}>
+                <Field label="Set name *">
+                  <Input value={setName} placeholder="e.g. Sherwani set 34-46"
+                    onChange={e => setSetName(e.target.value)} />
+                </Field>
+                <Field label="Build how many" hint="0 defines it without building.">
+                  <Input type="number" min="0" value={setQuantity}
+                    onChange={e => setSetQuantity(e.target.value)} />
+                </Field>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>
+                The set holds one of each combination above. Building takes those pieces out of
+                individual stock — you can break a set open later to get them back.
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Generated rows ── */}
       {rows && rows.length > 0 && (

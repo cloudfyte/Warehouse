@@ -42,6 +42,12 @@ class MatrixFixture(TestCase):
         return rows
 
     def _create(self, rows, **kw):
+        products, _ = create_product_matrix(
+            user=self.admin, item_type_id=self.item_type.id,
+            warehouse_id=self.warehouse.id, rows=rows, **kw)
+        return products
+
+    def _create_with_set(self, rows, **kw):
         return create_product_matrix(
             user=self.admin, item_type_id=self.item_type.id,
             warehouse_id=self.warehouse.id, rows=rows, **kw)
@@ -249,3 +255,63 @@ class ChangingTheMinimumLater(MatrixFixture):
 
         with self.assertRaises(GraphQLError):
             update_finished_product(user=self.admin, id=product.id, min_stock=-1)
+
+
+class GeneratingARunAsASet(MatrixFixture):
+    """A size run is the usual reason to generate a matrix and the usual set."""
+
+    def _sizes(self, quantity=5):
+        return [{"options": [{"name": "Size", "value": size}], "quantity": quantity,
+                 "cost_price": 500, "sale_price": 1200}
+                for size in ["38", "40", "42"]]
+
+    def test_a_run_can_become_a_set_in_one_action(self):
+        products, product_set = self._create_with_set(
+            self._sizes(), set_name="Sherwani set 38-42", set_quantity=2)
+
+        self.assertEqual(len(products), 3)
+        self.assertIsNotNone(product_set)
+        self.assertEqual(product_set.quantity, 2)
+        self.assertEqual(product_set.items.count(), 3)
+
+    def test_building_the_set_takes_the_pieces_it_holds(self):
+        from warehouse.models import FinishedProduct
+
+        products, _ = self._create_with_set(
+            self._sizes(quantity=5), set_name="Run", set_quantity=2)
+
+        for product in products:
+            product.refresh_from_db()
+            self.assertEqual(product.quantity, 3)          # 5 - 2
+
+    def test_naming_no_set_leaves_the_products_alone(self):
+        from warehouse.models import ProductSet
+
+        products, product_set = self._create_with_set(self._sizes())
+
+        self.assertIsNone(product_set)
+        self.assertEqual(ProductSet.objects.count(), 0)
+        for product in products:
+            product.refresh_from_db()
+            self.assertEqual(product.quantity, 5)
+
+    def test_a_set_defined_without_building_holds_nothing_yet(self):
+        products, product_set = self._create_with_set(
+            self._sizes(), set_name="Run", set_quantity=0)
+
+        self.assertEqual(product_set.quantity, 0)
+        for product in products:
+            product.refresh_from_db()
+            self.assertEqual(product.quantity, 5)
+
+    def test_a_set_that_cannot_be_built_takes_the_whole_run_with_it(self):
+        """Half a run and no set is worse than nothing at all."""
+        from warehouse.models import FinishedProduct, ProductSet
+
+        before = FinishedProduct.objects.count()
+
+        with self.assertRaises(GraphQLError):
+            self._create_with_set(self._sizes(quantity=1), set_name="Run", set_quantity=5)
+
+        self.assertEqual(FinishedProduct.objects.count(), before)
+        self.assertEqual(ProductSet.objects.count(), 0)

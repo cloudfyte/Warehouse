@@ -421,11 +421,17 @@ _COLOUR_NAMES = {"colour", "color", "cloth colour", "cloth color"}
 
 
 def create_product_matrix(*, user, item_type_id, warehouse_id, rows,
-                          cloth_category_id=None, source="IMPORTED"):
+                          cloth_category_id=None, source="IMPORTED",
+                          set_name=None, set_quantity=0):
     """
     Create one finished product per dimension combination, in a single action.
 
     rows = [{options: [{name, value}], quantity, cost_price, sale_price, min_stock}]
+
+    Give ``set_name`` and the generated products are also bundled into a set
+    holding one of each — a size run is the usual reason to generate a matrix
+    and the usual thing to sell as a set, and doing it in two steps meant
+    picking the same seven products again by hand.
 
     The combinations are worked out on the client so each one can have its
     quantity and prices adjusted before anything is saved — a size run is rarely
@@ -522,4 +528,20 @@ def create_product_matrix(*, user, item_type_id, warehouse_id, rows,
             ])
             created.append(product)
 
-    return created
+        if set_name and set_name.strip():
+            # Built inside the same transaction, so a set that cannot be
+            # assembled takes the products down with it rather than leaving a
+            # half-made run behind.
+            from warehouse.services.product_set import create_product_set
+
+            product_set = create_product_set(
+                user=user,
+                name=set_name,
+                item_type_id=item_type_id,
+                warehouse_id=warehouse_id,
+                lines=[{"finished_product_id": p.pk, "pieces_per_set": 1} for p in created],
+                quantity=int(set_quantity or 0),
+            )
+            return created, product_set
+
+    return created, None
