@@ -202,8 +202,9 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
               ))}
             </div>
             {canManage && (
-              <Button variant="primary" onClick={() => setShowMatrix(true)}>
-                <Grid3x3 size={14} /> Add Products
+              <Button variant="secondary" onClick={() => setShowMatrix(true)}
+                title="For stock already on the shelf when you started using this system. Anything bought since then arrives through a purchase order or a supplier invoice.">
+                <Grid3x3 size={14} /> Opening Stock
               </Button>
             )}
             <Button variant="ghost" onClick={() => setShowScanner(true)}>

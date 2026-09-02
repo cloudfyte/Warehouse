@@ -276,9 +276,15 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
                 raise GraphQLError(f"Only {rs.quantity_available} units available.")
             rs.quantity_available -= quantity
             rs.save(update_fields=["quantity_available"])
+            # The stock row is what the goods physically are, so it settles the
+            # description. Size and category used to be left to the caller, so
+            # any caller that did not repeat them back minted a sizeless,
+            # uncategorised product out of a perfectly well-described delivery.
             item_type_id = rs.item_type_id
             cloth_color_id = rs.cloth_color_id
             age_group = rs.age_group
+            size = rs.size or size
+            cloth_category_id = rs.cloth_category_id or cloth_category_id
 
         fp = FinishedProduct.objects.create(
             item_type_id=item_type_id,

@@ -13,6 +13,7 @@ import Button from "@/app/components/atoms/Button";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import SizeRunSplit from "@/app/components/molecules/SizeRunSplit";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import { downloadCsv } from "@/app/lib/csv";
 import { showToast } from "@/app/lib/toast";
@@ -276,6 +277,18 @@ export default function PurchaseBills({
 
   function removeItem(idx: number) {
     setItems(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  /**
+   * Replace one readymade line with one line per size.
+   *
+   * A run is bought as a run but stocked and barcoded per size, so it has to
+   * become separate lines somewhere — here means typing the item type, colour
+   * and price once instead of once per size.
+   */
+  function splitIntoSizes(idx: number, sizes: string[], qtyEach: number) {
+    setItems(prev => prev.flatMap((it, i) =>
+      i === idx ? sizes.map(size => ({ ...it, size, quantity: String(qtyEach) })) : [it]));
   }
 
   const computedTotal = items.reduce((s, it) => s + itemLineTotal(it), 0);
@@ -865,6 +878,7 @@ export default function PurchaseBills({
                       clothCategories={clothCategories} clothColors={clothColors} itemTypes={itemTypes}
                       gstEnabled={gstEnabled}
                       onChange={patch => updateItem(idx, patch)}
+                      onSplit={(sizes, qtyEach) => splitIntoSizes(idx, sizes, qtyEach)}
                       onRemove={items.length > 1 ? () => removeItem(idx) : undefined}
                     />
                   ))}
@@ -960,12 +974,13 @@ export default function PurchaseBills({
 // ─── item editor row ──────────────────────────────────────────────────────────
 
 function ItemEditor({
-  item, idx, clothCategories, clothColors, itemTypes, gstEnabled, onChange, onRemove,
+  item, idx, clothCategories, clothColors, itemTypes, gstEnabled, onChange, onSplit, onRemove,
 }: {
   item: DraftItem; idx: number
   clothCategories: ClothCategory[]; clothColors: ClothColor[]; itemTypes: ItemType[]
   gstEnabled?: boolean
   onChange: (patch: Partial<DraftItem>) => void
+  onSplit: (sizes: string[], qtyEach: number) => void
   onRemove?: () => void
 }) {
   const lineTotal = itemLineTotal(item);
@@ -1071,6 +1086,8 @@ function ItemEditor({
           </Field>
         </FormGrid>
       )}
+
+      {item.itemKind === "READYMADE" && <SizeRunSplit onSplit={onSplit} />}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>

@@ -477,6 +477,42 @@ class SupplierReturnsLeaveStock(StockFixture):
         stock.refresh_from_db()
         self.assertEqual(stock.quantity_available, 12)
 
+    def test_tagging_readymade_stock_keeps_its_size_and_category(self):
+        """A delivery is described once, on the stock row.
+
+        The tagging call used to take size and category from whatever the
+        caller happened to pass, so a caller that only sent the stock id got a
+        sizeless product — and a size run of five became five identical SKUs.
+        """
+        from warehouse.services.production import create_finished_products
+
+        stock = ReadymadeStock.objects.create(
+            supplier=self.supplier,
+            item_type=self.item_type,
+            cloth_category=self.category,
+            cloth_color=self.color,
+            size="42",
+            warehouse=self.warehouse,
+            quantity_received=6,
+            quantity_available=6,
+            cost_price=Decimal("400.00"),
+        )
+
+        product = create_finished_products(
+            user=self.admin,
+            readymade_stock_id=stock.id,
+            warehouse_id=self.warehouse.id,
+            quantity=6,
+            cost_price=400,
+            sale_price=900,
+        )
+
+        self.assertEqual(product.size, "42")
+        self.assertEqual(product.cloth_category_id, self.category.id)
+        self.assertEqual(product.cloth_color_id, self.color.id)
+        stock.refresh_from_db()
+        self.assertEqual(stock.quantity_available, 0)
+
 
 class ScalarsReachTheClientAsRealTypes(TestCase):
     """JSONField and DecimalField used to serialise as JSON *strings*.

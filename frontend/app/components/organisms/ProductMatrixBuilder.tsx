@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { X, Grid3x3 } from "lucide-react";
+import { X, Grid3x3, Info } from "lucide-react";
 import type { ItemType, WarehouseLocation } from "@/app/types";
 import { showToast } from "@/app/lib/toast";
 import { friendlyError } from "@/app/lib/errors";
@@ -130,8 +130,8 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
 
   return (
     <Modal
-      title="Add Products"
-      subtitle="Name the dimensions, list their values, and every combination is created at once."
+      title="Opening Stock"
+      subtitle="Stock already on your shelf that never passed through this system."
       width={720}
       zIndex={300}
       onClose={onClose}
@@ -139,12 +139,29 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
       footer={
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <Button variant="primary" type="submit" disabled={saving || !rows?.length} style={{ flex: 1 }}>
-            {saving ? "Creating…" : `Create ${rows?.length ?? 0} product${rows?.length === 1 ? "" : "s"}`}
+            {saving ? "Recording…" : `Record ${rows?.length ?? 0} product${rows?.length === 1 ? "" : "s"}`}
           </Button>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
         </div>
       }
     >
+      <div style={{
+        display: "flex", gap: 10, alignItems: "flex-start",
+        padding: "10px 12px", borderRadius: 10, marginBottom: 14,
+        background: "#f59e0b18", border: "1px solid #f59e0b55",
+        fontSize: 12, lineHeight: 1.55,
+      }}>
+        <Info size={15} style={{ flex: "none", marginTop: 1, color: "#b45309" }} />
+        <div>
+          <strong>Only for stock you already have.</strong> Products recorded here have no supplier,
+          no bill and no cost trail behind them — there is nothing to reconcile them against. Goods
+          you buy belong on the <strong>purchase order</strong> or the <strong>supplier invoice</strong>
+          {" "}(a whole size run goes in as one line there), and get tagged from
+          {" "}<strong>Readymade Stock</strong> once they arrive. Garments you stitch yourself come
+          through <strong>Stitching</strong>.
+        </div>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <Field label="Item Type *">
           <Select value={itemTypeId} onChange={e => setItemTypeId(e.target.value)}>

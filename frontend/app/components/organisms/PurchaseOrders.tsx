@@ -20,6 +20,7 @@ import FileInput from "@/app/components/atoms/FileInput";
 import Checkbox from "@/app/components/atoms/Checkbox";
 import Field from "@/app/components/molecules/Field";
 import PhotoPicker from "@/app/components/molecules/PhotoPicker";
+import SizeRunSplit from "@/app/components/molecules/SizeRunSplit";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
@@ -222,6 +223,18 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
 
   function removeItem(idx: number) {
     setItems(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  /**
+   * Replace one readymade line with one line per size.
+   *
+   * A size run is bought as a run but received, stocked and barcoded per size,
+   * so it has to become separate lines somewhere — doing it here means typing
+   * the item type, colour and price once instead of once per size.
+   */
+  function splitIntoSizes(idx: number, sizes: string[], qtyEach: number) {
+    setItems(prev => prev.flatMap((it, i) =>
+      i === idx ? sizes.map(size => ({ ...it, size, qty: qtyEach })) : [it]));
   }
 
   async function createPO() {
@@ -514,6 +527,9 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                       <Field label="Description" style={{ gridColumn: "1 / -1" }}>
                         <Input value={item.itemName} onChange={e => updateItem(idx, { itemName: e.target.value })} placeholder="Brand, variant, or any detail…" />
                       </Field>
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <SizeRunSplit onSplit={(sizes, qtyEach) => splitIntoSizes(idx, sizes, qtyEach)} />
+                      </div>
                     </div>
                   )}
 
