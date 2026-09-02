@@ -111,6 +111,7 @@ class UpdateFinishedProduct(graphene.Mutation):
         cloth_color_id = graphene.ID()
         cloth_category_id = graphene.ID()
         item_type_id = graphene.ID()
+        min_stock = graphene.Int()
 
     finished_product = graphene.Field(FinishedProductType)
 
@@ -156,6 +157,7 @@ class VariantRowInput(graphene.InputObjectType):
     quantity = graphene.Int()
     cost_price = graphene.Float()
     sale_price = graphene.Float()
+    min_stock = graphene.Int()
 
 
 class CreateProductMatrix(graphene.Mutation):
@@ -180,6 +182,7 @@ class CreateProductMatrix(graphene.Mutation):
                 "quantity": r.quantity,
                 "cost_price": r.cost_price,
                 "sale_price": r.sale_price,
+                "min_stock": r.min_stock,
             } for r in rows],
             **kwargs,
         )

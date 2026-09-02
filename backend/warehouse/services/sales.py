@@ -45,7 +45,8 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
         item_gst_records = []  # [(line_total, gst_rate)]
 
         for item in items:
-            fp_id = item["finished_product_id"]
+            fp_id = item.get("finished_product_id")
+            set_id = item.get("product_set_id")
             qty = int(item["quantity"])
             unit_price = Decimal(str(item["unit_price"]))
 
@@ -53,24 +54,46 @@ def create_sales_order(*, user, buyer_id, payment_mode, warehouse_id,
                 raise GraphQLError("Item quantity must be greater than zero.")
             if unit_price < 0:
                 raise GraphQLError("Item unit price cannot be negative.")
-
-            fp = get_scoped(user, FinishedProduct, fp_id, lock=True, active=True)
-            if fp.quantity < qty:
-                raise GraphQLError(f"Insufficient stock for {fp.sku}: only {fp.quantity} available.")
-
-            fp.quantity -= qty
-            fp.save(update_fields=["quantity", "updated_at"])
+            if bool(fp_id) == bool(set_id):
+                raise GraphQLError("A line sells either a product or a set, not both or neither.")
 
             line_total = unit_price * qty
-            SalesOrderItem.objects.create(
-                sales_order=so,
-                finished_product=fp,
-                quantity=qty,
-                unit_price=unit_price,
-                total_price=line_total,
-            )
+
+            if set_id:
+                # A built set already holds its pieces — they left the individual
+                # counts when it was built — so selling one only decrements here.
+                from warehouse.models import ProductSet
+
+                product_set = get_scoped(user, ProductSet, set_id, lock=True, active=True)
+                if product_set.quantity < qty:
+                    raise GraphQLError(
+                        f"Insufficient stock for {product_set.set_number}: "
+                        f"only {product_set.quantity} set(s) available."
+                    )
+                product_set.quantity -= qty
+                product_set.save(update_fields=["quantity", "updated_at"])
+
+                SalesOrderItem.objects.create(
+                    sales_order=so, product_set=product_set, quantity=qty,
+                    unit_price=unit_price, total_price=line_total,
+                )
+                gst_rate = Decimal(str(product_set.item_type.gst_rate or 0))
+            else:
+                fp = get_scoped(user, FinishedProduct, fp_id, lock=True, active=True)
+                if fp.quantity < qty:
+                    raise GraphQLError(f"Insufficient stock for {fp.sku}: only {fp.quantity} available.")
+
+                fp.quantity -= qty
+                fp.save(update_fields=["quantity", "updated_at"])
+
+                SalesOrderItem.objects.create(
+                    sales_order=so, finished_product=fp, quantity=qty,
+                    unit_price=unit_price, total_price=line_total,
+                )
+                gst_rate = Decimal(str(fp.item_type.gst_rate or 0))
+
             subtotal += line_total
-            item_gst_records.append((line_total, Decimal(str(fp.item_type.gst_rate or 0))))
+            item_gst_records.append((line_total, gst_rate))
 
         # Per-item GST computation
         discount_ratio = discount_amt / subtotal if subtotal > 0 else Decimal("0")
@@ -175,10 +198,19 @@ def update_sales_order_status(*, user, id, status, actual_delivery=None):
         # create_sales_order decremented FinishedProduct.quantity; cancelling only
         # flipped the status, so the pieces were written off permanently.
         if status == SalesOrder.Status.CANCELLED:
-            for item in so.items.select_related("finished_product"):
-                fp = FinishedProduct.objects.select_for_update().get(pk=item.finished_product_id)
-                fp.quantity += item.quantity
-                fp.save(update_fields=["quantity", "updated_at"])
+            from warehouse.models import ProductSet
+
+            # A line sells either a product or a set, so the cancellation has to
+            # put the stock back wherever it was taken from.
+            for item in so.items.select_related("finished_product", "product_set"):
+                if item.product_set_id:
+                    ps = ProductSet.objects.select_for_update().get(pk=item.product_set_id)
+                    ps.quantity += item.quantity
+                    ps.save(update_fields=["quantity", "updated_at"])
+                elif item.finished_product_id:
+                    fp = FinishedProduct.objects.select_for_update().get(pk=item.finished_product_id)
+                    fp.quantity += item.quantity
+                    fp.save(update_fields=["quantity", "updated_at"])
 
         so.status = status
         if actual_delivery:

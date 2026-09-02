@@ -32,7 +32,15 @@ class Command(BaseCommand):
             timezone="Asia/Kolkata",
         )
 
+        # 1st of the month at 7:00 AM IST
+        monthly, _ = CrontabSchedule.objects.get_or_create(
+            minute="0", hour="7",
+            day_of_week="*", day_of_month="1", month_of_year="*",
+            timezone="Asia/Kolkata",
+        )
+
         tasks = [
+            ("Monthly Settlements",      "warehouse.tasks.generate_monthly_settlements", monthly),
             ("Daily Low-Stock Alert",    "warehouse.tasks.check_reorder_points",    morning),
             ("Daily Payment Reminders",  "warehouse.tasks.send_payment_reminders",  mid_morning),
             ("Weekly OTP Cleanup",       "warehouse.tasks.cleanup_expired_otps",    weekly_cleanup),

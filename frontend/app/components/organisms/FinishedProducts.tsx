@@ -26,6 +26,8 @@ interface Props {
   products: FinishedProduct[]
   itemTypes?: ItemType[]
   warehouses?: WarehouseLocation[]
+  /** Only products with one of these are ever reported as low or out of stock. */
+  reorderPoints?: { id: string; itemKind: string; active: boolean; size?: string; thresholdPieces?: number | null; itemType?: { id: string } | null; warehouse: { id: string } }[]
   onRefresh?: () => void
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isStoreKeeper: boolean
   onMutate: (q: string, v: Record<string, unknown>) => Promise<void>
@@ -45,7 +47,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   win.document.close();
 }
 
-export default function FinishedProducts({ products, itemTypes = [], warehouses = [], onRefresh, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql, systemSettings }: Props) {
+export default function FinishedProducts({ products, itemTypes = [], warehouses = [], reorderPoints = [], onRefresh, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql, systemSettings }: Props) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -63,7 +65,17 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
   const canReprice = isSuperAdmin || isAdmin || isManager;
 
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ salePrice: "", costPrice: "", size: "", ageGroup: "" });
+  const [editForm, setEditForm] = useState({ salePrice: "", costPrice: "", size: "", ageGroup: "", minStock: "" });
+
+  /** The minimum already set for a product, or "" when it has none. */
+  function currentMinimum(p: FinishedProduct) {
+    const rp = reorderPoints.find(r =>
+      r.itemKind === "FINISHED" && r.active &&
+      r.itemType?.id === p.itemType.id &&
+      r.warehouse.id === p.warehouse.id &&
+      (!r.size || r.size === p.size));
+    return rp?.thresholdPieces != null ? String(rp.thresholdPieces) : "";
+  }
   const [editSaving, setEditSaving] = useState(false);
   const [editErr, setEditErr] = useState("");
 
@@ -73,6 +85,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
       costPrice: String(p.costPrice ?? ""),
       size: p.size || "",
       ageGroup: p.ageGroup || "",
+      minStock: currentMinimum(p),
     });
     setEditErr(""); setEditing(true);
   }
@@ -87,14 +100,16 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
         id: selected.id,
         size: editForm.size || undefined,
         ageGroup: editForm.ageGroup || undefined,
+        // Sent even when blank-to-zero: that is how an alert is switched off.
+        minStock: editForm.minStock === "" ? undefined : parseInt(editForm.minStock, 10) || 0,
       };
       if (canReprice) {
         vars.salePrice = editForm.salePrice === "" ? undefined : +editForm.salePrice;
         vars.costPrice = editForm.costPrice === "" ? undefined : +editForm.costPrice;
       }
       await onMutate(
-        `mutation E($id:ID!,$salePrice:Float,$costPrice:Float,$size:String,$ageGroup:String){`
-        + `updateFinishedProduct(id:$id,salePrice:$salePrice,costPrice:$costPrice,size:$size,ageGroup:$ageGroup)`
+        `mutation E($id:ID!,$salePrice:Float,$costPrice:Float,$size:String,$ageGroup:String,$minStock:Int){`
+        + `updateFinishedProduct(id:$id,salePrice:$salePrice,costPrice:$costPrice,size:$size,ageGroup:$ageGroup,minStock:$minStock)`
         + `{finishedProduct{id salePrice costPrice size ageGroup profitMargin}}}`,
         vars,
       );
@@ -285,6 +300,10 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
                   <Field label="Age Group">
                     <Input value={editForm.ageGroup} placeholder="e.g. ADULT"
                       onChange={e => setEditForm(f => ({ ...f, ageGroup: e.target.value }))} />
+                  </Field>
+                  <Field label="Minimum Stock" hint="Warn me below this. Blank or 0 means never warn about this product.">
+                    <Input type="number" min="0" value={editForm.minStock} placeholder="—"
+                      onChange={e => setEditForm(f => ({ ...f, minStock: e.target.value }))} />
                   </Field>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 12px" }}>

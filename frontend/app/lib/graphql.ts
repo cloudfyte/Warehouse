@@ -237,6 +237,20 @@ export const DASHBOARD_QUERY = `
       finishedProduct { id sku itemType { name } }
       warehouse { id name }
     }
+    productSets {
+      id setNumber name quantity costPrice salePrice barcode active
+      itemType { id name }
+      warehouse { id name }
+      items { id piecesPerSet finishedProduct { id sku size itemType { name } } }
+    }
+    settlements {
+      id settlementNumber name kind amount period dueDate status paidOn reference notes
+      warehouse { id name }
+    }
+    recurringSettlements {
+      id name kind amount dayOfMonth active notes
+      warehouse { id name }
+    }
     reorderPoints {
       id itemKind active createdAt
       warehouse { id name }

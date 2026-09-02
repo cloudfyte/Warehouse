@@ -222,3 +222,32 @@ def _run_payment_reminders():
         sent += 1
 
     logger.info("Payment reminders: %d messages queued.", sent)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=300)
+def generate_monthly_settlements(self):
+    """
+    Raise this month's salaries, rents and other standing payments as pending.
+
+    Runs on the 1st. Nothing is booked as an expense here — a settlement becomes
+    one only when somebody confirms the money moved, so the books never show
+    lighter than the bank. Generation is idempotent, so a retry costs nothing.
+    """
+    from warehouse.services.notify import notify_managers
+    from warehouse.services.settlement import generate_settlements
+
+    try:
+        created = generate_settlements()
+    except Exception as exc:
+        logger.warning("generate_monthly_settlements failed: %s, retrying…", exc)
+        raise self.retry(exc=exc)
+
+    if created:
+        total = sum(s.amount for s in created)
+        notify_managers(
+            title=f"{len(created)} settlement(s) due this month",
+            message=f"Salaries, rent and other standing payments totalling {total:.2f} are waiting to be confirmed.",
+            level="INFO",
+            link="settlements",
+        )
+    return len(created)

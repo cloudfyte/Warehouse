@@ -322,11 +322,16 @@ def update_finished_product(*, user, id, **changes):
     picked wrong on the way in is ordinary store-keeper work, so the two are
     gated separately.
     """
+    from warehouse.models import ReorderPoint
     from warehouse.permissions import accessible_warehouses, require_role
 
+    minimum = changes.pop("min_stock", None)
     changes = {k: v for k, v in changes.items() if v is not None}
+    if minimum is not None:
+        changes.setdefault("_touch", True)
     if not changes:
         raise GraphQLError("Nothing to update.")
+    changes.pop("_touch", None)
 
     require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
                  EmployeeProfile.Role.STORE_KEEPER)
@@ -374,7 +379,32 @@ def update_finished_product(*, user, id, **changes):
         fp.tags_printed = False
         updated += ["previous_barcodes", "barcode", "barcode_svg", "tags_printed"]
 
-    fp.save(update_fields=updated + ["updated_at"])
+    if updated:
+        fp.save(update_fields=updated + ["updated_at"])
+
+    # The minimum is the only reason this product would ever raise an alert.
+    # Setting it to zero removes the reorder point rather than leaving a silent
+    # one behind, so "stop warning me about this" actually stops the warning.
+    if minimum is not None:
+        minimum = int(minimum)
+        if minimum < 0:
+            raise GraphQLError("Minimum stock cannot be negative.")
+        if minimum > 0:
+            ReorderPoint.objects.update_or_create(
+                item_kind=ReorderPoint.ItemKind.FINISHED,
+                item_type_id=fp.item_type_id,
+                size=fp.size,
+                warehouse_id=fp.warehouse_id,
+                defaults={"threshold_pieces": minimum, "active": True},
+            )
+        else:
+            ReorderPoint.objects.filter(
+                item_kind=ReorderPoint.ItemKind.FINISHED,
+                item_type_id=fp.item_type_id,
+                size=fp.size,
+                warehouse_id=fp.warehouse_id,
+            ).delete()
+
     return fp
 
 
@@ -395,14 +425,14 @@ def create_product_matrix(*, user, item_type_id, warehouse_id, rows,
     """
     Create one finished product per dimension combination, in a single action.
 
-    rows = [{options: [{name, value}], quantity, cost_price, sale_price}]
+    rows = [{options: [{name, value}], quantity, cost_price, sale_price, min_stock}]
 
     The combinations are worked out on the client so each one can have its
     quantity and prices adjusted before anything is saved — a size run is rarely
     the same count in every size, and discovering that after the fact means
     editing rows one by one.
     """
-    from warehouse.models import ClothColor, FinishedProductOption, ItemType
+    from warehouse.models import ClothColor, FinishedProductOption, ItemType, ReorderPoint
 
     warehouse = get_warehouse(user, warehouse_id)
     require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
@@ -466,6 +496,20 @@ def create_product_matrix(*, user, item_type_id, warehouse_id, rows,
             )
             product.barcode_svg = generate_barcode_svg(product.barcode)
             product.save(update_fields=["barcode_svg"])
+
+            # A minimum given here is the whole reason an alert would ever fire
+            # for this product. Leave it blank and the product is simply never
+            # reported as low or out — which is what you want for the many items
+            # nobody intends to keep in stock.
+            minimum = int(row.get("min_stock") or 0)
+            if minimum > 0:
+                ReorderPoint.objects.update_or_create(
+                    item_kind=ReorderPoint.ItemKind.FINISHED,
+                    item_type_id=item_type_id,
+                    size=product.size,
+                    warehouse=warehouse,
+                    defaults={"threshold_pieces": minimum, "active": True},
+                )
 
             FinishedProductOption.objects.bulk_create([
                 FinishedProductOption(

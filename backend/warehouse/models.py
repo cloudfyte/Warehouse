@@ -675,6 +675,78 @@ class FinishedProductOption(models.Model):
         return f"{self.name}: {self.value}"
 
 
+class ProductSet(models.Model):
+    """
+    A bundle sold as one unit — typically one piece of each size in a range.
+
+    Stock is held at two levels. A built set holds its pieces: those pieces have
+    already left the individual products' counts, so nothing is counted twice.
+    Breaking a set open puts them back. Every build and break moves pieces
+    between the two levels and never creates or destroys any.
+    """
+    set_number = models.CharField(max_length=30, unique=True, editable=False)
+    name = models.CharField(max_length=150, help_text="e.g. Sherwani set 34-46")
+    item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="product_sets")
+    warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="product_sets")
+
+    quantity = models.PositiveIntegerField(default=0, help_text="Complete sets in stock")
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    sale_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    barcode = models.CharField(max_length=60, unique=True, editable=False)
+    barcode_svg = models.TextField(blank=True)
+    previous_barcodes = models.TextField(blank=True, editable=False)
+    tags_printed = models.BooleanField(default=False)
+
+    active = models.BooleanField(default=True, db_index=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.set_number:
+            self.set_number = _serial("SET", ProductSet)
+        if not self.barcode:
+            self.barcode = self.mint_barcode()
+        super().save(*args, **kwargs)
+
+    def mint_barcode(self):
+        """Same disguised-price shape as a single garment, so one scanner reads both."""
+        prefix, suffix, multiplier = barcode_rules()
+        price = self.cost_price if barcode_price_source() == "COST" else self.sale_price
+        for _ in range(40):
+            code = _price_code(price, prefix, suffix, multiplier)
+            if not ProductSet.objects.filter(barcode=code).exclude(pk=self.pk).exists() \
+               and not FinishedProduct.objects.filter(barcode=code).exists():
+                return code
+        raise ValueError("Could not mint a unique barcode after 40 attempts.")
+
+    def past_codes(self):
+        return [c for c in (self.previous_barcodes or "").split(",") if c]
+
+    def __str__(self):
+        return f"{self.set_number} — {self.name}"
+
+
+class ProductSetItem(models.Model):
+    """One line of a set: which product, and how many of it each set holds."""
+    product_set = models.ForeignKey(ProductSet, on_delete=models.CASCADE, related_name="items")
+    finished_product = models.ForeignKey(FinishedProduct, on_delete=models.PROTECT, related_name="set_items")
+    # Not fixed at one: a run might carry two of a middle size and one of the ends.
+    pieces_per_set = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order"]
+        unique_together = [("product_set", "finished_product")]
+
+    def __str__(self):
+        return f"{self.pieces_per_set} x {self.finished_product.sku}"
+
+
 # ─── sales orders (outbound) ──────────────────────────────────────────────────
 
 class SalesOrder(models.Model):
@@ -740,7 +812,11 @@ class SalesOrder(models.Model):
 
 class SalesOrderItem(models.Model):
     sales_order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name="items")
-    finished_product = models.ForeignKey(FinishedProduct, on_delete=models.PROTECT, related_name="order_items")
+    finished_product = models.ForeignKey(FinishedProduct, null=True, blank=True,
+                                         on_delete=models.PROTECT, related_name="order_items")
+    # A line is one or the other, never both — see the constraint below.
+    product_set = models.ForeignKey("ProductSet", null=True, blank=True,
+                                    on_delete=models.PROTECT, related_name="order_items")
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     total_price = models.DecimalField(max_digits=12, decimal_places=2)
@@ -749,6 +825,13 @@ class SalesOrderItem(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(condition=Q(quantity__gt=0), name="salesorderitem_quantity_positive"),
+            # Exactly one of the two, so a line always has something to sell and
+            # stock is only ever taken from one place.
+            models.CheckConstraint(
+                condition=(Q(finished_product__isnull=False) & Q(product_set__isnull=True))
+                          | (Q(finished_product__isnull=True) & Q(product_set__isnull=False)),
+                name="salesorderitem_product_or_set",
+            ),
         ]
 
     def save(self, *args, **kwargs):
@@ -940,6 +1023,96 @@ class Expense(models.Model):
 
     def __str__(self):
         return f"{self.expense_number} — {self.get_category_display()} ₹{self.amount}"
+
+
+class RecurringSettlement(models.Model):
+    """
+    A payment that comes round every month — a salary, a rent, a subscription.
+
+    Kept separate from Expense because an expense is money already gone. This is
+    the standing instruction that says one will be due, and the Settlement rows
+    it generates stay pending until someone confirms the money actually moved.
+    """
+    class Kind(models.TextChoices):
+        SALARY      = "SALARY",      "Salary"
+        RENT        = "RENT",        "Rent"
+        UTILITIES   = "UTILITIES",   "Utilities"
+        MAINTENANCE = "MAINTENANCE", "Maintenance"
+        OTHER       = "OTHER",       "Other"
+
+    # Which expense category the confirmed payment is booked under.
+    EXPENSE_CATEGORY = {
+        "SALARY": "LABOR", "RENT": "RENT", "UTILITIES": "UTILITIES",
+        "MAINTENANCE": "MAINTENANCE", "OTHER": "OTHER",
+    }
+
+    name = models.CharField(max_length=150, help_text="Who or what is paid — 'Ravi (tailor)', 'Godown rent'")
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.OTHER)
+    amount = models.DecimalField(max_digits=12, decimal_places=2,
+                                 validators=[MinValueValidator(Decimal("0.01"))])
+    employee = models.ForeignKey(EmployeeProfile, null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name="settlements")
+    warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT,
+                                  related_name="recurring_settlements")
+    day_of_month = models.PositiveSmallIntegerField(
+        default=1, help_text="Day the payment is due. Clamped to the last day in short months.")
+    active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["kind", "name"]
+
+    def __str__(self):
+        return f"{self.name} — {self.get_kind_display()} ₹{self.amount}/month"
+
+
+class Settlement(models.Model):
+    """One month's instance of a recurring payment, pending until confirmed."""
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PAID    = "PAID",    "Paid"
+        SKIPPED = "SKIPPED", "Skipped"
+
+    settlement_number = models.CharField(max_length=40, unique=True, editable=False)
+    recurring = models.ForeignKey(RecurringSettlement, null=True, blank=True,
+                                  on_delete=models.SET_NULL, related_name="settlements")
+    # Name, kind and amount are copied rather than read through the template:
+    # raising someone's salary must not silently restate what was paid last month.
+    name = models.CharField(max_length=150)
+    kind = models.CharField(max_length=20, choices=RecurringSettlement.Kind.choices,
+                            default=RecurringSettlement.Kind.OTHER)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    period = models.DateField(help_text="First day of the month this belongs to")
+    due_date = models.DateField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    paid_on = models.DateField(null=True, blank=True)
+    payment_method = models.CharField(max_length=20, choices=Expense.PaymentMethod.choices,
+                                      default=Expense.PaymentMethod.CASH)
+    reference = models.CharField(max_length=100, blank=True)
+    # Set only once the money has moved, so the books and this list cannot disagree.
+    expense = models.OneToOneField(Expense, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="settlement")
+    warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT,
+                                  related_name="settlements")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-period", "kind", "name"]
+        # One row per template per month, so generating twice is harmless.
+        constraints = [
+            models.UniqueConstraint(fields=["recurring", "period"],
+                                    name="one_settlement_per_template_per_month"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.settlement_number:
+            self.settlement_number = _serial("STL", Settlement)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.settlement_number} — {self.name} ({self.period:%b %Y})"
 
 
 # ─── supplier payment tracking ────────────────────────────────────────────────

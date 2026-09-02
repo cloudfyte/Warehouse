@@ -116,27 +116,35 @@ function Dashboard({
     );
   }
 
-  const outRaw = rawBatches.filter(b => b.availableMeters <= 0);
+  // An alert needs a reorder point behind it. Out-of-stock used to fire for
+  // anything sitting at zero, and a cloth batch reaching zero is the normal end
+  // of its life rather than a problem — so the dashboard filled with warnings
+  // about stock nobody had said they wanted kept. Say what you want kept, by
+  // setting a minimum, and only then does its absence get reported.
+  const rawReorderFor = (b: typeof rawBatches[number]) => reorderPoints.find(r =>
+    r.itemKind === "RAW_CLOTH" && r.active &&
+    r.clothCategory?.id === b.clothCategory.id &&
+    r.warehouse.id === b.warehouse.id &&
+    (!r.clothColor || r.clothColor.id === b.clothColor.id)
+  );
+  const rmdReorderFor = (r: typeof readymadeStock[number]) => reorderPoints.find(p =>
+    p.itemKind === "FINISHED" && p.active &&
+    p.itemType?.id === r.itemType.id &&
+    p.warehouse.id === r.warehouse.id &&
+    (!p.size || p.size === r.size)
+  );
+
+  const outRaw = rawBatches.filter(b => b.availableMeters <= 0 && rawReorderFor(b));
   const lowRaw = rawBatches.flatMap(b => {
     if (b.availableMeters <= 0) return [];
-    const rp = reorderPoints.find(r =>
-      r.itemKind === "RAW_CLOTH" && r.active &&
-      r.clothCategory?.id === b.clothCategory.id &&
-      r.warehouse.id === b.warehouse.id &&
-      (!r.clothColor || r.clothColor.id === b.clothColor.id)
-    );
+    const rp = rawReorderFor(b);
     if (!rp || rp.thresholdMeters == null || b.availableMeters >= rp.thresholdMeters) return [];
     return [{ batch: b, threshold: rp.thresholdMeters }];
   });
-  const outRmd = readymadeStock.filter(r => r.quantityAvailable <= 0);
+  const outRmd = readymadeStock.filter(r => r.quantityAvailable <= 0 && rmdReorderFor(r));
   const lowRmd = readymadeStock.flatMap(r => {
     if (r.quantityAvailable <= 0) return [];
-    const rp = reorderPoints.find(p =>
-      p.itemKind === "FINISHED" && p.active &&
-      p.itemType?.id === r.itemType.id &&
-      p.warehouse.id === r.warehouse.id &&
-      (!p.size || p.size === r.size)
-    );
+    const rp = rmdReorderFor(r);
     if (!rp || rp.thresholdPieces == null || r.quantityAvailable >= rp.thresholdPieces) return [];
     return [{ item: r, threshold: rp.thresholdPieces }];
   });

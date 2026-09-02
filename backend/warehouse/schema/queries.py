@@ -27,7 +27,10 @@ from .types import (
     QuotationType,
     RawClothBatchType,
     ReadymadeStockType,
+    ProductSetType,
+    RecurringSettlementType,
     ReorderPointType,
+    SettlementType,
     SalesOrderType,
     StitchingJobType,
     StockAdjustmentType,
@@ -102,6 +105,11 @@ class Query(graphene.ObjectType):
 
     # Reorder points
     reorder_points = graphene.List(ReorderPointType, active_only=graphene.Boolean())
+
+    # Monthly settlements
+    product_sets = graphene.List(ProductSetType, active_only=graphene.Boolean())
+    settlements = graphene.List(SettlementType, status=graphene.String(), period=graphene.Date())
+    recurring_settlements = graphene.List(RecurringSettlementType, active_only=graphene.Boolean())
 
     # Stock transfers
     stock_transfers = graphene.List(StockTransferType, status=graphene.String(), limit=graphene.Int())
@@ -293,6 +301,18 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_reorder_points(self, info, active_only=False):
         return selectors.get_reorder_points(info.context.user, active_only=active_only)
+
+    @login_required
+    def resolve_product_sets(self, info, active_only=False):
+        return selectors.get_product_sets(info.context.user, active_only=active_only)
+
+    @login_required
+    def resolve_settlements(self, info, status=None, period=None):
+        return selectors.get_settlements(info.context.user, status=status, period=period)
+
+    @login_required
+    def resolve_recurring_settlements(self, info, active_only=False):
+        return selectors.get_recurring_settlements(info.context.user, active_only=active_only)
 
     @login_required
     def resolve_stock_transfers(self, info, status=None, limit=100):

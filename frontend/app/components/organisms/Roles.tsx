@@ -27,6 +27,8 @@ const ALL_TABS: { key: string; label: string; group: string }[] = [
   { key: "readymade_stock",  label: "Readymade Stock",   group: "Inventory" },
   { key: "item_types",       label: "Item Types",        group: "Inventory" },
   { key: "reorder_points",   label: "Reorder Points",    group: "Inventory" },
+  { key: "settlements",      label: "Settlements",       group: "Finance" },
+  { key: "product_sets",     label: "Sets",              group: "Production" },
   { key: "stock_transfers",  label: "Stock Transfers",   group: "Inventory" },
   { key: "stock_adjustments",label: "Stock Adjustments", group: "Inventory" },
   { key: "cutting",          label: "Cutting",           group: "Production" },

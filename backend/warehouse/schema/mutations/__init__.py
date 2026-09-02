@@ -15,6 +15,13 @@ from .production import (
     CreateStitchingJob, UpdateCuttingAssignment, UpdateStitchingJob,
 )
 from .expense import CreateExpense, UpdateExpense, DeleteExpense
+from .product_set import (
+    BreakProductSets, BuildProductSets, CreateProductSet, UpdateProductSet,
+)
+from .settlement import (
+    CreateRecurringSettlement, GenerateSettlements, MarkSettlementPaid,
+    SkipSettlement, UpdateRecurringSettlement,
+)
 from .purchase_bill import CreatePurchaseBill, GenerateBillFromPO, UpdatePurchaseBillGst
 from .purchase_order import CreatePurchaseOrder, ReceivePurchaseOrder, UpdatePurchaseOrderStatus
 from .stock import CreateRawClothBatch, CreateReadymadeStock
@@ -86,6 +93,15 @@ class Mutation(graphene.ObjectType):
     create_finished_products = CreateFinishedProducts.Field()
     update_finished_product = UpdateFinishedProduct.Field()
     create_product_matrix = CreateProductMatrix.Field()
+    create_product_set = CreateProductSet.Field()
+    update_product_set = UpdateProductSet.Field()
+    build_product_sets = BuildProductSets.Field()
+    break_product_sets = BreakProductSets.Field()
+    create_recurring_settlement = CreateRecurringSettlement.Field()
+    update_recurring_settlement = UpdateRecurringSettlement.Field()
+    generate_settlements = GenerateSettlements.Field()
+    mark_settlement_paid = MarkSettlementPaid.Field()
+    skip_settlement = SkipSettlement.Field()
 
     # Sales & credit
     create_sales_order = CreateSalesOrder.Field()

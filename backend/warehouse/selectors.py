@@ -801,3 +801,41 @@ def get_aging_report(user):
         total_buyer_outstanding=data["total_buyer_outstanding"],
         total_supplier_outstanding=data["total_supplier_outstanding"],
     )
+
+
+# ─── settlements ──────────────────────────────────────────────────────────────
+
+def get_settlements(user, status=None, period=None):
+    from warehouse.models import Settlement
+
+    qs = (Settlement.objects
+          .filter(warehouse__in=accessible_warehouses(user))
+          .select_related("warehouse", "recurring", "expense"))
+    if status:
+        qs = qs.filter(status=status.upper())
+    if period:
+        qs = qs.filter(period=period)
+    return qs
+
+
+def get_recurring_settlements(user, active_only=False):
+    from warehouse.models import RecurringSettlement
+
+    qs = (RecurringSettlement.objects
+          .filter(warehouse__in=accessible_warehouses(user))
+          .select_related("warehouse", "employee"))
+    if active_only:
+        qs = qs.filter(active=True)
+    return qs
+
+
+def get_product_sets(user, active_only=False):
+    from warehouse.models import ProductSet
+
+    qs = (ProductSet.objects
+          .filter(warehouse__in=accessible_warehouses(user))
+          .select_related("item_type", "warehouse")
+          .prefetch_related("items__finished_product__item_type"))
+    if active_only:
+        qs = qs.filter(active=True)
+    return qs

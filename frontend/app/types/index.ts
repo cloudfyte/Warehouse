@@ -333,7 +333,7 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points"
-  | "quotations" | "reports" | "ledger"
+  | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"
 

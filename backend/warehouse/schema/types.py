@@ -20,6 +20,10 @@ from warehouse.models import (
     CuttingAssignment,
     EmployeeProfile,
     FinishedProduct,
+    ProductSet,
+    ProductSetItem,
+    RecurringSettlement,
+    Settlement,
     FinishedProductOption,
     ItemType,
     Notification,
@@ -111,6 +115,49 @@ class BuyerType(DjangoObjectType):
     class Meta:
         model = Buyer
         fields = "__all__"
+
+
+class RecurringSettlementType(DjangoObjectType):
+    amount = graphene.Float()
+
+    class Meta:
+        model = RecurringSettlement
+        fields = "__all__"
+
+    def resolve_amount(self, info):
+        return float(self.amount or 0)
+
+
+class SettlementType(DjangoObjectType):
+    amount = graphene.Float()
+
+    class Meta:
+        model = Settlement
+        fields = "__all__"
+
+    def resolve_amount(self, info):
+        return float(self.amount or 0)
+
+
+class ProductSetItemType(DjangoObjectType):
+    class Meta:
+        model = ProductSetItem
+        fields = "__all__"
+
+
+class ProductSetType(DjangoObjectType):
+    cost_price = graphene.Float()
+    sale_price = graphene.Float()
+
+    class Meta:
+        model = ProductSet
+        fields = "__all__"
+
+    def resolve_cost_price(self, info):
+        return float(self.cost_price or 0)
+
+    def resolve_sale_price(self, info):
+        return float(self.sale_price or 0)
 
 
 class FinishedProductOptionType(DjangoObjectType):

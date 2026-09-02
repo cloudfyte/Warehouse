@@ -25,6 +25,8 @@ interface Row {
   quantity: string;
   costPrice: string;
   salePrice: string;
+  /** Blank or zero means this product is never reported as low or out. */
+  minStock: string;
 }
 
 /**
@@ -48,7 +50,7 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
     { name: "Colour", values: "" },
   ]);
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [defaults, setDefaults] = useState({ quantity: "1", costPrice: "", salePrice: "" });
+  const [defaults, setDefaults] = useState({ quantity: "1", costPrice: "", salePrice: "", minStock: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -70,6 +72,7 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
       quantity: defaults.quantity || "1",
       costPrice: defaults.costPrice,
       salePrice: defaults.salePrice,
+      minStock: defaults.minStock,
     })));
     setError("");
   }
@@ -97,6 +100,7 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
             quantity: parseInt(r.quantity, 10) || 0,
             costPrice: r.costPrice === "" ? 0 : +r.costPrice,
             salePrice: r.salePrice === "" ? 0 : +r.salePrice,
+            minStock: r.minStock === "" ? 0 : parseInt(r.minStock, 10) || 0,
           })),
         },
       );
@@ -199,6 +203,8 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
               onChange={e => setDefaults(d => ({ ...d, costPrice: e.target.value }))} style={{ width: 80 }} />
             <Input type="number" min="0" placeholder="MRP" value={defaults.salePrice}
               onChange={e => setDefaults(d => ({ ...d, salePrice: e.target.value }))} style={{ width: 80 }} />
+            <Input type="number" min="0" placeholder="Min" value={defaults.minStock}
+              onChange={e => setDefaults(d => ({ ...d, minStock: e.target.value }))} style={{ width: 64 }} />
           </div>
           <Button variant="primary" onClick={generate} disabled={!combinations.length}
             style={{ fontSize: 12, padding: "6px 12px" }}>
@@ -216,16 +222,16 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
       {rows && rows.length > 0 && (
         <div style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 80px 96px 96px 32px", gap: 8,
+            display: "grid", gridTemplateColumns: "1fr 72px 88px 88px 72px 32px", gap: 8,
             padding: "8px 12px", background: "var(--canvas)",
             fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5,
           }}>
-            <span>Combination</span><span>Qty</span><span>Cost</span><span>MRP</span><span />
+            <span>Combination</span><span>Qty</span><span>Cost</span><span>MRP</span><span>Min</span><span />
           </div>
           <div style={{ maxHeight: 280, overflowY: "auto" }}>
             {rows.map((row, i) => (
               <div key={i} style={{
-                display: "grid", gridTemplateColumns: "1fr 80px 96px 96px 32px", gap: 8,
+                display: "grid", gridTemplateColumns: "1fr 72px 88px 88px 72px 32px", gap: 8,
                 padding: "8px 12px", alignItems: "center", borderTop: "1px solid var(--line)",
               }}>
                 <span style={{ fontSize: 13 }}>
@@ -237,6 +243,8 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
                   onChange={e => patchRow(i, { costPrice: e.target.value })} />
                 <Input type="number" min="0" step="0.01" value={row.salePrice}
                   onChange={e => patchRow(i, { salePrice: e.target.value })} />
+                <Input type="number" min="0" value={row.minStock} placeholder="—"
+                  onChange={e => patchRow(i, { minStock: e.target.value })} />
                 <button
                   type="button"
                   aria-label={`Remove combination ${i + 1}`}
@@ -253,7 +261,8 @@ export default function ProductMatrixBuilder({ itemTypes, warehouses, onClose, o
             fontSize: 12, color: "var(--muted)", background: "var(--canvas)",
           }}>
             {rows.length} product{rows.length === 1 ? "" : "s"} · {totalPieces} piece{totalPieces === 1 ? "" : "s"} total.
-            Each gets its own barcode.
+            Each gets its own barcode. <strong>Min</strong> is the stock level below which you want to be
+            warned — leave it blank and this product is never reported as low or out.
           </div>
         </div>
       )}

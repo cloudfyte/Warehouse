@@ -155,3 +155,97 @@ class RefusingBadInput(MatrixFixture):
 
         self.assertEqual(FinishedProduct.objects.count(), before)
         self.assertEqual(FinishedProductOption.objects.count(), 0)
+
+
+class MinimumStockDrivesAlerts(MatrixFixture):
+    """An alert exists because someone said they wanted the item kept in stock."""
+
+    def test_a_minimum_creates_the_reorder_point_that_alerts_need(self):
+        from warehouse.models import ReorderPoint
+
+        self._create([{
+            "options": [{"name": "Size", "value": "40"}],
+            "quantity": 5, "cost_price": 500, "sale_price": 1200, "min_stock": 3,
+        }])
+
+        rp = ReorderPoint.objects.get(item_type=self.item_type, size="40")
+        self.assertEqual(rp.threshold_pieces, 3)
+        self.assertTrue(rp.active)
+        self.assertEqual(rp.warehouse_id, self.warehouse.id)
+
+    def test_no_minimum_means_no_reorder_point_and_so_no_alert(self):
+        from warehouse.models import ReorderPoint
+
+        self._create(self._rows(["40"]))          # no min_stock given
+
+        self.assertEqual(ReorderPoint.objects.count(), 0)
+
+    def test_a_zero_minimum_is_treated_as_none(self):
+        from warehouse.models import ReorderPoint
+
+        self._create([{
+            "options": [{"name": "Size", "value": "40"}],
+            "quantity": 5, "min_stock": 0,
+        }])
+
+        self.assertEqual(ReorderPoint.objects.count(), 0)
+
+    def test_each_size_gets_its_own_minimum(self):
+        from warehouse.models import ReorderPoint
+
+        self._create([
+            {"options": [{"name": "Size", "value": "38"}], "quantity": 4, "min_stock": 2},
+            {"options": [{"name": "Size", "value": "40"}], "quantity": 9, "min_stock": 5},
+        ])
+
+        by_size = {rp.size: rp.threshold_pieces for rp in ReorderPoint.objects.all()}
+        self.assertEqual(by_size, {"38": 2, "40": 5})
+
+    def test_recreating_the_same_size_updates_rather_than_duplicates(self):
+        from warehouse.models import ReorderPoint
+
+        self._create([{"options": [{"name": "Size", "value": "40"}], "quantity": 1, "min_stock": 2}])
+        self._create([{"options": [{"name": "Size", "value": "40"}], "quantity": 1, "min_stock": 8}])
+
+        self.assertEqual(ReorderPoint.objects.count(), 1)
+        self.assertEqual(ReorderPoint.objects.get().threshold_pieces, 8)
+
+
+class ChangingTheMinimumLater(MatrixFixture):
+    def _one(self, min_stock=None):
+        row = {"options": [{"name": "Size", "value": "40"}], "quantity": 5,
+               "cost_price": 500, "sale_price": 1200}
+        if min_stock is not None:
+            row["min_stock"] = min_stock
+        return self._create([row])[0]
+
+    def test_setting_a_minimum_on_an_existing_product_creates_the_alert(self):
+        from warehouse.models import ReorderPoint
+        from warehouse.services.production import update_finished_product
+
+        product = self._one()
+        self.assertEqual(ReorderPoint.objects.count(), 0)
+
+        update_finished_product(user=self.admin, id=product.id, min_stock=4)
+
+        self.assertEqual(ReorderPoint.objects.get().threshold_pieces, 4)
+
+    def test_clearing_the_minimum_stops_the_alert_for_good(self):
+        """Setting zero must remove the reorder point, not leave a silent one."""
+        from warehouse.models import ReorderPoint
+        from warehouse.services.production import update_finished_product
+
+        product = self._one(min_stock=4)
+        self.assertEqual(ReorderPoint.objects.count(), 1)
+
+        update_finished_product(user=self.admin, id=product.id, min_stock=0)
+
+        self.assertEqual(ReorderPoint.objects.count(), 0)
+
+    def test_a_negative_minimum_is_refused(self):
+        from warehouse.services.production import update_finished_product
+
+        product = self._one()
+
+        with self.assertRaises(GraphQLError):
+            update_finished_product(user=self.admin, id=product.id, min_stock=-1)

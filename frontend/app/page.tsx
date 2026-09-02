@@ -13,7 +13,7 @@ import {
   Users, Warehouse, Bell, Settings2, ChevronLeft, ChevronRight,
   Sun, Moon, LogOut, BarChart2, Menu, X, User, ClipboardList,
   ArrowLeftRight, AlertCircle, FileText, TrendingUp, BookOpen, List, ShieldCheck,
-  WifiOff,
+  WifiOff, CalendarClock, Layers,
 } from "lucide-react";
 
 import Login from "@/app/components/organisms/Login";
@@ -25,6 +25,8 @@ import PurchaseBills from "@/app/components/organisms/PurchaseBills";
 import Cutting from "@/app/components/organisms/Cutting";
 import Stitching from "@/app/components/organisms/Stitching";
 import FinishedProducts from "@/app/components/organisms/FinishedProducts";
+import Settlements from "@/app/components/organisms/Settlements";
+import ProductSets from "@/app/components/organisms/ProductSets";
 import SalesOrders from "@/app/components/organisms/SalesOrders";
 import Credit from "@/app/components/organisms/Credit";
 import Returns from "@/app/components/organisms/Returns";
@@ -60,7 +62,7 @@ import { setCurrencySymbol } from "@/app/lib/formatters";
 const ALL_TABS: Tab[] = [
   "dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills",
   "raw_cloth", "readymade_stock", "cutting", "stitching",
-  "finished_products", "sales_orders", "credit", "returns", "expenses",
+  "finished_products", "product_sets", "sales_orders", "credit", "returns", "expenses", "settlements",
   "stock_adjustments", "stock_transfers", "reorder_points",
   "quotations", "reports", "ledger",
   "item_types", "employees", "warehouses", "roles", "notifications", "audit_log", "settings", "profile",
@@ -92,9 +94,9 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
   { label: "Purchasing", tabs: ["suppliers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points"] },
-  { label: "Production", tabs: ["cutting", "stitching", "finished_products"] },
+  { label: "Production", tabs: ["cutting", "stitching", "finished_products", "product_sets"] },
   { label: "Sales", tabs: ["buyers", "quotations", "sales_orders", "credit", "returns"] },
-  { label: "Finance", tabs: ["expenses", "reports", "ledger"] },
+  { label: "Finance", tabs: ["expenses", "settlements", "reports", "ledger"] },
   { label: "Admin", tabs: ["item_types", "employees", "warehouses", "roles"] },
   { label: "System", tabs: ["notifications", "audit_log", "settings"] },
 ];
@@ -115,6 +117,8 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   credit: <Landmark size={16} />,
   returns: <RefreshCcw size={16} />,
   expenses: <Receipt size={16} />,
+  settlements: <CalendarClock size={16} />,
+  product_sets: <Layers size={16} />,
   stock_adjustments: <Package size={16} />,
   stock_transfers: <ArrowLeftRight size={16} />,
   reorder_points: <AlertCircle size={16} />,
@@ -754,6 +758,7 @@ export default function Home() {
             products={data?.finishedProducts || []}
             itemTypes={data?.itemTypes || []}
             warehouses={data?.warehouseLocations || []}
+            reorderPoints={data?.reorderPoints || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
             onMutate={mutate}
             onRefresh={() => token && loadData(token)}
@@ -786,6 +791,27 @@ export default function Home() {
             warehouses={data?.warehouseLocations || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager}
             onMutate={mutate}
+          />
+        )}
+        {currentTab === "product_sets" && (
+          <ProductSets
+            sets={data?.productSets || []}
+            products={data?.finishedProducts || []}
+            itemTypes={data?.itemTypes || []}
+            warehouses={data?.warehouseLocations || []}
+            canManage={isSuperAdmin || isAdmin || isManager || isStoreKeeper}
+            onMutate={mutate}
+            onRefresh={() => token && loadData(token)}
+          />
+        )}
+        {currentTab === "settlements" && (
+          <Settlements
+            settlements={data?.settlements || []}
+            recurring={data?.recurringSettlements || []}
+            warehouses={data?.warehouseLocations || []}
+            canManage={isSuperAdmin || isAdmin || isManager}
+            onMutate={mutate}
+            onRefresh={() => token && loadData(token)}
           />
         )}
         {currentTab === "expenses" && (
