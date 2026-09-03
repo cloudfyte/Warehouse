@@ -3,12 +3,12 @@ from graphql_jwt.decorators import login_required
 
 from warehouse.services.retail import (
     add_store, cancel_dispatch, configure_channel, create_dispatch, link_product,
-    pack_dispatch, pull_catalogue, pull_stores, scan_into_dispatch, send_dispatch,
-    unlink_product,
+    create_return, pack_dispatch, pull_catalogue, pull_stores, resolve_subsite,
+    scan_into_dispatch, send_dispatch, unlink_product,
 )
 from warehouse.schema.types import (
     RetailChannelType, RetailDispatchItemType, RetailDispatchType,
-    RetailProductLinkType, RetailStoreType,
+    RetailProductLinkType, RetailReturnType, RetailStoreType,
 )
 
 
@@ -162,3 +162,42 @@ class PullRetailCatalogue(graphene.Mutation):
     def mutate(self, info):
         linked, unmatched = pull_catalogue(user=info.context.user)
         return PullRetailCatalogue(linked=len(linked), unmatched=unmatched)
+
+
+class ResolveRetailSubsite(graphene.Mutation):
+    """Set the shop up from its handle. The numeric id is looked up, never typed."""
+    class Arguments:
+        subsite_name = graphene.String(required=True)
+        api_url = graphene.String(required=True)
+        service_username = graphene.String()
+        service_password = graphene.String()
+
+    channel = graphene.Field(RetailChannelType)
+
+    @login_required
+    def mutate(self, info, **kwargs):
+        return ResolveRetailSubsite(channel=resolve_subsite(user=info.context.user, **kwargs))
+
+
+class ReturnLineInput(graphene.InputObjectType):
+    finished_product_id = graphene.ID(required=True)
+    quantity = graphene.Int(required=True)
+
+
+class CreateRetailReturn(graphene.Mutation):
+    """Take goods back from the shop into the godown."""
+    class Arguments:
+        store_id = graphene.ID(required=True)
+        warehouse_id = graphene.ID(required=True)
+        lines = graphene.List(graphene.NonNull(ReturnLineInput), required=True)
+        reason = graphene.String()
+        restock = graphene.Boolean()
+        received_date = graphene.Date()
+        notes = graphene.String()
+
+    retail_return = graphene.Field(RetailReturnType)
+
+    @login_required
+    def mutate(self, info, lines, **kwargs):
+        return CreateRetailReturn(retail_return=create_return(
+            user=info.context.user, lines=[dict(l) for l in lines], **kwargs))

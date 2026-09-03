@@ -9,10 +9,10 @@ from .types import (
     DashboardStats, EmployeeProfileType, ExpenseType, FinishedProductType, ItemTypeType,
     NotificationType, PLReport, ParcelInspectionType, ProductSetType, PublicSettingsType,
     PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType, ReadymadeStockType,
-    RecurringSettlementType, ReorderPointType, RetailChannelType, RetailDispatchType,
-    RetailStoreType, SalesOrderType, SettlementType, StitchingJobType, StockAdjustmentType,
-    StockTransferType, SupplierPaymentType, SupplierReturnType, SupplierType,
-    SystemSettingsType, WarehouseLocationType,
+    ReconciliationRowType, RecurringSettlementType, ReorderPointType, RetailChannelType,
+    RetailDispatchType, RetailReturnType, RetailStoreType, SalesOrderType, SettlementType,
+    StitchingJobType, StockAdjustmentType, StockTransferType, SupplierPaymentType,
+    SupplierReturnType, SupplierType, SystemSettingsType, WarehouseLocationType,
 )
 
 

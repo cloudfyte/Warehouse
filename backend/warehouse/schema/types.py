@@ -13,9 +13,10 @@ from warehouse.models import (
     FinishedProductOption, ItemType, Notification, OTPCode, ParcelInspection, ProductSet,
     ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder, PurchaseOrderItem, Quotation,
     QuotationItem, RawClothBatch, ReadymadeStock, RecurringSettlement, ReorderPoint,
-    RetailChannel, RetailDispatch, RetailDispatchItem, RetailProductLink, RetailStore,
-    SalesOrder, SalesOrderItem, Settlement, StitchingJob, StockAdjustment, StockTransfer,
-    Supplier, SupplierPayment, SupplierReturn, SystemSettings, WarehouseLocation,
+    RetailChannel, RetailDispatch, RetailDispatchItem, RetailProductLink, RetailReturn,
+    RetailReturnItem, RetailStore, SalesOrder, SalesOrderItem, Settlement, StitchingJob,
+    StockAdjustment, StockTransfer, Supplier, SupplierPayment, SupplierReturn, SystemSettings,
+    WarehouseLocation,
 )
 
 
@@ -305,6 +306,40 @@ class FinishedProductType(DjangoObjectType):
 
     def resolve_profit_margin(self, info):
         return float(self.profit_margin)
+
+
+class RetailReturnItemType(DjangoObjectType):
+    class Meta:
+        model = RetailReturnItem
+        fields = "__all__"
+
+
+class RetailReturnType(DjangoObjectType):
+    received_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
+    class Meta:
+        model = RetailReturn
+        fields = "__all__"
+
+    def resolve_received_by(self, info):
+        if not self.received_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.received_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
+
+
+class ReconciliationRowType(graphene.ObjectType):
+    """One product, as the godown sees it and as the shop sees it."""
+    finished_product = graphene.Field("warehouse.schema.types.FinishedProductType")
+    sent = graphene.Int()
+    returned = graphene.Int()
+    net_sent = graphene.Int()
+    # Null where the shop tracks the item as unlimited, or we cannot see it.
+    # An unknown, which is not the same as a zero.
+    shop_has = graphene.Int()
+    difference = graphene.Int()
 
 
 class RetailChannelType(DjangoObjectType):

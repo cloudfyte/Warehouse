@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Truck, ScanLine, Package, Send, X, AlertTriangle, Link2, RefreshCw } from "lucide-react";
+import { Truck, ScanLine, Package, Send, X, AlertTriangle, Link2, RefreshCw, Scale, Undo2 } from "lucide-react";
 import type { FinishedProduct, WarehouseLocation } from "@/app/types";
 import { formatMoney, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
@@ -25,6 +25,11 @@ interface Dispatch {
   lastError?: string; attempts: number; dispatchDate?: string | null; notes?: string;
   transporterName?: string; lrNumber?: string; vehicleNumber?: string;
   store: Store; fromWarehouse: WarehouseLocation; items: DispatchItem[];
+}
+
+interface ReconRow {
+  finishedProduct: FinishedProduct; sent: number; returned: number;
+  netSent: number; shopHas: number | null; difference: number | null;
 }
 
 interface Props {
@@ -74,6 +79,11 @@ export default function RetailDispatches({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [linking, setLinking] = useState<FinishedProduct | null>(null);
+  const [recon, setRecon] = useState<{ storeId: string; rows: ReconRow[] } | null>(null);
+  const [reconStore, setReconStore] = useState("");
+  const [returning, setReturning] = useState(false);
+  const [ret, setRet] = useState({ storeId: "", reason: "UNSOLD", restock: true });
+  const [retLines, setRetLines] = useState<{ productId: string; quantity: string }[]>([]);
   const [linkForm, setLinkForm] = useState({ productId: "", variantId: "" });
 
   // New consignment form
@@ -189,6 +199,33 @@ export default function RetailDispatches({
     }
   }
 
+  /** What we sent, against what the shop says it has. */
+  async function loadRecon(storeId: string) {
+    if (!storeId) return;
+    const res = await run(() => onMutate(
+      `query R($s:ID!){retailReconciliation(storeId:$s){sent returned netSent shopHas difference `
+      + `finishedProduct{id name sku size itemType{id name}}}}`,
+      { s: storeId },
+    ));
+    if (res?.retailReconciliation) setRecon({ storeId, rows: res.retailReconciliation });
+  }
+
+  async function saveReturn() {
+    const payload = retLines
+      .filter(l => l.productId && parseInt(l.quantity, 10) > 0)
+      .map(l => ({ finishedProductId: l.productId, quantity: parseInt(l.quantity, 10) }));
+    if (!ret.storeId) { setErr("Which shop did it come back from?"); return; }
+    if (!payload.length) { setErr("What came back?"); return; }
+
+    await run(() => onMutate(
+      `mutation R($s:ID!,$w:ID!,$l:[ReturnLineInput!]!,$reason:String,$restock:Boolean){`
+      + `createRetailReturn(storeId:$s,warehouseId:$w,lines:$l,reason:$reason,restock:$restock)`
+      + `{retailReturn{id returnNumber}}}`,
+      { s: ret.storeId, w: warehouseId, l: payload, reason: ret.reason, restock: ret.restock },
+    ), ret.restock ? "Goods are back in the godown." : "Return recorded. Not put back into sellable stock.");
+    setReturning(false); setRetLines([]);
+  }
+
   async function saveLink() {
     if (!linking) return;
     await run(() => onMutate(
@@ -215,6 +252,9 @@ export default function RetailDispatches({
           <>
             <Button variant="ghost" onClick={pullStores} disabled={busy} title="Re-read the shop's store list">
               <RefreshCw size={14} /> Sync stores
+            </Button>
+            <Button variant="ghost" onClick={() => { setReturning(true); setErr(""); setRetLines([{ productId: "", quantity: "" }]); }}>
+              <Undo2 size={14} /> Goods Back
             </Button>
             <Button variant="primary" onClick={() => { setShowNew(true); setErr(""); setLines([{ productId: "", quantity: "" }]); }}>
               <Truck size={14} /> New Consignment
@@ -284,6 +324,69 @@ export default function RetailDispatches({
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {configured && (
+        <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Scale size={15} style={{ color: "var(--muted)" }} />
+            <span style={{ fontSize: 13, fontWeight: 700 }}>Check against the shop</span>
+            <Select value={reconStore} onChange={e => { setReconStore(e.target.value); loadRecon(e.target.value); }}
+              style={{ width: 200 }}>
+              <option value="">Pick a shop…</option>
+              {stores.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+            {reconStore && (
+              <Button variant="secondary" onClick={() => loadRecon(reconStore)} disabled={busy}>
+                <RefreshCw size={13} /> Re-check
+              </Button>
+            )}
+          </div>
+
+          {recon && (
+            recon.rows.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>
+                Nothing has landed at this shop yet.
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 11, color: "var(--muted)", margin: "10px 0", lineHeight: 1.55 }}>
+                  A difference is not an accusation — sales, their own goods-in from elsewhere, and
+                  returns still in a van all show up here. It is the list of rows worth asking about.
+                </div>
+                <div style={{ border: "1px solid var(--line)", borderRadius: 9, overflow: "hidden" }}>
+                  <div style={{
+                    display: "grid", gridTemplateColumns: "1fr 70px 70px 80px 80px", gap: 8,
+                    padding: "7px 12px", background: "var(--canvas)", fontSize: 11, fontWeight: 700,
+                    color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4,
+                  }}>
+                    <span>Product</span><span>Sent</span><span>Back</span><span>Shop has</span><span>Diff</span>
+                  </div>
+                  <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                    {recon.rows.map(r => (
+                      <div key={r.finishedProduct.id} style={{
+                        display: "grid", gridTemplateColumns: "1fr 70px 70px 80px 80px", gap: 8,
+                        padding: "7px 12px", alignItems: "center", borderTop: "1px solid var(--line)", fontSize: 13,
+                      }}>
+                        <span>{productName(r.finishedProduct)}{r.finishedProduct.size ? ` · ${r.finishedProduct.size}` : ""}</span>
+                        <span>{r.sent}</span>
+                        <span>{r.returned || "—"}</span>
+                        <span>{r.shopHas === null ? "—" : r.shopHas}</span>
+                        <span style={{
+                          fontWeight: 700,
+                          color: r.difference === null ? "var(--muted)"
+                            : r.difference === 0 ? "#10b981" : "#b45309",
+                        }}>
+                          {r.difference === null ? "not tracked" : r.difference > 0 ? `+${r.difference}` : r.difference}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )
+          )}
         </div>
       )}
 
@@ -493,6 +596,80 @@ export default function RetailDispatches({
 
       {scanning && (
         <BarcodeScanner onDetected={code => { setScanning(false); scan(code); }} onClose={() => setScanning(false)} />
+      )}
+
+      {/* ── goods back from the shop ── */}
+      {returning && (
+        <Modal title="Goods Back" subtitle="Stock returning from the shop into this godown."
+          width={600} onClose={() => setReturning(false)} onSubmit={saveReturn}
+          footer={
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+                {busy ? "Recording…" : "Take it back in"}
+              </Button>
+              <Button variant="secondary" onClick={() => setReturning(false)}>Cancel</Button>
+            </div>
+          }>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Field label="From which shop *">
+              <Select value={ret.storeId} onChange={e => setRet(p => ({ ...p, storeId: e.target.value }))}>
+                <option value="">Select…</option>
+                {stores.filter(s => s.active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Why">
+              <Select value={ret.reason} onChange={e => setRet(p => ({ ...p, reason: e.target.value }))}>
+                <option value="UNSOLD">Unsold / season over</option>
+                <option value="DAMAGED">Damaged</option>
+                <option value="WRONG_ITEM">Wrong item sent</option>
+                <option value="OTHER">Other</option>
+              </Select>
+            </Field>
+          </div>
+
+          <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, margin: "10px 0" }}>
+            <input type="checkbox" checked={ret.restock}
+              onChange={e => setRet(p => ({ ...p, restock: e.target.checked }))} />
+            Put it back into sellable stock
+          </label>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>
+            Turn this off for goods that came back unsellable — they are recorded as returned, but not
+            counted as stock you can sell again.
+          </div>
+
+          {retLines.map((line, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <Select value={line.productId} style={{ flex: 1 }}
+                onChange={e => setRetLines(ls => ls.map((l, j) => j === i ? { ...l, productId: e.target.value } : l))}>
+                <option value="">Select a product…</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {productName(p)}{p.size ? ` · ${p.size}` : ""} — {p.sku}
+                  </option>
+                ))}
+              </Select>
+              <Input type="number" min="1" placeholder="Qty" value={line.quantity} style={{ width: 90 }}
+                onChange={e => setRetLines(ls => ls.map((l, j) => j === i ? { ...l, quantity: e.target.value } : l))} />
+              <button type="button" aria-label={`Remove line ${i + 1}`}
+                onClick={() => setRetLines(ls => ls.filter((_, j) => j !== i))}
+                style={{ background: "none", border: "none", color: "var(--muted)", padding: 6 }}>
+                <X size={15} />
+              </button>
+            </div>
+          ))}
+          <Button variant="secondary" onClick={() => setRetLines(ls => [...ls, { productId: "", quantity: "" }])}
+            style={{ fontSize: 12, padding: "5px 10px" }}>
+            + Add product
+          </Button>
+
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 12, lineHeight: 1.55 }}>
+            The shop&apos;s own count is not changed from here. The only way to lower it over there is to
+            set an absolute number, and a number read a moment ago is already stale if their till sold
+            one — writing it back would quietly erase that sale. This shows up as a difference in the
+            check above until their own count catches up.
+          </div>
+          {err && <ErrorBanner msg={err} />}
+        </Modal>
       )}
 
       {/* ── link a product to the shop's catalogue ── */}

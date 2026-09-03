@@ -929,7 +929,7 @@ export default function Home() {
           <AuditLogs logs={data?.allAuditLogs || []} />
         )}
         {currentTab === "settings" && (
-          <Settings settings={data?.systemSettings || {}} isSuperAdmin={isSuperAdmin} onMutate={mutate} />
+          <Settings retailChannel={data?.retailChannel} settings={data?.systemSettings || {}} isSuperAdmin={isSuperAdmin} onMutate={mutate} />
         )}
         {currentTab === "profile" && (
           <Profile

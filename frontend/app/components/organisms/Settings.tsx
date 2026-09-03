@@ -38,7 +38,9 @@ interface SettingsData {
   barcodePriceMultiplier?: number
 }
 
-interface Props { settings: SettingsData; isSuperAdmin: boolean; onMutate: (q: string, v: Record<string, unknown>) => Promise<void> }
+interface RetailChannel { subsiteId: number; subsiteName: string; apiUrl: string; serviceUsername?: string; active: boolean }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface Props { settings: SettingsData; isSuperAdmin: boolean; retailChannel?: RetailChannel | null; onMutate: (q: string, v: Record<string, unknown>) => Promise<any> }
 
 type Tab = "general" | "integrations" | "print" | "danger";
 const TABS: { id: Tab; label: string }[] = [
@@ -108,7 +110,43 @@ const COMPONENT_LABELS: Record<string, { label: string; desc: string }> = {
   footer:       { label: "Footer Text",   desc: "Custom footer line" },
 };
 
-export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
+export default function Settings({ settings, isSuperAdmin, retailChannel, onMutate }: Props) {
+  // The shop this godown belongs to. The handle is stable; the numeric id is
+  // not, so it is looked up rather than typed.
+  const [shop, setShop] = useState({
+    subsiteName: retailChannel?.subsiteName ?? "sriweddings",
+    apiUrl: retailChannel?.apiUrl ?? "",
+    serviceUsername: retailChannel?.serviceUsername ?? "",
+    servicePassword: "",
+  });
+  const [shopBusy, setShopBusy] = useState(false);
+  const [shopMsg, setShopMsg] = useState("");
+
+  async function connectShop() {
+    setShopBusy(true); setShopMsg("");
+    try {
+      const res = await onMutate(
+        `mutation C($n:String!,$u:String!,$su:String,$sp:String){`
+        + `resolveRetailSubsite(subsiteName:$n,apiUrl:$u,serviceUsername:$su,servicePassword:$sp)`
+        + `{channel{subsiteId subsiteName apiUrl active}}}`,
+        {
+          n: shop.subsiteName.trim(), u: shop.apiUrl.trim(),
+          su: shop.serviceUsername.trim() || undefined,
+          sp: shop.servicePassword || undefined,
+        },
+      );
+      const ch = res?.resolveRetailSubsite?.channel;
+      if (ch) {
+        setShopMsg(`Connected to ${ch.subsiteName} (their id ${ch.subsiteId}).`);
+        showToast("Connected to the shop.", "success");
+        setShop(p => ({ ...p, servicePassword: "" }));
+      }
+    } catch (e: unknown) {
+      const msg = friendlyError(e);
+      setShopMsg(msg); showToast(msg, "error");
+    } finally { setShopBusy(false); }
+  }
+
   const [tab, setTab] = useState<Tab>("general");
   const [form, setForm] = useState<SettingsData>({ ...settings });
   const [loading, setLoading] = useState(false);
@@ -400,6 +438,38 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
       {/* ── Integrations ── */}
       {tab === "integrations" && (
         <>
+          <Section title="The Retail Shop" badge={retailChannel?.active ? `#${retailChannel.subsiteId}` : "not connected"}>
+            <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6, marginBottom: 14 }}>
+              This godown supplies one shop and always will. Give its handle and a service login of
+              its own — <strong>not an admin&apos;s personal login</strong>, because this credential is
+              used unattended and has to be revocable without locking a person out. The shop&apos;s
+              numeric id is looked up, never typed: the same shop is a different number on their test
+              site and their real one, and a wrong one points this whole warehouse at somebody else.
+            </div>
+            <Field label="Shop handle">
+              <Input value={shop.subsiteName} placeholder="sriweddings"
+                onChange={e => setShop(p => ({ ...p, subsiteName: e.target.value }))} />
+            </Field>
+            <Field label="Their GraphQL address">
+              <Input value={shop.apiUrl} placeholder="https://…/graphql/"
+                onChange={e => setShop(p => ({ ...p, apiUrl: e.target.value }))} />
+            </Field>
+            <Field label="Service username">
+              <Input value={shop.serviceUsername}
+                onChange={e => setShop(p => ({ ...p, serviceUsername: e.target.value }))} />
+            </Field>
+            <Field label="Service password" hint="Leave blank to keep the stored one.">
+              <Input type="password" value={shop.servicePassword}
+                onChange={e => setShop(p => ({ ...p, servicePassword: e.target.value }))} />
+            </Field>
+            <Button variant="primary" onClick={connectShop} disabled={shopBusy || !shop.apiUrl.trim()}>
+              {shopBusy ? "Checking…" : "Connect"}
+            </Button>
+            {shopMsg && (
+              <div style={{ fontSize: 12, marginTop: 10, color: "var(--muted)" }}>{shopMsg}</div>
+            )}
+          </Section>
+
           <Section title="Email — SMTP">
             <Field label="SMTP Host">
               <Input value={form.smtpHost || ""} onChange={e => set("smtpHost")(e.target.value)} placeholder="smtp.gmail.com" />

@@ -1773,3 +1773,60 @@ class RetailDispatchItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} x {self.finished_product.sku}"
+
+
+class RetailReturn(models.Model):
+    """
+    Goods coming back from the shop to the godown.
+
+    The reverse leg of a consignment, and neither of the returns we already
+    have: a buyer return reverses a sale, a supplier return sends goods out of
+    the business. This is our own stock moving back between our own buildings.
+    """
+    class Reason(models.TextChoices):
+        UNSOLD = "UNSOLD", "Unsold / season over"
+        DAMAGED = "DAMAGED", "Damaged"
+        WRONG_ITEM = "WRONG_ITEM", "Wrong item sent"
+        OTHER = "OTHER", "Other"
+
+    return_number = models.CharField(max_length=30, unique=True, editable=False)
+    store = models.ForeignKey(RetailStore, on_delete=models.PROTECT, related_name="returns")
+    to_warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT,
+                                     related_name="retail_returns")
+    reason = models.CharField(max_length=20, choices=Reason.choices, default=Reason.UNSOLD)
+    # Damaged goods come back into the building but not into sellable stock.
+    restock = models.BooleanField(
+        default=True,
+        help_text="Off for goods that came back unsellable — they are recorded, not restocked.")
+    received_date = models.DateField(default=timezone.now)
+    notes = models.TextField(blank=True)
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                    null=True, related_name="retail_returns_received")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.return_number:
+            self.return_number = _serial("RR", RetailReturn)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.return_number} ← {self.store.name}"
+
+
+class RetailReturnItem(models.Model):
+    retail_return = models.ForeignKey(RetailReturn, on_delete=models.CASCADE, related_name="items")
+    finished_product = models.ForeignKey(FinishedProduct, on_delete=models.PROTECT,
+                                         related_name="retail_return_items")
+    quantity = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["retail_return", "finished_product"],
+                                    name="retailreturnitem_one_line_per_product"),
+        ]
+
+    def __str__(self):
+        return f"{self.quantity} x {self.finished_product.sku}"

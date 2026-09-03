@@ -403,3 +403,147 @@ class TheShopsOwnListsAreFetched(RetailFixture):
         self.assertEqual(linked, [])
         self.assertEqual(unmatched, [])
         self.assertEqual(RetailProductLink.objects.get(finished_product=product).product_id, 101)
+
+
+class TheSubsiteIsLookedUpNotTyped(RetailFixture):
+    """The handle is stable; the number is not. The same shop is a different id
+    on their test site and their real one, and a mistyped one points a whole
+    warehouse at somebody else's business."""
+
+    def test_the_handle_resolves_to_the_id(self):
+        from warehouse.services.retail import resolve_subsite
+
+        channel = resolve_subsite(
+            user=self.admin, subsite_name="sriweddings",
+            api_url="https://example.invalid/graphql/",
+            _transport=lambda c, q, v: {"listHms": [
+                {"id": 3, "hmsName": "kondagattufoods"},
+                {"id": 12, "hmsName": "sriweddings"},
+            ]})
+
+        self.assertEqual(channel.subsite_id, 12)
+        self.assertEqual(channel.subsite_name, "sriweddings")
+
+    def test_a_handle_the_login_cannot_see_is_refused_with_what_it_can(self):
+        from warehouse.services.retail import resolve_subsite
+
+        with self.assertRaises(GraphQLError) as caught:
+            resolve_subsite(user=self.admin, subsite_name="sriweddings",
+                            api_url="https://example.invalid/graphql/",
+                            _transport=lambda c, q, v: {"listHms": [
+                                {"id": 3, "hmsName": "kondagattufoods"}]})
+
+        self.assertIn("kondagattufoods", str(caught.exception))
+
+
+class GoodsComeBackFromTheShop(RetailFixture):
+    def _delivered(self, quantity=5, send=3):
+        product = self._product(quantity=quantity)
+        dispatch = self._dispatch(product, quantity=send)
+        self._scan(dispatch, product, send)
+        pack_dispatch(user=self.admin, id=dispatch.id)
+        send_dispatch(user=self.admin, id=dispatch.id,
+                      _transport=lambda c, q, v: {"recordStockReceipt": {"receipt": {"id": 1}}})
+        return product
+
+    def test_a_return_puts_the_stock_back_in_the_godown(self):
+        from warehouse.services.retail import create_return
+
+        product = self._delivered(quantity=5, send=3)
+        product.refresh_from_db()
+        self.assertEqual(product.quantity, 2)
+
+        create_return(user=self.admin, store_id=self.store.id,
+                      warehouse_id=self.warehouse.id,
+                      lines=[{"finished_product_id": product.id, "quantity": 2}])
+
+        product.refresh_from_db()
+        self.assertEqual(product.quantity, 4)
+
+    def test_damaged_goods_are_recorded_but_not_restocked(self):
+        from warehouse.services.retail import create_return
+
+        product = self._delivered(quantity=5, send=3)
+
+        ret = create_return(user=self.admin, store_id=self.store.id,
+                            warehouse_id=self.warehouse.id, reason="DAMAGED", restock=False,
+                            lines=[{"finished_product_id": product.id, "quantity": 2}])
+
+        product.refresh_from_db()
+        self.assertEqual(product.quantity, 2)
+        self.assertEqual(ret.items.get().quantity, 2)
+
+
+class DriftIsMadeVisible(RetailFixture):
+    """Two systems holding the same stock always drift. The only question is
+    whether anybody finds out."""
+
+    def _delivered_and_acked(self, send=10):
+        product = self._product(quantity=20)
+        dispatch = self._dispatch(product, quantity=send)
+        self._scan(dispatch, product, send)
+        pack_dispatch(user=self.admin, id=dispatch.id)
+        send_dispatch(user=self.admin, id=dispatch.id,
+                      _transport=lambda c, q, v: {"recordStockReceipt": {"receipt": {"id": 1}}})
+        return product
+
+    def _shop_says(self, quantity):
+        return lambda c, q, v: {"listProducts": [{
+            "id": 101, "name": "Sherwani",
+            "variants": [{"id": 202, "storeStocks": [
+                {"buildingId": 11, "stockQuantity": quantity}]}],
+        }]}
+
+    def test_it_reports_what_we_sent_against_what_the_shop_holds(self):
+        from warehouse.services.retail import reconcile
+
+        product = self._delivered_and_acked(send=10)
+
+        rows = reconcile(user=self.admin, store_id=self.store.id,
+                         _transport=self._shop_says(8))
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["finished_product"].id, product.id)
+        self.assertEqual((row["sent"], row["net_sent"], row["shop_has"]), (10, 10, 8))
+        self.assertEqual(row["difference"], -2)
+
+    def test_a_return_is_taken_off_what_the_shop_should_be_holding(self):
+        from warehouse.services.retail import create_return, reconcile
+
+        product = self._delivered_and_acked(send=10)
+        create_return(user=self.admin, store_id=self.store.id,
+                      warehouse_id=self.warehouse.id,
+                      lines=[{"finished_product_id": product.id, "quantity": 4}])
+
+        rows = reconcile(user=self.admin, store_id=self.store.id,
+                         _transport=self._shop_says(6))
+
+        row = rows[0]
+        self.assertEqual((row["sent"], row["returned"], row["net_sent"]), (10, 4, 6))
+        self.assertEqual(row["difference"], 0)
+
+    def test_a_consignment_still_in_the_van_is_not_counted(self):
+        """Counting it would report a shortfall that is a lorry in traffic."""
+        from warehouse.services.retail import reconcile
+
+        product = self._product(quantity=20)
+        dispatch = self._dispatch(product, quantity=5)
+        self._scan(dispatch, product, 5)
+        pack_dispatch(user=self.admin, id=dispatch.id)  # packed, never sent
+
+        rows = reconcile(user=self.admin, store_id=self.store.id,
+                         _transport=self._shop_says(0))
+
+        self.assertEqual(rows, [])
+
+    def test_an_unlimited_item_reads_as_unknown_not_as_zero(self):
+        from warehouse.services.retail import reconcile
+
+        self._delivered_and_acked(send=10)
+
+        rows = reconcile(user=self.admin, store_id=self.store.id,
+                         _transport=self._shop_says(None))
+
+        self.assertIsNone(rows[0]["shop_has"])
+        self.assertIsNone(rows[0]["difference"])

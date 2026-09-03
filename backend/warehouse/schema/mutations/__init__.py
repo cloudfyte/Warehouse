@@ -18,8 +18,9 @@ from .expense import CreateExpense, UpdateExpense, DeleteExpense
 from .retail import (
     AddRetailStore, CancelRetailDispatch, ConfigureRetailChannel,
     CreateRetailDispatch, LinkRetailProduct, PackRetailDispatch,
-    PullRetailCatalogue, PullRetailStores, ScanIntoRetailDispatch,
-    SendRetailDispatch, UnlinkRetailProduct,
+    CreateRetailReturn, PullRetailCatalogue, PullRetailStores,
+    ResolveRetailSubsite, ScanIntoRetailDispatch, SendRetailDispatch,
+    UnlinkRetailProduct,
 )
 from .product_set import (
     BreakProductSets, BuildProductSets, CreateProductSet, UpdateProductSet,
@@ -101,6 +102,8 @@ class Mutation(graphene.ObjectType):
     create_product_matrix = CreateProductMatrix.Field()
     configure_retail_channel = ConfigureRetailChannel.Field()
     add_retail_store = AddRetailStore.Field()
+    resolve_retail_subsite = ResolveRetailSubsite.Field()
+    create_retail_return = CreateRetailReturn.Field()
     pull_retail_stores = PullRetailStores.Field()
     pull_retail_catalogue = PullRetailCatalogue.Field()
     link_retail_product = LinkRetailProduct.Field()

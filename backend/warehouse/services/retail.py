@@ -27,7 +27,8 @@ from graphql import GraphQLError
 
 from warehouse.models import (
     EmployeeProfile, FinishedProduct, RetailChannel, RetailDispatch,
-    RetailDispatchItem, RetailProductLink, RetailStore,
+    RetailDispatchItem, RetailProductLink, RetailReturn, RetailReturnItem,
+    RetailStore,
 )
 from warehouse.permissions import get_scoped, get_warehouse, require_role
 
@@ -491,7 +492,8 @@ _LIST_BUILDINGS = (
 _LIST_PRODUCTS = (
     "query P($hms:Int!,$limit:Int){listProducts(hmsId:$hms,limit:$limit)"
     "{id name isActive hasVariants "
-    "variants{id sku barcode price isActive label options{name value}}}}"
+    "variants{id sku barcode price isActive label options{name value} "
+    "storeStocks{buildingId stockQuantity}}}}"
 )
 
 
@@ -616,4 +618,167 @@ def browse_catalogue(*, user, search="", _transport=None, limit=200):
                 "label": product.get("name") or f"Product {product['id']}",
                 "barcode": "",
             })
+    return rows
+
+
+# ── resolving the subsite ─────────────────────────────────────────────────────
+
+_LIST_HMS = "query H{listHms(isActive:true){id hmsName hmsDisplayName}}"
+
+
+def resolve_subsite(*, user, subsite_name, api_url, service_username=None,
+                    service_password=None, _transport=None):
+    """
+    Set the shop up from its handle alone.
+
+    The handle is stable — this warehouse belongs to one shop and always will.
+    The numeric id is not: the same shop is a different number on their test
+    site and their real one, and a mistyped one points a whole warehouse at
+    somebody else's business. So the id is looked up, never typed.
+    """
+    require_role(user, *_ADMIN)
+    handle = (subsite_name or "").strip().lower()
+    if not handle:
+        raise GraphQLError("Which shop? Give its handle, e.g. sriweddings.")
+
+    # A throwaway channel so the call can be made before anything is saved:
+    # the credentials have to be proved good before they are stored.
+    probe = RetailChannel(subsite_id=0, subsite_name=handle, api_url=(api_url or "").strip(),
+                          service_username=(service_username or "").strip(),
+                          service_password=service_password or "")
+    if not probe.service_username:
+        existing = get_channel()
+        if existing:
+            probe.service_username = existing.service_username
+            probe.service_password = probe.service_password or existing.service_password
+
+    post = _transport or _post
+    sites = (post(probe, _LIST_HMS, {}) or {}).get("listHms") or []
+    match = next((s for s in sites if (s.get("hmsName") or "").lower() == handle), None)
+    if not match:
+        known = ", ".join(sorted((s.get("hmsName") or "") for s in sites)) or "none"
+        raise GraphQLError(
+            f"That login cannot see a shop called '{handle}'. It can see: {known}. "
+            f"Check the handle, or that the service account belongs to the right shop."
+        )
+
+    return configure_channel(
+        user=user, subsite_id=int(match["id"]), subsite_name=match.get("hmsName") or handle,
+        api_url=api_url, service_username=service_username,
+        service_password=service_password, active=True,
+    )
+
+
+# ── goods coming back ─────────────────────────────────────────────────────────
+
+def create_return(*, user, store_id, warehouse_id, lines, reason="UNSOLD",
+                  restock=True, received_date=None, notes=""):
+    """
+    Take goods back from the shop.
+
+    Our side of this is unambiguous — the garments are in this building again,
+    so the godown count goes up (unless they came back unsellable). Their side
+    is not ours to write: the only way to lower a count over there is to set it
+    to an absolute number, and a number read a moment ago is already stale if
+    their till sold one in between. Writing it back would quietly erase that
+    sale. So the return is recorded here and shows up as a difference in the
+    reconciliation until their own count catches up.
+    """
+    require_role(user, *_MANAGE)
+    channel = _require_channel()
+    warehouse = get_warehouse(user, warehouse_id)
+
+    try:
+        store = RetailStore.objects.get(pk=store_id, channel=channel)
+    except RetailStore.DoesNotExist as exc:
+        raise GraphQLError("That store is not one this warehouse deals with.") from exc
+
+    if not lines:
+        raise GraphQLError("What came back?")
+
+    with transaction.atomic():
+        retail_return = RetailReturn.objects.create(
+            store=store, to_warehouse=warehouse, reason=(reason or "UNSOLD").upper(),
+            restock=restock, received_date=received_date or timezone.now().date(),
+            notes=(notes or "").strip(), received_by=user,
+        )
+        seen = set()
+        for line in lines:
+            product = get_scoped(user, FinishedProduct, line["finished_product_id"])
+            if product.pk in seen:
+                raise GraphQLError(f"{product.sku} is listed twice on this return.")
+            seen.add(product.pk)
+            quantity = int(line.get("quantity") or 0)
+            if quantity <= 0:
+                raise GraphQLError(f"How many of {product.sku} came back?")
+            RetailReturnItem.objects.create(
+                retail_return=retail_return, finished_product=product, quantity=quantity)
+
+            if restock:
+                locked = FinishedProduct.objects.select_for_update().get(pk=product.pk)
+                locked.quantity += quantity
+                locked.save(update_fields=["quantity", "updated_at"])
+    return retail_return
+
+
+# ── reconciliation ────────────────────────────────────────────────────────────
+
+def reconcile(*, user, store_id, _transport=None):
+    """
+    What we sent a shop, against what the shop says it has.
+
+    Two systems holding the same stock always drift, and the only question is
+    whether anybody finds out. The difference is not an accusation — sales,
+    their own goods-in from elsewhere, and returns still in a van all show up
+    here — it is a list of the rows worth asking about.
+    """
+    require_role(user, *_MANAGE)
+    channel = _require_channel()
+    post = _transport or _post
+
+    try:
+        store = RetailStore.objects.get(pk=store_id, channel=channel)
+    except RetailStore.DoesNotExist as exc:
+        raise GraphQLError("That store is not one this warehouse ships to.") from exc
+
+    # Only landed consignments count. One still in a van has not arrived, and
+    # counting it would report a shortfall that is simply a lorry in traffic.
+    sent = {}
+    for item in (RetailDispatchItem.objects
+                 .filter(dispatch__store=store,
+                         dispatch__status=RetailDispatch.Status.ACKNOWLEDGED)
+                 .select_related("finished_product")):
+        sent.setdefault(item.finished_product_id, {"product": item.finished_product, "sent": 0})
+        sent[item.finished_product_id]["sent"] += item.quantity
+
+    returned = {}
+    for item in (RetailReturnItem.objects
+                 .filter(retail_return__store=store)
+                 .select_related("finished_product")):
+        returned[item.finished_product_id] = returned.get(item.finished_product_id, 0) + item.quantity
+
+    data = post(channel, _LIST_PRODUCTS, {"hms": channel.subsite_id, "limit": 2000})
+    on_hand = {}
+    for product in (data.get("listProducts") or []):
+        for variant in (product.get("variants") or []):
+            for stock in (variant.get("storeStocks") or []):
+                if int(stock.get("buildingId") or 0) == store.building_id:
+                    on_hand[(int(product["id"]), int(variant["id"]))] = stock.get("stockQuantity")
+
+    rows = []
+    for product_id, entry in sent.items():
+        link = RetailProductLink.objects.filter(finished_product_id=product_id).first()
+        shop_has = on_hand.get((link.product_id, link.variant_id)) if link else None
+        net_sent = entry["sent"] - returned.get(product_id, 0)
+        rows.append({
+            "finished_product": entry["product"],
+            "sent": entry["sent"],
+            "returned": returned.get(product_id, 0),
+            "net_sent": net_sent,
+            # None means the shop tracks this one as unlimited, or we cannot
+            # see it — an unknown, which is not the same as a zero.
+            "shop_has": shop_has,
+            "difference": None if shop_has is None else shop_has - net_sent,
+        })
+    rows.sort(key=lambda r: (r["difference"] is None, abs(r["difference"] or 0)), reverse=True)
     return rows

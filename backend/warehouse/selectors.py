@@ -879,3 +879,13 @@ def get_unlinked_finished_products(user):
             .filter(warehouse__in=accessible_warehouses(user), quantity__gt=0,
                     retail_link__isnull=True)
             .select_related("item_type", "cloth_color", "warehouse"))
+
+
+def get_retail_returns(user, limit=100):
+    from warehouse.models import RetailReturn
+    from warehouse.permissions import accessible_warehouses
+
+    return (RetailReturn.objects
+            .filter(to_warehouse__in=accessible_warehouses(user))
+            .select_related("store", "to_warehouse")
+            .prefetch_related("items__finished_product__item_type")[:limit])
