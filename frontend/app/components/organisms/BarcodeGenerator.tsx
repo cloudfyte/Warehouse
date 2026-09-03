@@ -11,6 +11,8 @@ import Field from "@/app/components/molecules/Field";
 
 interface Props {
   products: FinishedProduct[];
+  /** The colour master list. A product's colour has to be one of these. */
+  colors: { id: string; name: string }[];
   systemSettings?: TagSettings;
   /** Marks the printed products as tagged, the same call the single-tag print makes. */
   onMutate: (q: string, v: Record<string, unknown>) => Promise<unknown>;
@@ -28,13 +30,20 @@ interface QueueRow {
    * inherit a name that was only ever meant for this one.
    */
   nameOverride?: string;
+  /** Same idea for the colour word, which is the other thing a tag spells out. */
+  colorOverride?: string;
 }
 
 /** The product as this row will print it. */
 function withPrintName(row: QueueRow): FinishedProduct {
-  return row.nameOverride
-    ? { ...row.product, name: row.nameOverride }
-    : row.product;
+  if (!row.nameOverride && !row.colorOverride) return row.product;
+  return {
+    ...row.product,
+    ...(row.nameOverride ? { name: row.nameOverride } : {}),
+    ...(row.colorOverride
+      ? { clothColor: { ...(row.product.clothColor ?? {}), name: row.colorOverride } as FinishedProduct["clothColor"] }
+      : {}),
+  };
 }
 
 /**
@@ -47,7 +56,7 @@ function withPrintName(row: QueueRow): FinishedProduct {
  * Copies default to the quantity in stock, because that is what you are
  * tagging almost every time.
  */
-export default function BarcodeGenerator({ products, systemSettings, onMutate }: Props) {
+export default function BarcodeGenerator({ products, colors, systemSettings, onMutate }: Props) {
   const [search, setSearch] = useState("");
   const [queue, setQueue] = useState<QueueRow[]>([]);
   const [printing, setPrinting] = useState(false);
@@ -58,8 +67,12 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
   // in the barcode, so correcting it here re-mints the code — and you see the
   // new one in the preview before any label is printed.
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ name: "", costPrice: "", salePrice: "", size: "" });
-  /** Where an edited name goes: this batch of labels, or the product itself. */
+  const [draft, setDraft] = useState({ name: "", color: "", costPrice: "", salePrice: "", size: "" });
+  /**
+   * Where the edited wording goes: onto this batch of labels, or onto the
+   * product. Name and colour share it — they are the two things on a tag that
+   * are words rather than figures, and they are corrected in the same breath.
+   */
   const [nameScope, setNameScope] = useState<"label" | "product">("label");
   const [savingEdit, setSavingEdit] = useState(false);
   const [editErr, setEditErr] = useState("");
@@ -68,11 +81,12 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
     const product = row.product;
     setDraft({
       name: row.nameOverride ?? productName(product),
+      color: row.colorOverride ?? (product.clothColor?.name || ""),
       costPrice: String(product.costPrice ?? ""),
       salePrice: String(product.salePrice ?? ""),
       size: product.size || "",
     });
-    setNameScope(row.nameOverride ? "label" : "product");
+    setNameScope(row.nameOverride || row.colorOverride ? "label" : "product");
     setEditErr("");
     setEditingId(product.id);
   }
@@ -80,21 +94,46 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
   async function saveEdit(row: QueueRow) {
     const product = row.product;
     const typedName = draft.name.trim();
-    const renaming = nameScope === "product" && typedName !== productName(product);
+    const typedColor = draft.color.trim();
+    const nameChanged = typedName !== productName(product);
+    const colorChanged = typedColor.toLowerCase() !== (product.clothColor?.name || "").toLowerCase();
+    const wordsToProduct = nameScope === "product";
+
+    const renaming = wordsToProduct && nameChanged;
     // An empty box means "go back to the item type's name", which is a real
     // change to make and not the same as leaving the field alone.
     const nameArg = renaming ? (typedName === product.itemType.name ? "" : typedName) : undefined;
+
+    // A product's colour is one of the master colours, never free text — the
+    // same rule the matrix builder follows. Typing a shade that does not exist
+    // yet is a label, not a correction, so say so rather than inventing it.
+    let colorArg: string | undefined;
+    if (wordsToProduct && colorChanged && typedColor) {
+      const match = colors.find(c => c.name.toLowerCase() === typedColor.toLowerCase());
+      if (!match) {
+        setEditErr(
+          `There is no colour called "${typedColor}". Add it under Colors first, `
+          + `or switch to "Just this batch" to print it on these labels only.`
+        );
+        return;
+      }
+      colorArg = match.id;
+    }
 
     const priced =
       (draft.costPrice !== "" && +draft.costPrice !== Number(product.costPrice))
       || (draft.salePrice !== "" && +draft.salePrice !== Number(product.salePrice))
       || (draft.size !== "" && draft.size !== (product.size || ""));
 
-    // Label-only naming writes nothing, so there is no call to make.
-    if (!priced && !renaming) {
-      setQueue(q => q.map(r => r.product.id === product.id
-        ? { ...r, nameOverride: nameScope === "label" && typedName !== productName(product) ? typedName : undefined }
-        : r));
+    /** What the row keeps for this print run once the save is done. */
+    const overrides = {
+      nameOverride: !wordsToProduct && nameChanged ? typedName : undefined,
+      colorOverride: !wordsToProduct && colorChanged && typedColor ? typedColor : undefined,
+    };
+
+    // Label-only wording writes nothing, so there is no call to make.
+    if (!priced && !renaming && !colorArg) {
+      setQueue(q => q.map(r => r.product.id === product.id ? { ...r, ...overrides } : r));
       setEditingId(null);
       return;
     }
@@ -102,15 +141,16 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
     setSavingEdit(true); setEditErr("");
     try {
       const res = await onMutate(
-        `mutation E($id:ID!,$cp:Float,$sp:Float,$size:String,$name:String){`
-        + `updateFinishedProduct(id:$id,costPrice:$cp,salePrice:$sp,size:$size,name:$name)`
-        + `{finishedProduct{id name costPrice salePrice size barcode barcodeSvg tagsPrinted}}}`,
+        `mutation E($id:ID!,$cp:Float,$sp:Float,$size:String,$name:String,$color:ID){`
+        + `updateFinishedProduct(id:$id,costPrice:$cp,salePrice:$sp,size:$size,name:$name,clothColorId:$color)`
+        + `{finishedProduct{id name costPrice salePrice size barcode barcodeSvg tagsPrinted clothColor{id name hexCode}}}}`,
         {
           id: product.id,
           cp: draft.costPrice === "" ? undefined : +draft.costPrice,
           sp: draft.salePrice === "" ? undefined : +draft.salePrice,
           size: draft.size || undefined,
           name: nameArg,
+          color: colorArg,
         },
       ) as { updateFinishedProduct?: { finishedProduct?: Partial<FinishedProduct> } };
 
@@ -121,15 +161,11 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
         ? {
             ...r,
             product: updated ? { ...r.product, ...updated } as FinishedProduct : r.product,
-            // A saved rename replaces any label-only name; a label-only name
-            // set alongside a price fix is kept.
-            nameOverride: renaming
-              ? undefined
-              : (nameScope === "label" && typedName !== productName(product) ? typedName : r.nameOverride),
+            ...overrides,
           }
         : r));
       setEditingId(null);
-      showToast(renaming ? "Product renamed." : "Product updated.", "success");
+      showToast(renaming || colorArg ? "Product updated everywhere." : "Product updated.", "success");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not save the change.";
       setEditErr(msg); showToast(msg, "error");
@@ -199,11 +235,11 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
   // Follow whatever is being edited, so a corrected price and its new barcode
   // are what you are looking at. Otherwise the first item in the batch.
   const previewRow = queue.find(r => r.product.id === editingId) ?? queue[0];
+  // While the edit panel is open the preview follows the boxes, so what is
+  // being typed is what is on the label in front of you.
   const previewProduct = previewRow && withPrintName(
-    // While the edit panel is open the preview follows the box, so the name
-    // being typed is the name on the label in front of you.
-    editingId === previewRow.product.id && draft.name.trim() !== productName(previewRow.product)
-      ? { ...previewRow, nameOverride: draft.name.trim() }
+    editingId === previewRow.product.id
+      ? { ...previewRow, nameOverride: draft.name.trim(), colorOverride: draft.color.trim() }
       : previewRow,
   );
 
@@ -282,6 +318,10 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
         </div>
 
         {/* Queue */}
+        <datalist id="tag-colour-list">
+          {colors.map(c => <option key={c.id} value={c.name} />)}
+        </datalist>
+
         {queue.length === 0 ? (
           <div style={{
             border: "1px dashed var(--line)", borderRadius: 12, padding: "40px 20px",
@@ -297,8 +337,10 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13 }}>
                       {row.nameOverride || productName(row.product)}
+                      {row.colorOverride || row.product.clothColor?.name
+                        ? ` · ${row.colorOverride || row.product.clothColor?.name}` : ""}
                       {row.product.size ? ` · ${row.product.size}` : ""}
-                      {row.nameOverride && (
+                      {(row.nameOverride || row.colorOverride) && (
                         <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
                           this batch only
                         </span>
@@ -340,15 +382,26 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
 
                 {editingId === row.product.id && (
                   <div style={{ background: "var(--bg)", padding: "12px 14px" }}>
-                    <Field label="Name on the tag">
-                      <Input
-                        value={draft.name}
-                        placeholder={row.product.itemType.name}
-                        onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-                      />
-                    </Field>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <Field label="Name on the tag">
+                        <Input
+                          value={draft.name}
+                          placeholder={row.product.itemType.name}
+                          onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                        />
+                      </Field>
+                      <Field label="Colour on the tag">
+                        <Input
+                          list="tag-colour-list"
+                          value={draft.color}
+                          placeholder={row.product.clothColor?.name || "e.g. Pista Green"}
+                          onChange={e => setDraft(d => ({ ...d, color: e.target.value }))}
+                        />
+                      </Field>
+                    </div>
 
-                    {draft.name.trim() !== productName(row.product) && (
+                    {(draft.name.trim() !== productName(row.product)
+                      || draft.color.trim().toLowerCase() !== (row.product.clothColor?.name || "").toLowerCase()) && (
                       <div style={{ margin: "2px 0 12px" }}>
                         <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
                           {([["label", "Just this batch"], ["product", "Rename the product"]] as const).map(([key, text]) => (
@@ -367,8 +420,8 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
                         </div>
                         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>
                           {nameScope === "label"
-                            ? "Prints on this run of labels and is forgotten. Nothing about the product changes."
-                            : `Renames it everywhere — lists, sales orders, every tag from now on. Clear the box to go back to "${row.product.itemType.name}".`}
+                            ? "The name and colour above print on this run of labels and are then forgotten. Nothing about the product changes."
+                            : `Saved to the product — lists, sales orders, every tag from now on. Clear the name to go back to "${row.product.itemType.name}"; a colour has to be one you already have under Colors.`}
                         </div>
                       </div>
                     )}

@@ -62,6 +62,12 @@ class UpdateSystemSettings(graphene.Mutation):
         tag_show_age_group = graphene.Boolean()
         tag_show_price = graphene.Boolean()
         tag_show_size = graphene.Boolean()
+        # Empty string is meaningful — it drops the word and prints the value
+        # alone — so these must not be filtered out as blank.
+        tag_price_label = graphene.String()
+        tag_size_label = graphene.String()
+        tag_color_label = graphene.String()
+        tag_price_suffix = graphene.String()
         tag_footer_text = graphene.String()
         tag_printer_width = graphene.String()
         tag_brand_font_size = graphene.Int()

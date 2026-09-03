@@ -25,6 +25,8 @@ import ProductMatrixBuilder from "@/app/components/organisms/ProductMatrixBuilde
 interface Props {
   products: FinishedProduct[]
   itemTypes?: ItemType[]
+  /** The colour master list — a product's colour can only be one of these. */
+  colors?: { id: string; name: string }[]
   warehouses?: WarehouseLocation[]
   /** Only products with one of these are ever reported as low or out of stock. */
   reorderPoints?: { id: string; itemKind: string; active: boolean; size?: string; thresholdPieces?: number | null; itemType?: { id: string } | null; warehouse: { id: string } }[]
@@ -47,7 +49,7 @@ function printTag(product: FinishedProduct, ts: TagSettings = {}) {
   win.document.close();
 }
 
-export default function FinishedProducts({ products, itemTypes = [], warehouses = [], reorderPoints = [], onRefresh, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql, systemSettings }: Props) {
+export default function FinishedProducts({ products, itemTypes = [], colors = [], warehouses = [], reorderPoints = [], onRefresh, isAdmin, isSuperAdmin, isManager, isStoreKeeper, onMutate, gql, systemSettings }: Props) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -231,7 +233,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
       />
 
       {view === "tags" ? (
-        <BarcodeGenerator products={products} systemSettings={systemSettings} onMutate={onMutate} />
+        <BarcodeGenerator products={products} colors={colors} systemSettings={systemSettings} onMutate={onMutate} />
       ) : (
       <>
       <FilterBar>
@@ -359,6 +361,8 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
                 tagline: systemSettings?.tagTagline || undefined,
                 showBarcode: systemSettings?.tagShowBarcode !== false,
                 showSku: systemSettings?.tagShowSku !== false,
+                priceLabel: systemSettings?.tagPriceLabel,
+                priceSuffix: systemSettings?.tagPriceSuffix,
                 showColor: systemSettings?.tagShowColor !== false,
                 showAgeGroup: systemSettings?.tagShowAgeGroup !== false,
                 footerText: systemSettings?.tagFooterText || undefined,

@@ -106,7 +106,7 @@ export const DASHBOARD_QUERY = `
       printCompanyAddress printBankDetails printTerms printSignatureLabel printShowLogo
       gstOnPurchases gstin
       tagBrandName tagTagline tagShowBarcode tagShowSku tagShowColor tagShowAgeGroup tagFooterText tagPrinterWidth
-      tagShowPrice tagShowSize tagBrandFontSize tagLogoSize tagLogoData tagComponentOrder tagHeightMm tagWidthMm
+      tagShowPrice tagShowSize tagPriceLabel tagSizeLabel tagColorLabel tagPriceSuffix tagBrandFontSize tagLogoSize tagLogoData tagComponentOrder tagHeightMm tagWidthMm
       tagAlign tagVerticalAlign tagPadTop tagPadRight tagPadBottom tagPadLeft
       tagGapMm tagBarcodeHeightMm tagBarcodeTextFontSize tagNameFontSize
       tagDescFontSize tagPriceFontSize tagSkuFontSize

@@ -757,6 +757,7 @@ export default function Home() {
           <FinishedProducts
             products={data?.finishedProducts || []}
             itemTypes={data?.itemTypes || []}
+            colors={data?.clothColors || []}
             warehouses={data?.warehouseLocations || []}
             reorderPoints={data?.reorderPoints || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}

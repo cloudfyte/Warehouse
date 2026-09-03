@@ -11,6 +11,7 @@ export interface TagSettings {
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
   tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
+  tagPriceLabel?: string; tagSizeLabel?: string; tagColorLabel?: string; tagPriceSuffix?: string
   tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number; tagWidthMm?: number
   companyName?: string
   tagAlign?: string; tagVerticalAlign?: string
@@ -72,6 +73,18 @@ const cap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 /** "pista green" -> "Pista Green". A colour is a name, so every word is capitalised. */
 const titleCase = (s?: string) =>
   (s || "").split(/\s+/).filter(Boolean).map(cap).join(" ");
+
+/**
+ * "Color" + "Pista Green" -> "Color: Pista Green"; no label -> "Pista Green".
+ *
+ * The words in front of the value rows are shop preference — MRP or Price,
+ * Color or Shade — so they come from settings, and a blank one means the shop
+ * wants the value on its own.
+ */
+const labelled = (label: string | undefined, value: string, fallback: string) => {
+  const word = (label === undefined ? fallback : label).trim();
+  return word ? `${word}: ${value}` : value;
+};
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -184,14 +197,22 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings, extra: TagExt
       const name = (product.name || "").trim() || cap(product.itemType?.name || "");
       blocks.push(
         `<div class="name">${esc(name)}</div>` +
-        (colour ? `<div class="desc">Color: ${esc(titleCase(colour))}</div>` : "")
+        (colour
+          ? `<div class="desc">${esc(labelled(ts.tagColorLabel, titleCase(colour), "Color"))}</div>`
+          : "")
       );
     } else if (key === "size" && ts.tagShowSize !== false && product.size) {
-      blocks.push(`<div class="desc">Size: ${esc(cap(product.size))}</div>`);
+      blocks.push(`<div class="desc">${esc(labelled(ts.tagSizeLabel, cap(product.size), "Size"))}</div>`);
     } else if (key === "age-group" && ts.tagShowAgeGroup !== false && product.ageGroup) {
       blocks.push(`<div class="desc">${esc(cap(product.ageGroup))}</div>`);
     } else if (key === "price" && ts.tagShowPrice !== false) {
-      blocks.push(`<div class="mrp">MRP &#8377;${mrp}/-</div>`);
+      // The label sits before the rupee sign, the suffix after the number:
+      // "MRP Rs.1,299/-", or just "Rs.1,299" with both cleared.
+      const priceWord = (ts.tagPriceLabel === undefined ? "MRP" : ts.tagPriceLabel).trim();
+      const suffix = (ts.tagPriceSuffix === undefined ? "/-" : ts.tagPriceSuffix).trim();
+      blocks.push(
+        `<div class="mrp">${priceWord ? `${esc(priceWord)} ` : ""}&#8377;${mrp}${esc(suffix)}</div>`
+      );
     } else if (key === "sku" && ts.tagShowSku !== false) {
       blocks.push(`<div class="sku">${esc(product.sku)}</div>`);
     } else if (key === "footer" && ts.tagFooterText) {

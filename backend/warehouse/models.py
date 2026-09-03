@@ -1491,6 +1491,21 @@ class SystemSettings(models.Model):
     tag_printer_width = models.CharField(max_length=5, default="58mm", help_text="Thermal paper width: 58mm or 80mm")
     tag_show_price = models.BooleanField(default=True, help_text="Show sale price on printed tags")
     tag_show_size = models.BooleanField(default=True, help_text="Show size on printed tags")
+    # The words in front of the three value rows. Shops disagree about these —
+    # "MRP" or "Price", "Color" or "Shade" — and it is the kind of thing that
+    # changes after the first print run. Blank prints the value with no label.
+    tag_price_label = models.CharField(
+        max_length=20, default="MRP",
+        help_text='Word before the price on a tag, e.g. "MRP" or "Price". Blank prints the price alone.')
+    tag_size_label = models.CharField(
+        max_length=20, default="Size",
+        help_text='Word before the size on a tag. Blank prints the size alone.')
+    tag_color_label = models.CharField(
+        max_length=20, default="Color",
+        help_text='Word before the colour on a tag. Blank prints the colour alone.')
+    tag_price_suffix = models.CharField(
+        max_length=10, default="/-",
+        help_text='Printed after the price, e.g. "/-". Blank prints nothing after it.')
     tag_brand_font_size = models.IntegerField(default=14, help_text="Brand name font size on tag (pt)")
     tag_logo_size = models.IntegerField(default=30, help_text="Logo height on tag (px)")
     tag_logo_data = models.TextField(blank=True, help_text="Base64 logo for tags (b&w, small)")

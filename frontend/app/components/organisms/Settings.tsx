@@ -26,6 +26,7 @@ interface SettingsData {
   gstOnPurchases?: boolean; gstin?: string
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
+  tagPriceLabel?: string; tagSizeLabel?: string; tagColorLabel?: string; tagPriceSuffix?: string
   tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
   tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number; tagWidthMm?: number
   tagAlign?: string; tagVerticalAlign?: string
@@ -201,7 +202,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           $printAddr:String,$printBank:String,$printTerms:String,$printSig:String,$printLogo:Boolean,
           $gstOnPurchases:Boolean,$gstin:String,
           $tagBrand:String,$tagTagline:String,$tagShowBarcode:Boolean,$tagShowSku:Boolean,$tagShowColor:Boolean,$tagShowAgeGroup:Boolean,$tagFooter:String,$tagWidth:String,
-          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String],$tagHeightMm:Int,$tagWidthMm:Int,
+          $tagShowPrice:Boolean,$tagShowSize:Boolean,$tagPriceLabel:String,$tagSizeLabel:String,$tagColorLabel:String,$tagPriceSuffix:String,$tagBrandFontSize:Int,$tagLogoSize:Int,$tagLogoData:String,$tagComponentOrder:[String],$tagHeightMm:Int,$tagWidthMm:Int,
           $tagAlign:String,$tagVerticalAlign:String,$tagPadTop:Float,$tagPadRight:Float,$tagPadBottom:Float,$tagPadLeft:Float,
           $tagGapMm:Float,$tagBarcodeHeightMm:Float,$tagBarcodeTextFontSize:Float,$tagNameFontSize:Float,
           $tagDescFontSize:Float,$tagPriceFontSize:Float,$tagSkuFontSize:Float
@@ -217,7 +218,7 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           printCompanyAddress:$printAddr,printBankDetails:$printBank,printTerms:$printTerms,printSignatureLabel:$printSig,printShowLogo:$printLogo,
           gstOnPurchases:$gstOnPurchases,gstin:$gstin,
           tagBrandName:$tagBrand,tagTagline:$tagTagline,tagShowBarcode:$tagShowBarcode,tagShowSku:$tagShowSku,tagShowColor:$tagShowColor,tagShowAgeGroup:$tagShowAgeGroup,tagFooterText:$tagFooter,tagPrinterWidth:$tagWidth,
-          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder,tagHeightMm:$tagHeightMm,tagWidthMm:$tagWidthMm,
+          tagShowPrice:$tagShowPrice,tagShowSize:$tagShowSize,tagPriceLabel:$tagPriceLabel,tagSizeLabel:$tagSizeLabel,tagColorLabel:$tagColorLabel,tagPriceSuffix:$tagPriceSuffix,tagBrandFontSize:$tagBrandFontSize,tagLogoSize:$tagLogoSize,tagLogoData:$tagLogoData,tagComponentOrder:$tagComponentOrder,tagHeightMm:$tagHeightMm,tagWidthMm:$tagWidthMm,
           tagAlign:$tagAlign,tagVerticalAlign:$tagVerticalAlign,tagPadTop:$tagPadTop,tagPadRight:$tagPadRight,tagPadBottom:$tagPadBottom,tagPadLeft:$tagPadLeft,
           tagGapMm:$tagGapMm,tagBarcodeHeightMm:$tagBarcodeHeightMm,tagBarcodeTextFontSize:$tagBarcodeTextFontSize,tagNameFontSize:$tagNameFontSize,
           tagDescFontSize:$tagDescFontSize,tagPriceFontSize:$tagPriceFontSize,tagSkuFontSize:$tagSkuFontSize
@@ -245,6 +246,10 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           tagShowColor: form.tagShowColor, tagShowAgeGroup: form.tagShowAgeGroup,
           tagFooter: form.tagFooterText || undefined, tagWidth: form.tagPrinterWidth || undefined,
           tagShowPrice: form.tagShowPrice, tagShowSize: form.tagShowSize,
+          // Sent even when empty — a blank label is a real choice: print the
+          // value with no word in front of it.
+          tagPriceLabel: form.tagPriceLabel ?? "MRP", tagSizeLabel: form.tagSizeLabel ?? "Size",
+          tagColorLabel: form.tagColorLabel ?? "Color", tagPriceSuffix: form.tagPriceSuffix ?? "/-",
           tagBrandFontSize: form.tagBrandFontSize ? +form.tagBrandFontSize : undefined,
           tagLogoSize: form.tagLogoSize ? +form.tagLogoSize : undefined,
           tagLogoData: form.tagLogoData || undefined,
@@ -521,6 +526,27 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
                   <Input value={form.tagBrandName || ""} onChange={e => set("tagBrandName")(e.target.value)} placeholder={form.companyName || "Sri Warehouse"} style={{ marginBottom: 8 }} />
                   <Input value={form.tagTagline || ""} onChange={e => set("tagTagline")(e.target.value)} placeholder="Tagline (e.g. Quality Garments)" style={{ marginBottom: 8 }} />
                   <Input value={form.tagFooterText || ""} onChange={e => set("tagFooterText")(e.target.value)} placeholder="Footer (e.g. 100% Cotton · Made in India)" />
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Row Labels</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, lineHeight: 1.5 }}>
+                    The word in front of each value. Leave one blank to print the value on its own.
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <Field label="Price">
+                      <Input value={form.tagPriceLabel ?? "MRP"} onChange={e => set("tagPriceLabel")(e.target.value)} placeholder="MRP" />
+                    </Field>
+                    <Field label="After the price">
+                      <Input value={form.tagPriceSuffix ?? "/-"} onChange={e => set("tagPriceSuffix")(e.target.value)} placeholder="/-" />
+                    </Field>
+                    <Field label="Size">
+                      <Input value={form.tagSizeLabel ?? "Size"} onChange={e => set("tagSizeLabel")(e.target.value)} placeholder="Size" />
+                    </Field>
+                    <Field label="Colour">
+                      <Input value={form.tagColorLabel ?? "Color"} onChange={e => set("tagColorLabel")(e.target.value)} placeholder="Color" />
+                    </Field>
+                  </div>
                 </div>
 
                 <div>
