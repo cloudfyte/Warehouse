@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Layers, Plus, Package, Split, X } from "lucide-react";
 import type { FinishedProduct, ItemType, WarehouseLocation } from "@/app/types";
-import { formatMoney } from "@/app/lib/formatters";
+import { formatMoney, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import Input from "@/app/components/atoms/Input";
@@ -169,7 +169,7 @@ export default function ProductSets({ sets, products, itemTypes, warehouses, can
                     fontSize: 12, padding: "3px 9px", borderRadius: 99,
                     background: "var(--canvas)", color: "var(--muted)",
                   }}>
-                    {it.finishedProduct.size || it.finishedProduct.itemType.name}
+                    {it.finishedProduct.size || productName(it.finishedProduct)}
                     {it.piecesPerSet > 1 && <strong style={{ color: "var(--ink)" }}> ×{it.piecesPerSet}</strong>}
                   </span>
                 ))}
@@ -283,7 +283,7 @@ export default function ProductSets({ sets, products, itemTypes, warehouses, can
                   .filter(p => !form.warehouseId || p.warehouse.id === form.warehouseId)
                   .map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.itemType.name}{p.size ? ` · ${p.size}` : ""} — {p.quantity} in stock
+                      {productName(p)}{p.size ? ` · ${p.size}` : ""} — {p.quantity} in stock
                     </option>
                   ))}
               </Select>

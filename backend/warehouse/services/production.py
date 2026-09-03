@@ -316,7 +316,7 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
 # from the stitching job or readymade batch the goods came from, and letting it
 # be typed over would mint or destroy pieces that the rest of the pipeline has
 # already accounted for.
-_FP_DESCRIPTIVE = ("size", "age_group", "cloth_color_id", "cloth_category_id", "item_type_id")
+_FP_DESCRIPTIVE = ("name", "size", "age_group", "cloth_color_id", "cloth_category_id", "item_type_id")
 _FP_PRICING = ("cost_price", "sale_price")
 
 

@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { Printer, Plus, X, Search, Pencil, RefreshCw } from "lucide-react";
 import type { FinishedProduct } from "@/app/types";
-import { formatMoney } from "@/app/lib/formatters";
+import { formatMoney, productName } from "@/app/lib/formatters";
 import { showToast } from "@/app/lib/toast";
 import { tagSheetDocument, tagPreviewDocument, type TagSettings, type TagExtraLines } from "@/app/lib/tagTemplate";
 import Input from "@/app/components/atoms/Input";
@@ -19,6 +19,22 @@ interface Props {
 interface QueueRow {
   product: FinishedProduct;
   copies: number;
+  /**
+   * A name for this print run only — nothing is written to the product.
+   *
+   * "Pintex Kurtha" on the shelf goes out as "Pintex Kurtha Daman" on one
+   * batch of labels. Renaming the product for that would be wrong twice over:
+   * every past tag would disagree with the record, and the next run would
+   * inherit a name that was only ever meant for this one.
+   */
+  nameOverride?: string;
+}
+
+/** The product as this row will print it. */
+function withPrintName(row: QueueRow): FinishedProduct {
+  return row.nameOverride
+    ? { ...row.product, name: row.nameOverride }
+    : row.product;
 }
 
 /**
@@ -42,45 +58,78 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
   // in the barcode, so correcting it here re-mints the code — and you see the
   // new one in the preview before any label is printed.
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ costPrice: "", salePrice: "", size: "" });
+  const [draft, setDraft] = useState({ name: "", costPrice: "", salePrice: "", size: "" });
+  /** Where an edited name goes: this batch of labels, or the product itself. */
+  const [nameScope, setNameScope] = useState<"label" | "product">("label");
   const [savingEdit, setSavingEdit] = useState(false);
   const [editErr, setEditErr] = useState("");
 
-  function openEdit(product: FinishedProduct) {
+  function openEdit(row: QueueRow) {
+    const product = row.product;
     setDraft({
+      name: row.nameOverride ?? productName(product),
       costPrice: String(product.costPrice ?? ""),
       salePrice: String(product.salePrice ?? ""),
       size: product.size || "",
     });
+    setNameScope(row.nameOverride ? "label" : "product");
     setEditErr("");
     setEditingId(product.id);
   }
 
-  async function saveEdit(product: FinishedProduct) {
+  async function saveEdit(row: QueueRow) {
+    const product = row.product;
+    const typedName = draft.name.trim();
+    const renaming = nameScope === "product" && typedName !== productName(product);
+    // An empty box means "go back to the item type's name", which is a real
+    // change to make and not the same as leaving the field alone.
+    const nameArg = renaming ? (typedName === product.itemType.name ? "" : typedName) : undefined;
+
+    const priced =
+      (draft.costPrice !== "" && +draft.costPrice !== Number(product.costPrice))
+      || (draft.salePrice !== "" && +draft.salePrice !== Number(product.salePrice))
+      || (draft.size !== "" && draft.size !== (product.size || ""));
+
+    // Label-only naming writes nothing, so there is no call to make.
+    if (!priced && !renaming) {
+      setQueue(q => q.map(r => r.product.id === product.id
+        ? { ...r, nameOverride: nameScope === "label" && typedName !== productName(product) ? typedName : undefined }
+        : r));
+      setEditingId(null);
+      return;
+    }
+
     setSavingEdit(true); setEditErr("");
     try {
       const res = await onMutate(
-        `mutation E($id:ID!,$cp:Float,$sp:Float,$size:String){`
-        + `updateFinishedProduct(id:$id,costPrice:$cp,salePrice:$sp,size:$size)`
-        + `{finishedProduct{id costPrice salePrice size barcode barcodeSvg tagsPrinted}}}`,
+        `mutation E($id:ID!,$cp:Float,$sp:Float,$size:String,$name:String){`
+        + `updateFinishedProduct(id:$id,costPrice:$cp,salePrice:$sp,size:$size,name:$name)`
+        + `{finishedProduct{id name costPrice salePrice size barcode barcodeSvg tagsPrinted}}}`,
         {
           id: product.id,
           cp: draft.costPrice === "" ? undefined : +draft.costPrice,
           sp: draft.salePrice === "" ? undefined : +draft.salePrice,
           size: draft.size || undefined,
+          name: nameArg,
         },
       ) as { updateFinishedProduct?: { finishedProduct?: Partial<FinishedProduct> } };
 
       // Take the server's version: it decides whether the code was re-minted,
       // and the preview must show the code that will actually be printed.
       const updated = res?.updateFinishedProduct?.finishedProduct;
-      if (updated) {
-        setQueue(q => q.map(r => r.product.id === product.id
-          ? { ...r, product: { ...r.product, ...updated } as FinishedProduct }
-          : r));
-      }
+      setQueue(q => q.map(r => r.product.id === product.id
+        ? {
+            ...r,
+            product: updated ? { ...r.product, ...updated } as FinishedProduct : r.product,
+            // A saved rename replaces any label-only name; a label-only name
+            // set alongside a price fix is kept.
+            nameOverride: renaming
+              ? undefined
+              : (nameScope === "label" && typedName !== productName(product) ? typedName : r.nameOverride),
+          }
+        : r));
       setEditingId(null);
-      showToast("Product updated.", "success");
+      showToast(renaming ? "Product renamed." : "Product updated.", "success");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not save the change.";
       setEditErr(msg); showToast(msg, "error");
@@ -96,7 +145,7 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
       .filter(p => !queuedIds.has(p.id))
       .filter(p =>
         p.sku.toLowerCase().includes(term)
-        || p.itemType.name.toLowerCase().includes(term)
+        || productName(p).toLowerCase().includes(term)
         || p.barcode.toLowerCase().includes(term)
         || (p.size || "").toLowerCase().includes(term))
       .slice(0, 8);
@@ -129,7 +178,7 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
       const win = window.open("", "_blank");
       if (!win) { showToast("Allow popups for this site to print tags.", "error"); return; }
       win.document.write(tagSheetDocument(
-        printable.map(r => ({ product: r.product, copies: r.copies })),
+        printable.map(r => ({ product: withPrintName(r), copies: r.copies })),
         systemSettings || {},
         extra,
       ));
@@ -149,8 +198,14 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
 
   // Follow whatever is being edited, so a corrected price and its new barcode
   // are what you are looking at. Otherwise the first item in the batch.
-  const previewProduct =
-    queue.find(r => r.product.id === editingId)?.product ?? queue[0]?.product;
+  const previewRow = queue.find(r => r.product.id === editingId) ?? queue[0];
+  const previewProduct = previewRow && withPrintName(
+    // While the edit panel is open the preview follows the box, so the name
+    // being typed is the name on the label in front of you.
+    editingId === previewRow.product.id && draft.name.trim() !== productName(previewRow.product)
+      ? { ...previewRow, nameOverride: draft.name.trim() }
+      : previewRow,
+  );
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: 20, alignItems: "start" }}>
@@ -182,7 +237,7 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
                   }}
                 >
                   <span>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>{p.itemType.name}</span>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{productName(p)}</span>
                     <span style={{ color: "var(--muted)", fontSize: 12 }}>
                       {p.size ? ` · ${p.size}` : ""} · {p.quantity} pcs · {formatMoney(p.salePrice)}
                     </span>
@@ -241,8 +296,13 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
                 <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      {row.product.itemType.name}
+                      {row.nameOverride || productName(row.product)}
                       {row.product.size ? ` · ${row.product.size}` : ""}
+                      {row.nameOverride && (
+                        <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
+                          this batch only
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--muted)", fontFamily: "monospace" }}>
                       {row.product.barcode} · MRP {formatMoney(row.product.salePrice)} · cost {formatMoney(row.product.costPrice)}
@@ -259,8 +319,8 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
                   </div>
                   <button
                     type="button"
-                    aria-label={`Edit ${row.product.itemType.name}`}
-                    onClick={() => editingId === row.product.id ? setEditingId(null) : openEdit(row.product)}
+                    aria-label={`Edit ${productName(row.product)}`}
+                    onClick={() => editingId === row.product.id ? setEditingId(null) : openEdit(row)}
                     style={{
                       background: "none", border: "none", flex: "none", padding: 6,
                       color: editingId === row.product.id ? "var(--primary)" : "var(--muted)",
@@ -270,7 +330,7 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
                   </button>
                   <button
                     type="button"
-                    aria-label={`Remove ${row.product.itemType.name}`}
+                    aria-label={`Remove ${productName(row.product)}`}
                     onClick={() => setQueue(q => q.filter(r => r.product.id !== row.product.id))}
                     style={{ background: "none", border: "none", color: "var(--muted)", flex: "none", padding: 6 }}
                   >
@@ -280,6 +340,39 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
 
                 {editingId === row.product.id && (
                   <div style={{ background: "var(--bg)", padding: "12px 14px" }}>
+                    <Field label="Name on the tag">
+                      <Input
+                        value={draft.name}
+                        placeholder={row.product.itemType.name}
+                        onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                      />
+                    </Field>
+
+                    {draft.name.trim() !== productName(row.product) && (
+                      <div style={{ margin: "2px 0 12px" }}>
+                        <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+                          {([["label", "Just this batch"], ["product", "Rename the product"]] as const).map(([key, text]) => (
+                            <button
+                              key={key} type="button" onClick={() => setNameScope(key)}
+                              style={{
+                                padding: "6px 12px", fontSize: 12, border: "none",
+                                fontWeight: nameScope === key ? 700 : 500,
+                                background: nameScope === key ? "var(--primary)" : "transparent",
+                                color: nameScope === key ? "#fff" : "var(--muted)",
+                              }}
+                            >
+                              {text}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>
+                          {nameScope === "label"
+                            ? "Prints on this run of labels and is forgotten. Nothing about the product changes."
+                            : `Renames it everywhere — lists, sales orders, every tag from now on. Clear the box to go back to "${row.product.itemType.name}".`}
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                       <Field label="Cost / pc" hint="This is the number inside the barcode.">
                         <Input type="number" min="0" step="0.01" value={draft.costPrice}
@@ -304,7 +397,7 @@ export default function BarcodeGenerator({ products, systemSettings, onMutate }:
                     {editErr && <div style={{ color: "var(--danger)", fontSize: 12, marginBottom: 10 }}>{editErr}</div>}
 
                     <div style={{ display: "flex", gap: 8 }}>
-                      <Button variant="primary" onClick={() => saveEdit(row.product)} disabled={savingEdit}>
+                      <Button variant="primary" onClick={() => saveEdit(row)} disabled={savingEdit}>
                         {savingEdit ? "Saving…" : "Save"}
                       </Button>
                       <Button variant="secondary" onClick={() => setEditingId(null)}>Cancel</Button>

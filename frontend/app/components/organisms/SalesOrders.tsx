@@ -6,7 +6,7 @@ import ConfirmDialog from "@/app/components/molecules/ConfirmDialog";
 import { SO_STATUS_LABELS, STATUS_BADGE_COLORS, PAYMENT_MODE_LABELS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
-import { formatMoney, formatDateShort } from "@/app/lib/formatters";
+import { formatDateShort, formatMoney, productName } from "@/app/lib/formatters";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import { downloadCsv } from "@/app/lib/csv";
 import Button from "@/app/components/atoms/Button";
@@ -213,7 +213,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
   function printSO(so: SalesOrder) {
     const rows = so.items.map(item =>
       `<tr>
-        <td>${item.finishedProduct.itemType.name}</td>
+        <td>${productName(item.finishedProduct)}</td>
         <td style="color:#666;font-size:12px">${item.finishedProduct.sku}</td>
         <td>${item.quantity}</td>
         <td class="amount">${fmtMoney(item.unitPrice)}</td>
@@ -367,7 +367,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
                         <option value="">Select product</option>
                         {activeProducts.map(p => (
                           <option key={p.id} value={p.id}>
-                            {p.itemType.name}{p.size ? ` (${p.size})` : ""} — {p.sku} · {p.quantity} avail
+                            {productName(p)}{p.size ? ` (${p.size})` : ""} — {p.sku} · {p.quantity} avail
                           </option>
                         ))}
                       </Select>
@@ -475,7 +475,7 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
               {detail.items.map((item, i) => (
                 <div key={i} style={{ background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", marginBottom: 8, fontSize: 13, display: "flex", justifyContent: "space-between" }}>
                   <div>
-                    <div style={{ fontWeight: 600 }}>{item.finishedProduct.itemType.name}</div>
+                    <div style={{ fontWeight: 600 }}>{productName(item.finishedProduct)}</div>
                     <div style={{ color: "var(--muted)" }}>{item.finishedProduct.sku} · {item.quantity} pcs × {formatMoney(item.unitPrice)}</div>
                   </div>
                   <div style={{ fontWeight: 700 }}>{formatMoney(item.totalPrice)}</div>

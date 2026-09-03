@@ -584,6 +584,13 @@ class FinishedProduct(models.Model):
 
     sku = models.CharField(max_length=60, unique=True, editable=False)
     item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="finished_products")
+    # What this one product is called, when the item type's name is not what
+    # should go on the tag. "Kurtha" is the type; "Pintex Kurtha Daman" is this
+    # product. Renaming the item type instead would rename every kurtha ever.
+    name = models.CharField(
+        max_length=200, blank=True,
+        help_text="Overrides the item type name on tags and listings. Blank uses the item type name.",
+    )
     cloth_category = models.ForeignKey(ClothCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="finished_products")
     cloth_color = models.ForeignKey(ClothColor, null=True, blank=True, on_delete=models.SET_NULL, related_name="finished_products")
     age_group = models.CharField(max_length=10, choices=AgeGroup.choices, blank=True)

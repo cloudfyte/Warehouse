@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { BuyerReturn, SupplierReturn, Buyer, Supplier, FinishedProduct, RawClothBatch, ReadymadeStock, WarehouseLocation } from "@/app/types";
 import { STATUS_BADGE_COLORS } from "@/app/lib/constants";
-import { formatDateShort } from "@/app/lib/formatters";
+import { formatDateShort, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import Badge from "@/app/components/atoms/Badge";
@@ -265,7 +265,7 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
                 <Select value={buyerForm.finishedProductId} onChange={e => setBuyerForm(f => ({ ...f, finishedProductId: e.target.value }))}>
                   <option value="">Select product</option>
                   {finishedProducts.map(p => (
-                    <option key={p.id} value={p.id}>{p.itemType.name}{p.size ? ` (${p.size})` : ""} — {p.sku}</option>
+                    <option key={p.id} value={p.id}>{productName(p)}{p.size ? ` (${p.size})` : ""} — {p.sku}</option>
                   ))}
                 </Select>
               </Field>

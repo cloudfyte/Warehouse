@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { productName } from "@/app/lib/formatters";
 import { ArrowLeftRight } from "lucide-react";
 import type { StockTransfer, WarehouseLocation, RawClothBatch, FinishedProduct } from "@/app/types";
 import Button from "@/app/components/atoms/Button";
@@ -159,7 +160,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted)" }}>
                   {t.rawClothBatch && <span>{t.rawClothBatch.clothCategory.name} · {t.rawClothBatch.clothColor.name} · <strong>{t.metersToTransfer}m</strong></span>}
-                  {t.finishedProduct && <span>{t.finishedProduct.itemType.name} ({t.finishedProduct.sku}) · <strong>{t.quantityToTransfer} pcs</strong></span>}
+                  {t.finishedProduct && <span>{productName(t.finishedProduct)} ({t.finishedProduct.sku}) · <strong>{t.quantityToTransfer} pcs</strong></span>}
                 </div>
                 {t.notes && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, fontStyle: "italic" }}>{t.notes}</div>}
                 <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
@@ -259,7 +260,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
                     <Select value={form.finishedProductId} onChange={e => setForm(f => ({ ...f, finishedProductId: e.target.value }))}>
                       <option value="">Select product…</option>
                       {finishedProducts.filter(p => !form.fromWarehouseId || p.warehouse?.id === form.fromWarehouseId).map(p => (
-                        <option key={p.id} value={p.id}>{p.sku} — {p.itemType.name} {p.size} ({p.quantity} pcs available)</option>
+                        <option key={p.id} value={p.id}>{p.sku} — {productName(p)} {p.size} ({p.quantity} pcs available)</option>
                       ))}
                     </Select>
                   </Field>

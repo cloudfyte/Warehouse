@@ -14,7 +14,7 @@ import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
-import { formatMoney } from "@/app/lib/formatters";
+import { formatMoney, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
@@ -486,7 +486,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
                         style={{ fontSize: 11 }}>
                         <option value="">Select product</option>
                         {finishedProducts.filter(p => p.quantity > 0).map(p => (
-                          <option key={p.id} value={p.id}>{p.sku} — {p.itemType.name} ({p.quantity} in stock)</option>
+                          <option key={p.id} value={p.id}>{p.sku} — {productName(p)} ({p.quantity} in stock)</option>
                         ))}
                       </Select>
                       <Input type="number" placeholder="Qty" value={item.quantity}

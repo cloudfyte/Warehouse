@@ -112,6 +112,9 @@ class UpdateFinishedProduct(graphene.Mutation):
         cloth_category_id = graphene.ID()
         item_type_id = graphene.ID()
         min_stock = graphene.Int()
+        # Empty string is meaningful: it clears the override and falls back to
+        # the item type name, so this cannot be filtered out as "blank".
+        name = graphene.String()
 
     finished_product = graphene.Field(FinishedProductType)
 

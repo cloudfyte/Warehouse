@@ -190,7 +190,7 @@ export const DASHBOARD_QUERY = `
       tailor { id username role }
     }
     finishedProducts {
-      id sku source quantity costPrice salePrice profitMargin barcode barcodeSvg tagsPrinted ageGroup size createdAt
+      id name sku source quantity costPrice salePrice profitMargin barcode barcodeSvg tagsPrinted ageGroup size createdAt
       itemType { id name }
       clothCategory { id name }
       clothColor { id name hexCode }
@@ -202,7 +202,7 @@ export const DASHBOARD_QUERY = `
       transporterName lrNumber vehicleNumber driverPhone dispatchDate freightCharges dispatchNotes dispatchPhotos
       buyer { id name phone }
       warehouse { id name code }
-      items { id quantity unitPrice totalPrice finishedProduct { sku itemType { name } } }
+      items { id quantity unitPrice totalPrice finishedProduct { id name sku itemType { name } } }
     }
     creditTransactions(limit: 100) {
       id totalAmount amountPaid amountDue dueDate status createdAt
@@ -219,7 +219,7 @@ export const DASHBOARD_QUERY = `
     buyerReturns {
       id returnNumber condition status reason createdAt quantity
       buyer { id name }
-      finishedProduct { id sku itemType { name } }
+      finishedProduct { id name sku itemType { name } }
       warehouse { id name }
     }
     supplierReturns {
@@ -234,14 +234,14 @@ export const DASHBOARD_QUERY = `
     stockAdjustments(limit: 300) {
       id adjustmentNumber itemKind quantityChange adjustmentType reason createdAt
       rawClothBatch { id batchNumber clothCategory { name } clothColor { name } }
-      finishedProduct { id sku itemType { name } }
+      finishedProduct { id name sku itemType { name } }
       warehouse { id name }
     }
     productSets {
       id setNumber name quantity costPrice salePrice barcode active
       itemType { id name }
       warehouse { id name }
-      items { id piecesPerSet finishedProduct { id sku size itemType { name } } }
+      items { id piecesPerSet finishedProduct { id name sku size itemType { name } } }
     }
     settlements {
       id settlementNumber name kind amount period dueDate status paidOn reference notes
@@ -266,7 +266,7 @@ export const DASHBOARD_QUERY = `
       fromWarehouse { id name }
       toWarehouse { id name }
       rawClothBatch { id batchNumber clothCategory { name } clothColor { name } }
-      finishedProduct { id sku itemType { name } }
+      finishedProduct { id name sku itemType { name } }
       createdBy { id username }
       receivedBy { id username }
     }
@@ -278,7 +278,7 @@ export const DASHBOARD_QUERY = `
       createdBy { id username }
       items {
         id quantity unitPrice totalPrice
-        finishedProduct { id sku itemType { id name } }
+        finishedProduct { id name sku itemType { id name } }
       }
     }
   }

@@ -23,6 +23,8 @@ export interface TagSettings {
 /** The minimum a tag needs to identify a product. */
 export interface TagProduct {
   sku: string
+  /** This product's own name, when the item type name is not what goes on the tag. */
+  name?: string
   barcode: string
   barcodeSvg?: string
   size?: string
@@ -175,10 +177,13 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings, extra: TagExt
       else if (!order.includes("barcode-text")) blocks.push(`<div class="barcode-text">${esc(product.barcode)}</div>`);
     } else if (key === "barcode-text" && ts.tagShowBarcode !== false) {
       blocks.push(`<div class="barcode-text">${esc(product.barcode)}</div>`);
-    } else if (key === "item-info" && product.itemType?.name) {
+    } else if (key === "item-info" && (product.name || product.itemType?.name)) {
       const colour = ts.tagShowColor !== false ? (product.clothColor?.name || "") : "";
+      // A name typed for this product is printed as typed — it is a name, not
+      // a category, so "Pintex Kurtha Daman" must not come out "Pintex kurtha daman".
+      const name = (product.name || "").trim() || cap(product.itemType?.name || "");
       blocks.push(
-        `<div class="name">${esc(cap(product.itemType.name))}</div>` +
+        `<div class="name">${esc(name)}</div>` +
         (colour ? `<div class="desc">Color: ${esc(titleCase(colour))}</div>` : "")
       );
     } else if (key === "size" && ts.tagShowSize !== false && product.size) {

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
@@ -252,7 +252,7 @@ export default function StockAdjustments({
                           <span style={{ fontSize: 11, color: "var(--muted)", marginRight: 4 }}>FP</span>
                           {adj.finishedProduct?.sku || "—"}
                           {adj.finishedProduct && (
-                            <span style={{ color: "var(--muted)", fontSize: 11 }}> · {adj.finishedProduct.itemType.name}</span>
+                            <span style={{ color: "var(--muted)", fontSize: 11 }}> · {productName(adj.finishedProduct)}</span>
                           )}
                         </span>
                       )}
@@ -344,7 +344,7 @@ export default function StockAdjustments({
                       <option value="">Select product…</option>
                       {finishedProducts.map(p => (
                         <option key={p.id} value={p.id}>
-                          {p.sku} — {p.itemType.name}{p.size ? ` (${p.size})` : ""} ({p.quantity} pcs available)
+                          {p.sku} — {productName(p)}{p.size ? ` (${p.size})` : ""} ({p.quantity} pcs available)
                         </option>
                       ))}
                     </Select>

@@ -73,3 +73,17 @@ export function formatDateShort(value: string) {
   const { dd, mm, yyyy } = _parts(value);
   return `${dd}/${mm}/${yyyy}`;
 }
+
+/**
+ * What to call one product.
+ *
+ * The item type is the classification — "Kurtha" covers every kurtha in the
+ * warehouse. A product may need its own name on the tag and in the lists
+ * ("Pintex Kurtha Daman") without renaming every kurtha ever bought, which is
+ * what editing the item type would do.
+ */
+export function productName(
+  p?: { name?: string | null; itemType?: { name?: string } | null } | null,
+): string {
+  return (p?.name || "").trim() || p?.itemType?.name || "";
+}

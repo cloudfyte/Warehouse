@@ -122,6 +122,8 @@ export interface StitchingJob {
 
 export interface FinishedProduct {
   id: string; sku: string; itemType: ItemType; clothCategory?: ClothCategory
+  /** Overrides the item type name for this one product. Blank = use the type. */
+  name?: string
   clothColor?: ClothColor; ageGroup?: string; size: string; source: string; quantity: number
   warehouse: WarehouseLocation; costPrice: number; salePrice: number
   profitMargin: number; barcode: string; barcodeSvg: string; tagsPrinted: boolean; createdAt: string

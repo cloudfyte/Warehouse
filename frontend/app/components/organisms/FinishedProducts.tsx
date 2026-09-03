@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Camera, Download, Printer, Bluetooth, Pencil, Grid3x3 } from "lucide-react";
 import type { FinishedProduct, ItemType, WarehouseLocation } from "@/app/types";
-import { formatMoney, formatDateShort } from "@/app/lib/formatters";
+import { formatDateShort, formatMoney, productName } from "@/app/lib/formatters";
 import { downloadCsv } from "@/app/lib/csv";
 import BarcodeScanner from "@/app/components/atoms/BarcodeScanner";
 import Input from "@/app/components/atoms/Input";
@@ -65,7 +65,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
   const canReprice = isSuperAdmin || isAdmin || isManager;
 
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ salePrice: "", costPrice: "", size: "", ageGroup: "", minStock: "" });
+  const [editForm, setEditForm] = useState({ name: "", salePrice: "", costPrice: "", size: "", ageGroup: "", minStock: "" });
 
   /** The minimum already set for a product, or "" when it has none. */
   function currentMinimum(p: FinishedProduct) {
@@ -81,6 +81,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
 
   function openEdit(p: FinishedProduct) {
     setEditForm({
+      name: p.name || "",
       salePrice: String(p.salePrice ?? ""),
       costPrice: String(p.costPrice ?? ""),
       size: p.size || "",
@@ -100,6 +101,9 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
         id: selected.id,
         size: editForm.size || undefined,
         ageGroup: editForm.ageGroup || undefined,
+        // Always sent: an empty box is how the product goes back to being
+        // called by its item type, which is a change, not a no-op.
+        name: editForm.name.trim() === selected.itemType.name ? "" : editForm.name.trim(),
         // Sent even when blank-to-zero: that is how an alert is switched off.
         minStock: editForm.minStock === "" ? undefined : parseInt(editForm.minStock, 10) || 0,
       };
@@ -108,9 +112,9 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
         vars.costPrice = editForm.costPrice === "" ? undefined : +editForm.costPrice;
       }
       await onMutate(
-        `mutation E($id:ID!,$salePrice:Float,$costPrice:Float,$size:String,$ageGroup:String,$minStock:Int){`
-        + `updateFinishedProduct(id:$id,salePrice:$salePrice,costPrice:$costPrice,size:$size,ageGroup:$ageGroup,minStock:$minStock)`
-        + `{finishedProduct{id salePrice costPrice size ageGroup profitMargin}}}`,
+        `mutation E($id:ID!,$salePrice:Float,$costPrice:Float,$size:String,$ageGroup:String,$minStock:Int,$name:String){`
+        + `updateFinishedProduct(id:$id,salePrice:$salePrice,costPrice:$costPrice,size:$size,ageGroup:$ageGroup,minStock:$minStock,name:$name)`
+        + `{finishedProduct{id name salePrice costPrice size ageGroup profitMargin}}}`,
         vars,
       );
       setSelected(prev => prev ? {
@@ -119,6 +123,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
         costPrice: canReprice && editForm.costPrice !== "" ? +editForm.costPrice : prev.costPrice,
         size: editForm.size || prev.size,
         ageGroup: editForm.ageGroup || prev.ageGroup,
+        name: editForm.name.trim() === selected.itemType.name ? "" : editForm.name.trim(),
       } : prev);
       setEditing(false);
       showToast("Product updated.", "success");
@@ -128,7 +133,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
     } finally { setEditSaving(false); }
   }
   const filtered = products.filter(p =>
-    (p.sku.toLowerCase().includes(search.toLowerCase()) || p.itemType.name.toLowerCase().includes(search.toLowerCase()) || p.barcode.includes(search)) &&
+    (p.sku.toLowerCase().includes(search.toLowerCase()) || productName(p).toLowerCase().includes(search.toLowerCase()) || p.barcode.includes(search)) &&
     (!sourceFilter || p.source === sourceFilter)
   );
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -151,7 +156,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
     if (local) { setSelected(local); return; }
     if (gql) {
       const res = await gql(
-        `query L($b:String!){productByBarcode(barcode:$b){id sku quantity salePrice costPrice ageGroup size source barcode barcodeSvg tagsPrinted createdAt itemType{id name} clothColor{id name hexCode} clothCategory{id name} warehouse{id name}}}`,
+        `query L($b:String!){productByBarcode(barcode:$b){id name sku quantity salePrice costPrice ageGroup size source barcode barcodeSvg tagsPrinted createdAt itemType{id name} clothColor{id name hexCode} clothCategory{id name} warehouse{id name}}}`,
         { b: code }
       ).catch(() => null);
       if (res?.productByBarcode) { setSelected(res.productByBarcode); return; }
@@ -213,7 +218,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
             <Button variant="secondary" onClick={() => downloadCsv(
               `finished_goods_${new Date().toISOString().slice(0, 10)}.csv`,
               filtered.map(p => ({
-                "SKU": p.sku, "Item Type": p.itemType.name, "Age Group": p.ageGroup || "", "Size": p.size || "", "Color": p.clothColor?.name || "",
+                "SKU": p.sku, "Name": productName(p), "Item Type": p.itemType.name, "Age Group": p.ageGroup || "", "Size": p.size || "", "Color": p.clothColor?.name || "",
                 "Source": p.source, "Quantity": p.quantity, "Sale Price (₹)": p.salePrice,
                 "Cost Price (₹)": p.costPrice, "Warehouse": p.warehouse?.name || "",
                 "Barcode": p.barcode, "Created": formatDateShort(p.createdAt),
@@ -247,7 +252,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
       {selected && (
         <Drawer
           title={selected.sku}
-          subtitle={selected.itemType.name}
+          subtitle={productName(selected)}
           width={460}
           zIndex={100}
           onClose={() => { setSelected(null); setEditing(false); }}
@@ -281,6 +286,13 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
 
             {canManage && editing && (
               <div style={{ background: "var(--bg)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <Field
+                  label="Product name"
+                  hint={`What this one product is called. Leave it blank and it is called "${selected.itemType.name}", like every other ${selected.itemType.name}.`}
+                >
+                  <Input value={editForm.name} placeholder={selected.itemType.name}
+                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                </Field>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   {canReprice && (
                     <>
@@ -338,7 +350,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
               size="md"
               getData={() => buildTagEscPos({
                 sku: selected.sku,
-                itemName: selected.itemType.name,
+                itemName: productName(selected),
                 size: selected.size,
                 ageGroup: selected.ageGroup || undefined,
                 salePrice: selected.salePrice,
@@ -367,7 +379,7 @@ export default function FinishedProducts({ products, itemTypes = [], warehouses 
           onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = ""; (e.currentTarget as HTMLDivElement).style.transform = ""; }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{p.itemType.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{productName(p)}</div>
                 <div style={{ fontSize: 12, color: "var(--muted)" }}>{p.sku}</div>
               </div>
               <Badge
