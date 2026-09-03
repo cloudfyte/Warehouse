@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Truck, ScanLine, Package, Send, X, AlertTriangle, Link2 } from "lucide-react";
+import { Truck, ScanLine, Package, Send, X, AlertTriangle, Link2, RefreshCw } from "lucide-react";
 import type { FinishedProduct, WarehouseLocation } from "@/app/types";
 import { formatMoney, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
@@ -164,6 +164,31 @@ export default function RetailDispatches({
     ), "Consignment cancelled. Stock is back in the godown.");
   }
 
+  /** The shop's store list, fetched rather than typed. */
+  async function pullStores() {
+    const res = await run(() => onMutate(
+      `mutation P{pullRetailStores{stores{id buildingId name active}}}`, {},
+    ));
+    const found = res?.pullRetailStores?.stores?.filter((s: Store) => s.active).length ?? 0;
+    if (found) showToast(`${found} store${found === 1 ? "" : "s"} found at the shop.`, "success");
+  }
+
+  /** Match by barcode. Whatever it cannot settle stays in the unlinked list. */
+  async function pullCatalogue() {
+    const res = await run(() => onMutate(
+      `mutation P{pullRetailCatalogue{linked unmatched{id sku}}}`, {},
+    ));
+    const out = res?.pullRetailCatalogue;
+    if (out) {
+      showToast(
+        out.linked
+          ? `${out.linked} matched by barcode. ${out.unmatched.length} still need a person.`
+          : `Nothing matched by barcode. ${out.unmatched.length} need linking by hand.`,
+        out.linked ? "success" : "error",
+      );
+    }
+  }
+
   async function saveLink() {
     if (!linking) return;
     await run(() => onMutate(
@@ -187,9 +212,14 @@ export default function RetailDispatches({
           ? `Consignments to ${channel.subsiteName}`
           : "No shop connected yet"}
         actions={canManage && configured ? (
-          <Button variant="primary" onClick={() => { setShowNew(true); setErr(""); setLines([{ productId: "", quantity: "" }]); }}>
-            <Truck size={14} /> New Consignment
-          </Button>
+          <>
+            <Button variant="ghost" onClick={pullStores} disabled={busy} title="Re-read the shop's store list">
+              <RefreshCw size={14} /> Sync stores
+            </Button>
+            <Button variant="primary" onClick={() => { setShowNew(true); setErr(""); setLines([{ productId: "", quantity: "" }]); }}>
+              <Truck size={14} /> New Consignment
+            </Button>
+          </>
         ) : undefined}
       />
 
@@ -204,7 +234,14 @@ export default function RetailDispatches({
             <strong>Not connected to the shop yet.</strong>{" "}
             {!channel?.active
               ? "Set the retail subsite under Settings — its id, its address, and a service login of its own."
-              : "The subsite is set, but no store is registered. Add the shop's store id before anything can be sent."}
+              : "The subsite is set. Fetch its stores and nothing has to be typed."}
+            {channel?.active && canManage && (
+              <div style={{ marginTop: 8 }}>
+                <Button variant="secondary" onClick={pullStores} disabled={busy}>
+                  <RefreshCw size={13} /> Fetch the shop&apos;s stores
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -219,8 +256,16 @@ export default function RetailDispatches({
           <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>
             Nobody has said which product at the shop these are. They are not created over there
             automatically — two catalogues that mint each other&apos;s rows fork quietly and are never
-            reconciled again.
+            reconciled again. Their variants carry a barcode of their own, so most of this settles
+            itself.
           </div>
+          {canManage && (
+            <div style={{ marginBottom: 10 }}>
+              <Button variant="primary" onClick={pullCatalogue} disabled={busy}>
+                <RefreshCw size={13} /> Match by barcode
+              </Button>
+            </div>
+          )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {unlinked.slice(0, 12).map(p => (
               <button key={p.id} type="button" disabled={!canManage}
@@ -464,8 +509,10 @@ export default function RetailDispatches({
             </div>
           }>
           <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6, marginBottom: 12 }}>
-            Take these ids from the shop&apos;s own product screen. Give the variant id when the
-            product has sizes or colours over there — that is the thing their till actually sells.
+            Only for what <strong>Match by barcode</strong> could not settle — because the shop has no
+            barcode on it, or has used the same one twice. Take the ids from the shop&apos;s own product
+            screen, and give the variant id when the product has sizes or colours over there: that is
+            the thing their till actually sells.
           </div>
           <Field label="Product id *">
             <Input type="number" min="1" value={linkForm.productId} autoFocus

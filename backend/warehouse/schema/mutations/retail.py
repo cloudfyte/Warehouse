@@ -3,7 +3,8 @@ from graphql_jwt.decorators import login_required
 
 from warehouse.services.retail import (
     add_store, cancel_dispatch, configure_channel, create_dispatch, link_product,
-    pack_dispatch, scan_into_dispatch, send_dispatch, unlink_product,
+    pack_dispatch, pull_catalogue, pull_stores, scan_into_dispatch, send_dispatch,
+    unlink_product,
 )
 from warehouse.schema.types import (
     RetailChannelType, RetailDispatchItemType, RetailDispatchType,
@@ -141,3 +142,23 @@ class CancelRetailDispatch(graphene.Mutation):
     @login_required
     def mutate(self, info, id):
         return CancelRetailDispatch(dispatch=cancel_dispatch(user=info.context.user, id=id))
+
+
+class PullRetailStores(graphene.Mutation):
+    """Fetch the shop's stores instead of typing their ids."""
+    stores = graphene.List(RetailStoreType)
+
+    @login_required
+    def mutate(self, info):
+        return PullRetailStores(stores=list(pull_stores(user=info.context.user)))
+
+
+class PullRetailCatalogue(graphene.Mutation):
+    """Match our products to the shop's by barcode. What it cannot settle it reports."""
+    linked = graphene.Int()
+    unmatched = graphene.List("warehouse.schema.types.FinishedProductType")
+
+    @login_required
+    def mutate(self, info):
+        linked, unmatched = pull_catalogue(user=info.context.user)
+        return PullRetailCatalogue(linked=len(linked), unmatched=unmatched)

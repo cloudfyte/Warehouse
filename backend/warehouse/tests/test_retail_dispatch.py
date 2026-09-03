@@ -311,3 +311,95 @@ class ADeliveredBarcodeIsFrozen(RetailFixture):
         product.refresh_from_db()
         self.assertNotEqual(product.barcode, before)
         self.assertIn(before, product.past_codes())
+
+
+class TheShopsOwnListsAreFetched(RetailFixture):
+    """Store ids and product ids belong to the shop and differ between their
+    test site and their real one. Typed by hand, they put a consignment in the
+    wrong shop or against the wrong garment."""
+
+    def test_pulling_stores_adds_them_without_anyone_typing_an_id(self):
+        from warehouse.services.retail import pull_stores
+
+        def transport(channel, query, variables):
+            self.assertEqual(variables["company"], 7)
+            return {"listBuildings": [
+                {"id": 21, "name": "Studio", "location": "", "propertyType": "store"},
+                {"id": 22, "name": "Retail Store", "location": "", "propertyType": "store"},
+            ]}
+
+        pull_stores(user=self.admin, _transport=transport)
+
+        names = set(RetailStore.objects.filter(active=True).values_list("name", flat=True))
+        self.assertEqual(names, {"Studio", "Retail Store"})
+
+    def test_a_store_that_disappears_is_deactivated_not_deleted(self):
+        """Consignments already sent to it still have to name where they went."""
+        from warehouse.services.retail import pull_stores
+
+        pull_stores(user=self.admin, _transport=lambda c, q, v: {
+            "listBuildings": [{"id": 21, "name": "Studio"}]})
+        pull_stores(user=self.admin, _transport=lambda c, q, v: {"listBuildings": []})
+
+        studio = RetailStore.objects.get(building_id=21)
+        self.assertFalse(studio.active)
+        self.assertEqual(studio.name, "Studio")
+
+    def test_barcodes_that_agree_are_linked_without_a_decision(self):
+        from warehouse.services.retail import pull_catalogue
+
+        product = self._product(link=False)
+
+        linked, unmatched = pull_catalogue(user=self.admin, _transport=lambda c, q, v: {
+            "listProducts": [{
+                "id": 5, "name": "Sherwani", "isActive": True, "hasVariants": True,
+                "variants": [{"id": 9, "barcode": product.barcode, "isActive": True}],
+            }]})
+
+        self.assertEqual([p.id for p in linked], [product.id])
+        self.assertEqual(unmatched, [])
+        link = RetailProductLink.objects.get(finished_product=product)
+        self.assertEqual((link.product_id, link.variant_id), (5, 9))
+
+    def test_a_barcode_they_reused_is_too_ambiguous_to_match_on(self):
+        """A wrong link sends the right garment against the wrong product, and
+        nobody finds out until the stock is counted."""
+        from warehouse.services.retail import pull_catalogue
+
+        product = self._product(link=False)
+
+        linked, unmatched = pull_catalogue(user=self.admin, _transport=lambda c, q, v: {
+            "listProducts": [
+                {"id": 5, "name": "A", "variants": [{"id": 9, "barcode": product.barcode}]},
+                {"id": 6, "name": "B", "variants": [{"id": 10, "barcode": product.barcode}]},
+            ]})
+
+        self.assertEqual(linked, [])
+        self.assertEqual([p.id for p in unmatched], [product.id])
+
+    def test_an_old_tag_still_on_their_shelf_matches(self):
+        from warehouse.services.retail import pull_catalogue
+
+        product = self._product(quantity=5, link=False)
+        old_code = product.barcode
+        update_finished_product(user=self.admin, id=product.id, cost_price=777)
+        product.refresh_from_db()
+
+        linked, _ = pull_catalogue(user=self.admin, _transport=lambda c, q, v: {
+            "listProducts": [{"id": 5, "name": "S",
+                              "variants": [{"id": 9, "barcode": old_code}]}]})
+
+        self.assertEqual([p.id for p in linked], [product.id])
+
+    def test_an_already_linked_product_is_left_alone(self):
+        from warehouse.services.retail import pull_catalogue
+
+        product = self._product()  # linked to 101/202 in the fixture
+
+        linked, unmatched = pull_catalogue(user=self.admin, _transport=lambda c, q, v: {
+            "listProducts": [{"id": 5, "name": "S",
+                              "variants": [{"id": 9, "barcode": product.barcode}]}]})
+
+        self.assertEqual(linked, [])
+        self.assertEqual(unmatched, [])
+        self.assertEqual(RetailProductLink.objects.get(finished_product=product).product_id, 101)

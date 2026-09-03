@@ -474,3 +474,146 @@ def _auth_header(channel):
     if not token:
         raise RuntimeError("The shop rejected the warehouse's service login.")
     return {"Authorization": f"JWT {token}"}
+
+
+# ── reading the shop ──────────────────────────────────────────────────────────
+#
+# Store ids and product ids are the shop's, not ours, and they differ between
+# their test site and their real one. Typing them by hand is how a consignment
+# ends up in the wrong shop or against the wrong garment, so both are fetched
+# and matched instead.
+
+_LIST_BUILDINGS = (
+    "query B($company:Int!){listBuildings(companyId:$company,isActive:true)"
+    "{id name location propertyType}}"
+)
+
+_LIST_PRODUCTS = (
+    "query P($hms:Int!,$limit:Int){listProducts(hmsId:$hms,limit:$limit)"
+    "{id name isActive hasVariants "
+    "variants{id sku barcode price isActive label options{name value}}}}"
+)
+
+
+def pull_stores(*, user, _transport=None):
+    """
+    Fetch the shop's stores and keep our list in step with theirs.
+
+    A store that disappears over there is deactivated rather than deleted:
+    consignments already sent to it still have to name where they went.
+    """
+    require_role(user, *_ADMIN)
+    channel = _require_channel()
+    post = _transport or _post
+
+    data = post(channel, _LIST_BUILDINGS, {"company": channel.subsite_id})
+    buildings = data.get("listBuildings") or []
+
+    seen = []
+    for building in buildings:
+        building_id = int(building["id"])
+        seen.append(building_id)
+        store, created = RetailStore.objects.get_or_create(
+            channel=channel, building_id=building_id,
+            defaults={"name": building.get("name") or f"Store {building_id}"},
+        )
+        if not created:
+            store.name = building.get("name") or store.name
+            store.active = True
+            store.save(update_fields=["name", "active"])
+
+    RetailStore.objects.filter(channel=channel).exclude(building_id__in=seen).update(active=False)
+    return RetailStore.objects.filter(channel=channel)
+
+
+def pull_catalogue(*, user, _transport=None, limit=2000):
+    """
+    Match our finished products to the shop's catalogue by barcode.
+
+    Their variants carry a barcode of their own, and ours are unique — so where
+    the two agree there is nothing to decide and the link is made. Anything
+    left over is reported, not guessed: a wrong link sends the right garment
+    against the wrong product, and nobody finds out until the stock is counted.
+
+    Returns (linked, unmatched) — what it settled, and what still needs a person.
+    """
+    require_role(user, *_MANAGE)
+    channel = _require_channel()
+    post = _transport or _post
+
+    data = post(channel, _LIST_PRODUCTS, {"hms": channel.subsite_id, "limit": limit})
+    products = data.get("listProducts") or []
+
+    # Their barcode -> what to link to. A barcode they have used twice is
+    # ambiguous and therefore useless for matching, so it is dropped.
+    by_barcode = {}
+    duplicates = set()
+    for product in products:
+        for variant in (product.get("variants") or []):
+            code = (variant.get("barcode") or "").strip()
+            if not code:
+                continue
+            if code in by_barcode:
+                duplicates.add(code)
+                continue
+            by_barcode[code] = (int(product["id"]), int(variant["id"]))
+    for code in duplicates:
+        by_barcode.pop(code, None)
+
+    from warehouse.permissions import accessible_warehouses
+
+    ours = (FinishedProduct.objects
+            .filter(warehouse__in=accessible_warehouses(user), retail_link__isnull=True)
+            .select_related("item_type"))
+
+    linked, unmatched = [], []
+    with transaction.atomic():
+        for product in ours:
+            # A reprice retires a code without killing it, so an older tag that
+            # is still on their shelf is just as good a match as the current one.
+            match = next(
+                (by_barcode[c] for c in [product.barcode, *product.past_codes()]
+                 if c in by_barcode),
+                None,
+            )
+            if not match:
+                unmatched.append(product)
+                continue
+            product_id, variant_id = match
+            RetailProductLink.objects.create(
+                finished_product=product, product_id=product_id,
+                variant_id=variant_id, linked_by=user,
+            )
+            linked.append(product)
+    return linked, unmatched
+
+
+def browse_catalogue(*, user, search="", _transport=None, limit=200):
+    """The shop's catalogue as a list to pick from, for the ones that need a person."""
+    require_role(user, *_MANAGE)
+    channel = _require_channel()
+    post = _transport or _post
+
+    data = post(channel, _LIST_PRODUCTS, {"hms": channel.subsite_id, "limit": limit})
+    term = (search or "").strip().lower()
+    rows = []
+    for product in (data.get("listProducts") or []):
+        if product.get("isActive") is False:
+            continue
+        if term and term not in (product.get("name") or "").lower():
+            continue
+        variants = [v for v in (product.get("variants") or []) if v.get("isActive") is not False]
+        if variants:
+            rows.extend({
+                "product_id": int(product["id"]),
+                "variant_id": int(v["id"]),
+                "label": f"{product.get('name')} — {v.get('label') or v.get('sku') or v['id']}",
+                "barcode": v.get("barcode") or "",
+            } for v in variants)
+        else:
+            rows.append({
+                "product_id": int(product["id"]), "variant_id": None,
+                "label": product.get("name") or f"Product {product['id']}",
+                "barcode": "",
+            })
+    return rows
