@@ -261,6 +261,18 @@ export const DASHBOARD_QUERY = `
       size
       thresholdPieces
     }
+    retailChannel { id subsiteId subsiteName apiUrl serviceUsername active }
+    retailStores { id buildingId name active }
+    retailDispatches(limit: 100) {
+      id dispatchNumber status receiptId lastError attempts dispatchDate notes
+      transporterName lrNumber vehicleNumber driverPhone
+      store { id buildingId name active }
+      fromWarehouse { id name code }
+      items { id quantity packedQuantity unitCost
+        finishedProduct { id name sku barcode size quantity costPrice salePrice
+          itemType { id name } clothColor { id name hexCode } } }
+    }
+    unlinkedFinishedProducts { id name sku size quantity itemType { id name } clothColor { id name } }
     stockTransfers(limit: 100) {
       id transferNumber status transferKind metersToTransfer quantityToTransfer notes createdAt dispatchedAt receivedAt
       fromWarehouse { id name }

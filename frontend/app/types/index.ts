@@ -334,7 +334,7 @@ export type Tab =
   | "purchase_orders" | "purchase_bills" | "raw_cloth" | "readymade_stock"
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
-  | "stock_adjustments" | "stock_transfers" | "reorder_points"
+  | "stock_adjustments" | "stock_transfers" | "reorder_points" | "retail_dispatches"
   | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"

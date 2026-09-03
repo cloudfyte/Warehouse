@@ -8,46 +8,14 @@ from warehouse.schema import converters  # noqa: F401
 from warehouse.permissions import ELEVATED_ROLES
 from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
-    AuditLog,
-    Buyer,
-    CustomRole,
-    Expense,
-    BuyerReturn,
-    ClothCategory,
-    ClothColor,
-    CreditPayment,
-    CreditTransaction,
-    CuttingAssignment,
-    EmployeeProfile,
-    FinishedProduct,
-    ProductSet,
-    ProductSetItem,
-    RecurringSettlement,
-    Settlement,
-    FinishedProductOption,
-    ItemType,
-    Notification,
-    OTPCode,
-    ParcelInspection,
-    PurchaseBill,
-    PurchaseBillItem,
-    PurchaseOrder,
-    PurchaseOrderItem,
-    Quotation,
-    QuotationItem,
-    RawClothBatch,
-    ReadymadeStock,
-    ReorderPoint,
-    SalesOrder,
-    SalesOrderItem,
-    StitchingJob,
-    StockAdjustment,
-    StockTransfer,
-    Supplier,
-    SupplierPayment,
-    SupplierReturn,
-    SystemSettings,
-    WarehouseLocation,
+    AuditLog, Buyer, BuyerReturn, ClothCategory, ClothColor, CreditPayment, CreditTransaction,
+    CustomRole, CuttingAssignment, EmployeeProfile, Expense, FinishedProduct,
+    FinishedProductOption, ItemType, Notification, OTPCode, ParcelInspection, ProductSet,
+    ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder, PurchaseOrderItem, Quotation,
+    QuotationItem, RawClothBatch, ReadymadeStock, RecurringSettlement, ReorderPoint,
+    RetailChannel, RetailDispatch, RetailDispatchItem, RetailProductLink, RetailStore,
+    SalesOrder, SalesOrderItem, Settlement, StitchingJob, StockAdjustment, StockTransfer,
+    Supplier, SupplierPayment, SupplierReturn, SystemSettings, WarehouseLocation,
 )
 
 
@@ -337,6 +305,58 @@ class FinishedProductType(DjangoObjectType):
 
     def resolve_profit_margin(self, info):
         return float(self.profit_margin)
+
+
+class RetailChannelType(DjangoObjectType):
+    class Meta:
+        model = RetailChannel
+        # The service password is write-only. It is used unattended by the
+        # server, never read back by the UI, so putting it in the schema would
+        # only hand the shop's credential to anyone who can run a query.
+        exclude = ("service_password",)
+
+
+class RetailStoreType(DjangoObjectType):
+    class Meta:
+        model = RetailStore
+        fields = "__all__"
+
+
+class RetailProductLinkType(DjangoObjectType):
+    class Meta:
+        model = RetailProductLink
+        fields = "__all__"
+
+
+class RetailDispatchItemType(DjangoObjectType):
+    unit_cost = graphene.Float()
+
+    class Meta:
+        model = RetailDispatchItem
+        fields = "__all__"
+
+    def resolve_unit_cost(self, info):
+        return float(self.unit_cost or 0)
+
+
+class RetailDispatchType(DjangoObjectType):
+    created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+    total_pieces = graphene.Int()
+
+    class Meta:
+        model = RetailDispatch
+        fields = "__all__"
+
+    def resolve_created_by(self, info):
+        if not self.created_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.created_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
+
+    def resolve_total_pieces(self, info):
+        return sum(i.quantity for i in self.items.all())
 
 
 class SalesOrderItemType(DjangoObjectType):

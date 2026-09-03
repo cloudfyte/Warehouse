@@ -839,3 +839,43 @@ def get_product_sets(user, active_only=False):
     if active_only:
         qs = qs.filter(active=True)
     return qs
+
+
+# ─── retail channel ───────────────────────────────────────────────────────────
+
+def get_retail_channel(user):
+    from warehouse.models import RetailChannel
+
+    return RetailChannel.objects.filter(pk=1).first()
+
+
+def get_retail_stores(user):
+    from warehouse.models import RetailStore
+
+    return RetailStore.objects.select_related("channel").all()
+
+
+def get_retail_dispatches(user, status=None, limit=100):
+    from warehouse.models import RetailDispatch
+    from warehouse.permissions import accessible_warehouses
+
+    qs = (RetailDispatch.objects
+          .filter(from_warehouse__in=accessible_warehouses(user))
+          .select_related("store", "from_warehouse")
+          .prefetch_related("items__finished_product__item_type",
+                            "items__finished_product__cloth_color"))
+    if status:
+        qs = qs.filter(status=status.upper())
+    return qs[:limit]
+
+
+def get_unlinked_finished_products(user):
+    """Products that cannot be sent to the shop yet, because nobody has said
+    which product over there they are."""
+    from warehouse.models import FinishedProduct
+    from warehouse.permissions import accessible_warehouses
+
+    return (FinishedProduct.objects
+            .filter(warehouse__in=accessible_warehouses(user), quantity__gt=0,
+                    retail_link__isnull=True)
+            .select_related("item_type", "cloth_color", "warehouse"))

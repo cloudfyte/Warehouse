@@ -316,6 +316,14 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
 # from the stitching job or readymade batch the goods came from, and letting it
 # be typed over would mint or destroy pieces that the rest of the pipeline has
 # already accounted for.
+def _has_shipped_to_retail(fp):
+    """Has any consignment carrying this product actually landed at the shop?"""
+    from warehouse.models import RetailDispatch
+
+    return fp.retail_dispatch_items.filter(
+        dispatch__status=RetailDispatch.Status.ACKNOWLEDGED).exists()
+
+
 _FP_DESCRIPTIVE = ("name", "size", "age_group", "cloth_color_id", "cloth_category_id", "item_type_id")
 _FP_PRICING = ("cost_price", "sale_price")
 
@@ -376,7 +384,13 @@ def update_finished_product(*, user, id, **changes):
     # The price lives inside the barcode, so a new price means a new code. The
     # old one is kept and stays scannable: tags are already sewn onto garments
     # hanging on the rack, and repricing must not turn those into dead labels.
-    if fp.barcode_price() != old_encoded:
+    #
+    # Unless the product has gone to the retail shop. Over there the barcode is
+    # a single column with no history, so a re-mint leaves the shop holding
+    # tags their own till cannot scan — the garment stops being sellable. A
+    # stale cost inside the code is the smaller harm than that, so once a
+    # consignment has landed the code is frozen and the price alone moves.
+    if fp.barcode_price() != old_encoded and not _has_shipped_to_retail(fp):
         retired = [c for c in ([fp.barcode] + fp.past_codes()) if c]
         fp.previous_barcodes = ",".join(dict.fromkeys(retired))
         fp.barcode = fp.mint_barcode()

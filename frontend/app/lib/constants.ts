@@ -66,6 +66,7 @@ export const TAB_TITLES: Record<Tab, string> = {
   expenses: "Expenses",
   stock_adjustments: "Stock Adjustments",
   stock_transfers: "Stock Transfers",
+  retail_dispatches: "To the Shop",
   reorder_points: "Reorder Points",
   settlements: "Settlements",
   product_sets: "Sets",

@@ -15,6 +15,11 @@ from .production import (
     CreateStitchingJob, UpdateCuttingAssignment, UpdateStitchingJob,
 )
 from .expense import CreateExpense, UpdateExpense, DeleteExpense
+from .retail import (
+    AddRetailStore, CancelRetailDispatch, ConfigureRetailChannel,
+    CreateRetailDispatch, LinkRetailProduct, PackRetailDispatch,
+    ScanIntoRetailDispatch, SendRetailDispatch, UnlinkRetailProduct,
+)
 from .product_set import (
     BreakProductSets, BuildProductSets, CreateProductSet, UpdateProductSet,
 )
@@ -93,6 +98,15 @@ class Mutation(graphene.ObjectType):
     create_finished_products = CreateFinishedProducts.Field()
     update_finished_product = UpdateFinishedProduct.Field()
     create_product_matrix = CreateProductMatrix.Field()
+    configure_retail_channel = ConfigureRetailChannel.Field()
+    add_retail_store = AddRetailStore.Field()
+    link_retail_product = LinkRetailProduct.Field()
+    unlink_retail_product = UnlinkRetailProduct.Field()
+    create_retail_dispatch = CreateRetailDispatch.Field()
+    scan_into_retail_dispatch = ScanIntoRetailDispatch.Field()
+    pack_retail_dispatch = PackRetailDispatch.Field()
+    send_retail_dispatch = SendRetailDispatch.Field()
+    cancel_retail_dispatch = CancelRetailDispatch.Field()
     create_product_set = CreateProductSet.Field()
     update_product_set = UpdateProductSet.Field()
     build_product_sets = BuildProductSets.Field()

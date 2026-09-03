@@ -12,7 +12,7 @@ import {
   Scissors, Shirt, Tag, Receipt, Landmark, RefreshCcw,
   Users, Warehouse, Bell, Settings2, ChevronLeft, ChevronRight,
   Sun, Moon, LogOut, BarChart2, Menu, X, User, ClipboardList,
-  ArrowLeftRight, AlertCircle, FileText, TrendingUp, BookOpen, List, ShieldCheck,
+  ArrowLeftRight, AlertCircle, FileText, TrendingUp, BookOpen, List, ShieldCheck, Store,
   WifiOff, CalendarClock, Layers,
 } from "lucide-react";
 
@@ -40,6 +40,7 @@ import AuditLogs from "@/app/components/organisms/AuditLogs";
 import Expenses from "@/app/components/organisms/Expenses";
 import StockAdjustments from "@/app/components/organisms/StockAdjustments";
 import StockTransfers from "@/app/components/organisms/StockTransfers";
+import RetailDispatches from "@/app/components/organisms/RetailDispatches";
 import RawCloth from "@/app/components/organisms/RawCloth";
 import ReadymadeStock from "@/app/components/organisms/ReadymadeStock";
 import ReorderPoints from "@/app/components/organisms/ReorderPoints";
@@ -63,7 +64,7 @@ const ALL_TABS: Tab[] = [
   "dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills",
   "raw_cloth", "readymade_stock", "cutting", "stitching",
   "finished_products", "product_sets", "sales_orders", "credit", "returns", "expenses", "settlements",
-  "stock_adjustments", "stock_transfers", "reorder_points",
+  "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches",
   "quotations", "reports", "ledger",
   "item_types", "employees", "warehouses", "roles", "notifications", "audit_log", "settings", "profile",
 ];
@@ -81,7 +82,7 @@ function getVisibleTabs(role: string, customRole?: CustomRole | null): Tab[] {
   if (["MANAGER"].includes(role)) return [...ALL_TABS.filter(t => t !== "profile" && t !== "settings" && t !== "audit_log" && t !== "roles"), ...profileTab];
   if (role === "CUTTING_MASTER") return ["dashboard", "cutting", "notifications", ...profileTab];
   if (role === "TAILOR") return ["dashboard", "stitching", "notifications", ...profileTab];
-  if (role === "STORE_KEEPER") return ["dashboard", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "stock_adjustments", "stock_transfers", "notifications", ...profileTab];
+  if (role === "STORE_KEEPER") return ["dashboard", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "stock_adjustments", "stock_transfers", "retail_dispatches", "notifications", ...profileTab];
   if (role === "AUDITOR") return ["dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "sales_orders", "credit", "returns", "notifications", "audit_log", ...profileTab];
   return ["dashboard", "notifications", ...profileTab];
 }
@@ -93,7 +94,7 @@ interface SidebarSection { label: string; tabs: Tab[] }
 const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
   { label: "Purchasing", tabs: ["suppliers", "purchase_orders", "purchase_bills"] },
-  { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points"] },
+  { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches"] },
   { label: "Production", tabs: ["cutting", "stitching", "finished_products", "product_sets"] },
   { label: "Sales", tabs: ["buyers", "quotations", "sales_orders", "credit", "returns"] },
   { label: "Finance", tabs: ["expenses", "settlements", "reports", "ledger"] },
@@ -121,6 +122,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   product_sets: <Layers size={16} />,
   stock_adjustments: <Package size={16} />,
   stock_transfers: <ArrowLeftRight size={16} />,
+  retail_dispatches: <Store size={16} />,
   reorder_points: <AlertCircle size={16} />,
   quotations: <FileText size={16} />,
   reports: <TrendingUp size={16} />,
@@ -830,6 +832,19 @@ export default function Home() {
             finishedProducts={data?.finishedProducts || []}
             warehouses={data?.warehouseLocations || []}
             isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
+            onMutate={mutate}
+          />
+        )}
+        {currentTab === "retail_dispatches" && (
+          <RetailDispatches
+            channel={data?.retailChannel}
+            stores={data?.retailStores || []}
+            dispatches={data?.retailDispatches || []}
+            products={data?.finishedProducts || []}
+            unlinked={data?.unlinkedFinishedProducts || []}
+            warehouses={data?.warehouseLocations || []}
+            canManage={isAdmin || isSuperAdmin || isManager || isStoreKeeper}
+            onRefresh={() => token && loadData(token)}
             onMutate={mutate}
           />
         )}

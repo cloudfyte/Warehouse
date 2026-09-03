@@ -1602,3 +1602,174 @@ def barcode_price_source():
     except Exception:
         return "COST"
     return value if value in ("COST", "SALE") else "COST"
+
+
+# ─── retail channel ───────────────────────────────────────────────────────────
+#
+# This warehouse is the godown behind ONE retail subsite. Goods leave here and
+# land in that subsite's store, where they are sold.
+#
+# The subsite is the tenant boundary on the retail side — every product, store
+# and receipt over there hangs off one subsite id — so it is pinned here once,
+# in a single row, rather than chosen per dispatch. A warehouse that can pick
+# its destination subsite is a warehouse that can push someone else's stock
+# into someone else's shop.
+
+class RetailChannel(models.Model):
+    """The one retail subsite this warehouse ships to. Exactly one row."""
+    # The subsite's own id and handle on the retail side. Stored, never
+    # guessed: the same handle has a different id in dev and in production.
+    subsite_id = models.PositiveIntegerField(
+        help_text="The retail subsite's id. Every dispatch is pinned to this one.")
+    subsite_name = models.CharField(
+        max_length=64,
+        help_text="The subsite's handle, e.g. sriweddings — for display and for confirming the id.")
+    api_url = models.URLField(help_text="The retail GraphQL endpoint.")
+    # A dedicated service account on the retail side, scoped to this subsite.
+    # Not an admin's own login: this credential lives in a database and is used
+    # unattended, so it must be revocable without locking a person out.
+    service_username = models.CharField(max_length=150, blank=True)
+    service_password = models.CharField(max_length=255, blank=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            # One row, enforced by the database rather than by remembering to
+            # check. pk is forced to 1 on save.
+            models.CheckConstraint(condition=Q(id=1), name="retailchannel_is_a_singleton"),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.subsite_name} (#{self.subsite_id})"
+
+
+class RetailStore(models.Model):
+    """A store of that subsite — where a dispatch actually lands."""
+    channel = models.ForeignKey(RetailChannel, on_delete=models.CASCADE, related_name="stores")
+    # The building id on the retail side. The retail API checks that this
+    # building really belongs to the subsite, so a mismatch is refused there
+    # too — this is not the only thing standing between us and a wrong shop.
+    building_id = models.PositiveIntegerField(help_text="The store's building id on the retail side.")
+    name = models.CharField(max_length=140, help_text="The store's name, mirrored here so a dispatch reads sensibly.")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["channel", "building_id"], name="retailstore_unique_building"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class RetailProductLink(models.Model):
+    """
+    Which product over there a product here becomes.
+
+    Deliberately not created automatically. Two catalogues that mint each
+    other's rows fork quietly and are never reconciled again — so an unlinked
+    product blocks its dispatch and waits for someone to say what it is.
+    """
+    finished_product = models.OneToOneField(
+        FinishedProduct, on_delete=models.CASCADE, related_name="retail_link")
+    product_id = models.PositiveIntegerField(help_text="Product id on the retail side.")
+    variant_id = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Variant id on the retail side, when the product has variants.")
+    linked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                  null=True, related_name="retail_links_made")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.finished_product.sku} → product {self.product_id}/{self.variant_id or '-'}"
+
+
+class RetailDispatch(models.Model):
+    """
+    A consignment from this godown to the retail store.
+
+    Not a sale. Selling to a wholesale buyer books revenue and a receivable;
+    moving goods to your own shop books neither — it is the same stock in a
+    different building. Modelling this as a sales order would inflate revenue
+    and invent a debtor who is you.
+    """
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        PACKED = "PACKED", "Packed"
+        SENT = "SENT", "Sent"
+        ACKNOWLEDGED = "ACKNOWLEDGED", "Acknowledged"
+        FAILED = "FAILED", "Failed"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    # Stable for the life of the dispatch and carried on every attempt, so a
+    # repeat delivery of the same consignment is recognisable as a repeat
+    # rather than landing as a second one.
+    dispatch_number = models.CharField(max_length=30, unique=True, editable=False)
+    store = models.ForeignKey(RetailStore, on_delete=models.PROTECT, related_name="dispatches")
+    from_warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT,
+                                       related_name="retail_dispatches")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+
+    # How it travelled — the same details a lorry consignment already carries.
+    transporter_name = models.CharField(max_length=140, blank=True)
+    lr_number = models.CharField(max_length=60, blank=True)
+    vehicle_number = models.CharField(max_length=30, blank=True)
+    driver_phone = models.CharField(max_length=20, blank=True)
+    dispatch_date = models.DateField(null=True, blank=True)
+    photos = models.TextField(blank=True, help_text="Comma-separated photo paths of the loaded consignment")
+    notes = models.TextField(blank=True)
+
+    # What the retail side said back. A dispatch with a receipt id has landed
+    # and must never be sent again.
+    receipt_id = models.PositiveIntegerField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+    attempts = models.PositiveIntegerField(default=0)
+    packed_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="retail_dispatches_created")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.dispatch_number:
+            self.dispatch_number = _serial("RD", RetailDispatch)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.dispatch_number} → {self.store.name}"
+
+
+class RetailDispatchItem(models.Model):
+    dispatch = models.ForeignKey(RetailDispatch, on_delete=models.CASCADE, related_name="items")
+    finished_product = models.ForeignKey(FinishedProduct, on_delete=models.PROTECT,
+                                         related_name="retail_dispatch_items")
+    quantity = models.PositiveIntegerField(help_text="Pieces this line is sending.")
+    # What was actually scanned into the carton. The manifest is the scan, not
+    # what someone typed — a short shipment should be found here, not at the shop.
+    packed_quantity = models.PositiveIntegerField(default=0)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"),
+                                    help_text="Cost at the moment of dispatch, sent as goods-in cost.")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["dispatch", "finished_product"],
+                                    name="retaildispatchitem_one_line_per_product"),
+        ]
+
+    def __str__(self):
+        return f"{self.quantity} x {self.finished_product.sku}"
