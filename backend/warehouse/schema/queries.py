@@ -85,6 +85,12 @@ class Query(graphene.ObjectType):
 
     # Stock transfers
     stock_transfers = graphene.List(StockTransferType, status=graphene.String(), limit=graphene.Int())
+    retail_channel = graphene.Field(RetailChannelType)
+    retail_stores = graphene.List(RetailStoreType)
+    retail_dispatches = graphene.List(RetailDispatchType, status=graphene.String(), limit=graphene.Int())
+    retail_returns = graphene.List(RetailReturnType, limit=graphene.Int())
+    retail_reconciliation = graphene.List(ReconciliationRowType, store_id=graphene.ID(required=True))
+    unlinked_finished_products = graphene.List(FinishedProductType)
 
     # Parcel inspection
     parcel_inspection = graphene.Field(ParcelInspectionType, po_id=graphene.ID(required=True))
@@ -289,6 +295,32 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_stock_transfers(self, info, status=None, limit=100):
         return selectors.get_stock_transfers(info.context.user, status=status, limit=limit)
+
+    @login_required
+    def resolve_retail_channel(self, info):
+        return selectors.get_retail_channel(info.context.user)
+
+    @login_required
+    def resolve_retail_stores(self, info):
+        return selectors.get_retail_stores(info.context.user)
+
+    @login_required
+    def resolve_retail_dispatches(self, info, status=None, limit=100):
+        return selectors.get_retail_dispatches(info.context.user, status=status, limit=limit)
+
+    @login_required
+    def resolve_retail_returns(self, info, limit=100):
+        return selectors.get_retail_returns(info.context.user, limit=limit)
+
+    @login_required
+    def resolve_retail_reconciliation(self, info, store_id):
+        from warehouse.services.retail import reconcile
+
+        return reconcile(user=info.context.user, store_id=store_id)
+
+    @login_required
+    def resolve_unlinked_finished_products(self, info):
+        return selectors.get_unlinked_finished_products(info.context.user)
 
     @login_required
     def resolve_parcel_inspection(self, info, po_id):
