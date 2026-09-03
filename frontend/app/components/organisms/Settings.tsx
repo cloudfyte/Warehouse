@@ -241,10 +241,15 @@ export default function Settings({ settings, isSuperAdmin, onMutate }: Props) {
           printAddr: form.printCompanyAddress || undefined, printBank: form.printBankDetails || undefined,
           printTerms: form.printTerms || undefined, printSig: form.printSignatureLabel || undefined, printLogo: form.printShowLogo,
           gstOnPurchases: form.gstOnPurchases, gstin: form.gstin || undefined,
-          tagBrand: form.tagBrandName || undefined, tagTagline: form.tagTagline || undefined,
+          // Sent even when empty. `|| undefined` drops the key, the mutation
+          // skips a missing key, and a cleared brand or tagline was therefore
+          // impossible to clear — the old text stayed on every tag. (Secrets
+          // below keep `|| undefined` on purpose: blank there means "leave the
+          // stored password alone", not "erase it".)
+          tagBrand: form.tagBrandName ?? "", tagTagline: form.tagTagline ?? "",
           tagShowBarcode: form.tagShowBarcode, tagShowSku: form.tagShowSku,
           tagShowColor: form.tagShowColor, tagShowAgeGroup: form.tagShowAgeGroup,
-          tagFooter: form.tagFooterText || undefined, tagWidth: form.tagPrinterWidth || undefined,
+          tagFooter: form.tagFooterText ?? "", tagWidth: form.tagPrinterWidth || undefined,
           tagShowPrice: form.tagShowPrice, tagShowSize: form.tagShowSize,
           // Sent even when empty — a blank label is a real choice: print the
           // value with no word in front of it.

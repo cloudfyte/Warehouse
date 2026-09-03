@@ -26,8 +26,21 @@ def update_cloth_category(*, id, name=None, description=None, active=None):
 
 # ── cloth color ───────────────────────────────────────────────────────────────
 
-def create_cloth_color(*, name, hex_code=""):
-    if ClothColor.objects.filter(name__iexact=name.strip()).exists():
+def create_cloth_color(*, name, hex_code="", reuse_existing=False):
+    """
+    Add a shade to the master list.
+
+    ``reuse_existing`` is for callers whose intent is "make sure this colour
+    exists" rather than "add a new one" — someone at the tag printer typing
+    "Off White". They are matching against a list that can be a refresh
+    behind, so a colour another user just added would otherwise dead-end on a
+    duplicate error with no id to fall back to. The Colors screen leaves it
+    off, where "that already exists" is the useful answer.
+    """
+    existing = ClothColor.objects.filter(name__iexact=name.strip()).first()
+    if existing:
+        if reuse_existing:
+            return existing
         raise GraphQLError("A color with this name already exists.")
     return ClothColor.objects.create(name=name.strip(), hex_code=hex_code.strip())
 

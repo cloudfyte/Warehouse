@@ -42,13 +42,16 @@ class CreateClothColor(graphene.Mutation):
     class Arguments:
         name = graphene.String(required=True)
         hex_code = graphene.String()
+        # "Make sure this colour exists" — see create_cloth_color.
+        reuse_existing = graphene.Boolean()
 
     color = graphene.Field(ClothColorType)
 
     @login_required
-    def mutate(self, info, name, hex_code=""):
+    def mutate(self, info, name, hex_code="", reuse_existing=False):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
-        return CreateClothColor(color=create_cloth_color(name=name, hex_code=hex_code))
+        return CreateClothColor(color=create_cloth_color(
+            name=name, hex_code=hex_code, reuse_existing=reuse_existing))
 
 
 class UpdateClothColor(graphene.Mutation):

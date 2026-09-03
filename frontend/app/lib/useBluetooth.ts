@@ -234,8 +234,8 @@ export interface TagEscData {
   footerText?: string
   printerWidth?: string
   /** The word before the price and what follows it, same as the paper tag. */
-  priceLabel?: string
-  priceSuffix?: string
+  priceLabel?: string | null
+  priceSuffix?: string | null
 }
 
 export function buildTagEscPos(tag: TagEscData): Uint8Array {
@@ -271,8 +271,9 @@ export function buildTagEscPos(tag: TagEscData): Uint8Array {
 
   // Price — double height
   b.push(0x1D, 0x21, 0x01, 0x1B, 0x45, 0x01);
-  const priceWord = (tag.priceLabel === undefined ? "MRP" : tag.priceLabel).trim();
-  const priceSuffix = (tag.priceSuffix === undefined ? "" : tag.priceSuffix).trim();
+  // Absent falls back to the built-in word; blank and null both mean "no word".
+  const priceWord = (tag.priceLabel === undefined ? "MRP" : (tag.priceLabel ?? "")).trim();
+  const priceSuffix = (tag.priceSuffix ?? "").trim();
   b.push(...encodeText(
     (priceWord ? priceWord + " " : "") + "Rs." + Math.round(tag.salePrice) + priceSuffix + "\n"));
   b.push(0x1B, 0x45, 0x00, 0x1D, 0x21, 0x00);

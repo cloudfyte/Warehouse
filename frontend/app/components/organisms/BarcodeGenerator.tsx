@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Printer, Plus, X, Search, Pencil, RefreshCw } from "lucide-react";
 import type { FinishedProduct } from "@/app/types";
 import { formatMoney, productName } from "@/app/lib/formatters";
+import { nameToColorHex } from "@/app/lib/colorUtils";
 import { showToast } from "@/app/lib/toast";
 import { tagSheetDocument, tagPreviewDocument, type TagSettings, type TagExtraLines } from "@/app/lib/tagTemplate";
 import Input from "@/app/components/atoms/Input";
@@ -104,20 +105,16 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
     // change to make and not the same as leaving the field alone.
     const nameArg = renaming ? (typedName === product.itemType.name ? "" : typedName) : undefined;
 
-    // A product's colour is one of the master colours, never free text — the
-    // same rule the matrix builder follows. Typing a shade that does not exist
-    // yet is a label, not a correction, so say so rather than inventing it.
+    // A product's colour is a row in the master list, so a shade that is not
+    // there yet is added rather than refused. Garment colours are open-ended —
+    // "Off White", "Rani Pink", whatever the mill called it — and a shop
+    // standing at the printer with the garment in hand is the one who knows.
+    // Matched case-insensitively first, so "off white" does not become a
+    // second row next to "Off White".
     let colorArg: string | undefined;
     if (wordsToProduct && colorChanged && typedColor) {
       const match = colors.find(c => c.name.toLowerCase() === typedColor.toLowerCase());
-      if (!match) {
-        setEditErr(
-          `There is no colour called "${typedColor}". Add it under Colors first, `
-          + `or switch to "Just this batch" to print it on these labels only.`
-        );
-        return;
-      }
-      colorArg = match.id;
+      colorArg = match ? match.id : await createColor(typedColor);
     }
 
     const priced =
@@ -170,6 +167,17 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
       const msg = e instanceof Error ? e.message : "Could not save the change.";
       setEditErr(msg); showToast(msg, "error");
     } finally { setSavingEdit(false); }
+  }
+
+  /** Add a shade to the master list and hand back its id. */
+  async function createColor(name: string): Promise<string> {
+    const res = await onMutate(
+      `mutation C($n:String!,$h:String!){createClothColor(name:$n,hexCode:$h,reuseExisting:true){color{id name}}}`,
+      { n: name, h: nameToColorHex(name) },
+    ) as { createClothColor?: { color?: { id: string } } };
+    const id = res?.createClothColor?.color?.id;
+    if (!id) throw new Error(`Could not add the colour "${name}".`);
+    return id;
   }
 
   const queuedIds = useMemo(() => new Set(queue.map(r => r.product.id)), [queue]);
@@ -421,7 +429,7 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
                         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>
                           {nameScope === "label"
                             ? "The name and colour above print on this run of labels and are then forgotten. Nothing about the product changes."
-                            : `Saved to the product — lists, sales orders, every tag from now on. Clear the name to go back to "${row.product.itemType.name}"; a colour has to be one you already have under Colors.`}
+                            : `Saved to the product — lists, sales orders, every tag from now on. Clear the name to go back to "${row.product.itemType.name}". A colour you have not used before is added to the list.`}
                         </div>
                       </div>
                     )}

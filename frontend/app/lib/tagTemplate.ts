@@ -11,7 +11,8 @@ export interface TagSettings {
   tagBrandName?: string; tagTagline?: string; tagShowBarcode?: boolean; tagShowSku?: boolean
   tagShowColor?: boolean; tagShowAgeGroup?: boolean; tagFooterText?: string; tagPrinterWidth?: string
   tagShowPrice?: boolean; tagShowSize?: boolean; tagBrandFontSize?: number; tagLogoSize?: number
-  tagPriceLabel?: string; tagSizeLabel?: string; tagColorLabel?: string; tagPriceSuffix?: string
+  tagPriceLabel?: string | null; tagSizeLabel?: string | null
+  tagColorLabel?: string | null; tagPriceSuffix?: string | null
   tagLogoData?: string; tagComponentOrder?: string[]; tagHeightMm?: number; tagWidthMm?: number
   companyName?: string
   tagAlign?: string; tagVerticalAlign?: string
@@ -81,10 +82,17 @@ const titleCase = (s?: string) =>
  * Color or Shade — so they come from settings, and a blank one means the shop
  * wants the value on its own.
  */
-const labelled = (label: string | undefined, value: string, fallback: string) => {
-  const word = (label === undefined ? fallback : label).trim();
-  return word ? `${word}: ${value}` : value;
-};
+const labelled = (label: string | null | undefined, value: string, fallback: string) =>
+  ((w) => (w ? `${w}: ${value}` : value))(word(label, fallback));
+
+/**
+ * The word a setting asks for, or the built-in one when the setting is absent.
+ *
+ * An empty string is the shop saying "no word here", so it is honoured. null is
+ * what GraphQL sends for a column never set, and used to crash the whole tag.
+ */
+const word = (setting: string | null | undefined, fallback: string) =>
+  (setting === undefined ? fallback : (setting ?? "")).trim();
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -208,8 +216,8 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings, extra: TagExt
     } else if (key === "price" && ts.tagShowPrice !== false) {
       // The label sits before the rupee sign, the suffix after the number:
       // "MRP Rs.1,299/-", or just "Rs.1,299" with both cleared.
-      const priceWord = (ts.tagPriceLabel === undefined ? "MRP" : ts.tagPriceLabel).trim();
-      const suffix = (ts.tagPriceSuffix === undefined ? "/-" : ts.tagPriceSuffix).trim();
+      const priceWord = word(ts.tagPriceLabel, "MRP");
+      const suffix = word(ts.tagPriceSuffix, "/-");
       blocks.push(
         `<div class="mrp">${priceWord ? `${esc(priceWord)} ` : ""}&#8377;${mrp}${esc(suffix)}</div>`
       );
