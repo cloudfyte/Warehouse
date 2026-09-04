@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Printer, Plus, X, Search, Pencil, RefreshCw } from "lucide-react";
+import { Printer, Plus, X, Search, Pencil, RefreshCw, ChevronRight } from "lucide-react";
 import type { FinishedProduct } from "@/app/types";
 import { formatMoney, productName } from "@/app/lib/formatters";
 import { nameToColorHex } from "@/app/lib/colorUtils";
@@ -63,6 +63,9 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
   const [printing, setPrinting] = useState(false);
   // Not saved to Settings — this is text for one run of labels.
   const [extra, setExtra] = useState<TagExtraLines>({ header: "", line1: "", line2: "" });
+  /** Styles are collapsed while browsing; a search opens what it found. */
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const [bulkCopies, setBulkCopies] = useState("");
 
   // Fixing a wrong price without leaving the screen. Cost is the figure buried
   // in the barcode, so correcting it here re-mints the code — and you see the
@@ -182,29 +185,71 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
 
   const queuedIds = useMemo(() => new Set(queue.map(r => r.product.id)), [queue]);
 
-  const matches = useMemo(() => {
+  /**
+   * Everything you have, gathered into styles.
+   *
+   * A style's sizes and colours are separate products with separate barcodes,
+   * so tagging a run used to mean finding each one by hand. Grouping them puts
+   * the whole run one click away, and lets the list be browsed rather than
+   * only searched — you cannot ask for a style by name if you cannot remember
+   * what you have.
+   */
+  const styles = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return [];
-    return products
-      .filter(p => !queuedIds.has(p.id))
-      .filter(p =>
-        p.sku.toLowerCase().includes(term)
-        || productName(p).toLowerCase().includes(term)
-        || p.barcode.toLowerCase().includes(term)
-        || (p.size || "").toLowerCase().includes(term))
-      .slice(0, 8);
-  }, [products, search, queuedIds]);
+    const hit = (p: FinishedProduct) =>
+      !term
+      || p.sku.toLowerCase().includes(term)
+      || productName(p).toLowerCase().includes(term)
+      || p.barcode.toLowerCase().includes(term)
+      || (p.size || "").toLowerCase().includes(term)
+      || (p.clothColor?.name || "").toLowerCase().includes(term);
+
+    const groups = new Map<string, FinishedProduct[]>();
+    for (const product of products) {
+      if (!hit(product)) continue;
+      const key = productName(product) || product.sku;
+      const found = groups.get(key);
+      if (found) found.push(product); else groups.set(key, [product]);
+    }
+    return [...groups.entries()]
+      .map(([name, variants]) => ({
+        name,
+        // "38" before "40" before "42" — a size run reads in size order, and a
+        // plain string sort puts 10 before 2.
+        variants: [...variants].sort((a, b) =>
+          (a.size || "").localeCompare(b.size || "", undefined, { numeric: true })),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, search]);
+
+  const shownCount = styles.reduce((n, s) => n + s.variants.length, 0);
 
   const totalLabels = queue.reduce((sum, r) => sum + (r.copies || 0), 0);
 
-  function add(product: FinishedProduct) {
-    setQueue(q => [...q, { product, copies: Math.max(1, product.quantity || 1) }]);
-    setSearch("");
+  /**
+   * Copies default to what is in stock, because that is what you are tagging
+   * almost every time. Anything already in the batch is skipped rather than
+   * queued twice.
+   */
+  function add(items: FinishedProduct[]) {
+    const fresh = items.filter(p => !queuedIds.has(p.id));
+    if (!fresh.length) {
+      showToast(items.length === 1 ? "Already in the batch." : "All of these are already in the batch.", "success");
+      return;
+    }
+    setQueue(q => [...q, ...fresh.map(p => ({ product: p, copies: Math.max(1, p.quantity || 1) }))]);
   }
 
   function setCopies(id: string, value: string) {
     const n = parseInt(value, 10);
     setQueue(q => q.map(r => r.product.id === id ? { ...r, copies: Number.isNaN(n) ? 0 : Math.max(0, n) } : r));
+  }
+
+  /** A reprint run is usually the same count for every size. */
+  function setEveryCopies(value: string) {
+    const n = Math.max(0, parseInt(value, 10) || 0);
+    setBulkCopies(value);
+    setQueue(q => q.map(r => ({ ...r, copies: n })));
   }
 
   function addEverythingUntagged() {
@@ -263,40 +308,115 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
             placeholder="Search by name, size, SKU or barcode…"
             style={{ paddingLeft: 34 }}
           />
-          {matches.length > 0 && (
-            <div style={{
-              position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 4,
-              background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 10,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.10)", overflow: "hidden",
-            }}>
-              {matches.map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => add(p)}
-                  style={{
-                    display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between",
-                    gap: 12, padding: "10px 14px", background: "none", border: "none",
-                    borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--ink)",
-                  }}
-                >
-                  <span>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>{productName(p)}</span>
-                    <span style={{ color: "var(--muted)", fontSize: 12 }}>
-                      {p.size ? ` · ${p.size}` : ""} · {p.quantity} pcs · {formatMoney(p.salePrice)}
-                    </span>
-                  </span>
-                  <Plus size={15} style={{ color: "var(--primary)", flex: "none" }} />
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <Button variant="secondary" onClick={addEverythingUntagged} style={{ fontSize: 13, padding: "6px 12px" }}>
-            Add everything not yet tagged
-          </Button>
+        {/* Browse by style. A style's sizes are separate products with separate
+            barcodes, so the whole run is one click rather than one search each. */}
+        <div style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+            padding: "8px 12px", background: "var(--canvas)", fontSize: 12, color: "var(--muted)",
+          }}>
+            <span>
+              <strong style={{ color: "var(--ink)" }}>{styles.length}</strong> style{styles.length === 1 ? "" : "s"}
+              {" \u00b7 "}<strong style={{ color: "var(--ink)" }}>{shownCount}</strong> product{shownCount === 1 ? "" : "s"}
+            </span>
+            <span style={{ flex: 1 }} />
+            {shownCount > 0 && (
+              <Button variant="secondary" onClick={() => add(styles.flatMap(s => s.variants))}
+                style={{ fontSize: 12, padding: "5px 10px" }}>
+                Add all {shownCount}
+              </Button>
+            )}
+            <Button variant="secondary" onClick={addEverythingUntagged} style={{ fontSize: 12, padding: "5px 10px" }}>
+              Add untagged only
+            </Button>
+          </div>
+
+          <div style={{ maxHeight: 320, overflowY: "auto" }}>
+            {styles.length === 0 ? (
+              <div style={{ padding: "28px 16px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+                {products.length === 0 ? "No finished products yet." : "Nothing matches that search."}
+              </div>
+            ) : styles.map(style => {
+              // A search opens what it found; browsing stays collapsed until asked.
+              const open = search.trim() ? true : opened.has(style.name);
+              const pieces = style.variants.reduce((n, v) => n + (v.quantity || 0), 0);
+              const waiting = style.variants.filter(v => !queuedIds.has(v.id));
+              return (
+                <div key={style.name} style={{ borderTop: "1px solid var(--line)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpened(o => {
+                        const next = new Set(o);
+                        if (next.has(style.name)) next.delete(style.name); else next.add(style.name);
+                        return next;
+                      })}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0,
+                        background: "none", border: "none", textAlign: "left", color: "var(--ink)",
+                        padding: 0, cursor: "pointer",
+                      }}
+                    >
+                      <ChevronRight size={14} style={{
+                        flex: "none", color: "var(--muted)",
+                        transform: open ? "rotate(90deg)" : "none", transition: "transform .12s",
+                      }} />
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{style.name}</span>
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                          {" \u00b7 "}{style.variants.length} size{style.variants.length === 1 ? "" : "s"}
+                          {" \u00b7 "}{pieces} pcs
+                        </span>
+                      </span>
+                    </button>
+                    <Button
+                      variant={waiting.length ? "primary" : "secondary"}
+                      onClick={() => add(style.variants)}
+                      disabled={!waiting.length}
+                      style={{ fontSize: 12, padding: "5px 10px", flex: "none" }}
+                    >
+                      {waiting.length
+                        ? `Add all ${waiting.length}`
+                        : "In batch"}
+                    </Button>
+                  </div>
+
+                  {open && style.variants.map(v => {
+                    const queued = queuedIds.has(v.id);
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => add([v])}
+                        disabled={queued}
+                        style={{
+                          display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between",
+                          gap: 12, padding: "7px 12px 7px 34px", background: "none", border: "none",
+                          borderTop: "1px solid var(--line)", textAlign: "left",
+                          color: queued ? "var(--muted)" : "var(--ink)",
+                          cursor: queued ? "default" : "pointer",
+                        }}
+                      >
+                        <span style={{ fontSize: 12 }}>
+                          {v.size || "one size"}
+                          {v.clothColor?.name ? ` \u00b7 ${v.clothColor.name}` : ""}
+                          <span style={{ color: "var(--muted)" }}>
+                            {" \u00b7 "}{v.quantity} pcs {" \u00b7 "}{formatMoney(v.salePrice)}
+                            {v.tagsPrinted ? " \u00b7 tagged" : ""}
+                          </span>
+                        </span>
+                        {queued
+                          ? <span style={{ fontSize: 11, flex: "none" }}>added</span>
+                          : <Plus size={14} style={{ color: "var(--primary)", flex: "none" }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <div style={{
@@ -329,6 +449,18 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
         <datalist id="tag-colour-list">
           {colors.map(c => <option key={c.id} value={c.name} />)}
         </datalist>
+
+        {queue.length > 1 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+            marginBottom: 8, fontSize: 12, color: "var(--muted)",
+          }}>
+            <span>Labels for every row</span>
+            <Input type="number" min="0" value={bulkCopies} placeholder="\u2014"
+              onChange={e => setEveryCopies(e.target.value)} style={{ width: 80 }} />
+            <span>\u2014 overrides each row below. Leave it alone to keep what is in stock.</span>
+          </div>
+        )}
 
         {queue.length === 0 ? (
           <div style={{
