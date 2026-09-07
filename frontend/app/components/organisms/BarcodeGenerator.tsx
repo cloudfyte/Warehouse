@@ -424,7 +424,7 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
           padding: "12px 14px", marginBottom: 16,
         }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Extra text for this batch
+            Just this batch
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <Field label="Header" hint="Top of the tag.">
@@ -440,8 +440,18 @@ export default function BarcodeGenerator({ products, colors, systemSettings, onM
                 onChange={e => setExtra(x => ({ ...x, line2: e.target.value }))} />
             </Field>
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginTop: 10 }}>
+            <input
+              type="checkbox"
+              checked={!!extra.hideColour}
+              onChange={e => setExtra(x => ({ ...x, hideColour: e.target.checked }))}
+            />
+            Leave the colour off these labels
+          </label>
           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
             Printed on this batch only — nothing here changes your saved tag layout.
+            To drop the colour from every tag instead, remove the Colour row under
+            Settings &rarr; Print &amp; Tags.
           </div>
         </div>
 

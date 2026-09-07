@@ -42,7 +42,7 @@ export interface TagProduct {
 // for. Brand takes the line the FP number used to have. All of it is still
 // available in Settings for anyone who wants it back.
 export const DEFAULT_TAG_ORDER = [
-  "brand", "barcode", "barcode-text", "item-info", "size", "price",
+  "brand", "barcode", "barcode-text", "item-info", "color", "size", "price",
 ];
 
 /** Every component that can appear on a tag, in the order Settings lists them. */
@@ -51,7 +51,11 @@ export const TAG_COMPONENTS: { key: string; label: string }[] = [
   { key: "brand", label: "Brand name" },
   { key: "barcode", label: "Barcode" },
   { key: "barcode-text", label: "Barcode number" },
-  { key: "item-info", label: "Item name & colour" },
+  { key: "item-info", label: "Item name" },
+  // Colour is its own row, not part of the name. Welded together, dropping the
+  // colour meant dropping the product name with it — and a plain white shirt
+  // does not need a colour line while a saree very much does.
+  { key: "color", label: "Colour" },
   { key: "size", label: "Size" },
   { key: "age-group", label: "Age group" },
   { key: "price", label: "MRP" },
@@ -172,6 +176,8 @@ export interface TagExtraLines {
   header?: string;
   line1?: string;
   line2?: string;
+  /** Leave the colour off this run of labels, whatever the saved layout says. */
+  hideColour?: boolean;
 }
 
 export function tagInnerHtml(product: TagProduct, ts: TagSettings, extra: TagExtraLines = {}): string {
@@ -199,15 +205,15 @@ export function tagInnerHtml(product: TagProduct, ts: TagSettings, extra: TagExt
     } else if (key === "barcode-text" && ts.tagShowBarcode !== false) {
       blocks.push(`<div class="barcode-text">${esc(product.barcode)}</div>`);
     } else if (key === "item-info" && (product.name || product.itemType?.name)) {
-      const colour = ts.tagShowColor !== false ? (product.clothColor?.name || "") : "";
       // A name typed for this product is printed as typed — it is a name, not
       // a category, so "Pintex Kurtha Daman" must not come out "Pintex kurtha daman".
       const name = (product.name || "").trim() || cap(product.itemType?.name || "");
+      blocks.push(`<div class="name">${esc(name)}</div>`);
+    } else if (key === "color" && !extra.hideColour && product.clothColor?.name) {
+      // Whether the colour appears is the component order's business now, not
+      // tagShowColor's — one switch, in the place that governs every other row.
       blocks.push(
-        `<div class="name">${esc(name)}</div>` +
-        (colour
-          ? `<div class="desc">${esc(labelled(ts.tagColorLabel, titleCase(colour), "Color"))}</div>`
-          : "")
+        `<div class="desc">${esc(labelled(ts.tagColorLabel, titleCase(product.clothColor.name), "Color"))}</div>`
       );
     } else if (key === "size" && ts.tagShowSize !== false && product.size) {
       blocks.push(`<div class="desc">${esc(labelled(ts.tagSizeLabel, cap(product.size), "Size"))}</div>`);
