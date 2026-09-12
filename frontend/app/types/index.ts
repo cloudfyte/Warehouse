@@ -56,6 +56,7 @@ export interface PurchaseBillItem {
   clothColor?: { id: string; name: string; hexCode: string }; itemType?: { id: string; name: string }
   totalMeters?: number; costPerMeter?: number; ageGroup?: string; size?: string; quantity?: number
   unitPrice: number; totalPrice: number; binLocation: string; clothCode: string; notes: string
+  designNumber?: string
 }
 
 export interface PurchaseBill {
@@ -93,6 +94,8 @@ export interface RawClothBatch {
   id: string; batchNumber: string; supplier: Supplier; clothCategory: ClothCategory
   clothColor: ClothColor; warehouse: WarehouseLocation; totalMeters: number
   availableMeters: number; costPerMeter: number; binLocation: string; receivedDate: string
+  /** The mill's own design number — how the shop floor actually names a lot. */
+  designNumber?: string; clothCode?: string; photos?: string; notes?: string
 }
 
 export interface ReadymadeStock {

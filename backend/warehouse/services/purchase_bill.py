@@ -55,7 +55,7 @@ def create_purchase_bill(
     Create a purchase bill and immediately receive all items into stock.
     items = list of dicts:
       { item_kind, cloth_category_id?, cloth_color_id?, total_meters?,
-        cost_per_meter?, bin_location?, cloth_code?,
+        cost_per_meter?, bin_location?, cloth_code?, design_number?,
         item_type_id?, size?, quantity?, unit_price?,
         gst_rate?,   # 0-28 — used only when gst_on_purchases is enabled
         notes? }
@@ -130,6 +130,7 @@ def create_purchase_bill(
                 cost_per_meter=item.get("cost_per_meter"),
                 bin_location=item.get("bin_location", ""),
                 cloth_code=item.get("cloth_code", ""),
+                design_number=item.get("design_number", ""),
                 item_type_id=item.get("item_type_id"),
                 age_group=item.get("age_group", ""),
                 size=item.get("size", ""),
@@ -151,6 +152,7 @@ def create_purchase_bill(
                     available_meters=meters,
                     cost_per_meter=cpm,
                     cloth_code=item.get("cloth_code", ""),
+                    design_number=item.get("design_number", ""),
                     bin_location=item.get("bin_location", ""),
                     notes=f"Bill {bill.bill_number}" + (f" — {item.get('notes', '')}" if item.get("notes") else ""),
                 )

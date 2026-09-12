@@ -31,7 +31,7 @@ from .settlement import (
 )
 from .purchase_bill import CreatePurchaseBill, GenerateBillFromPO, UpdatePurchaseBillGst
 from .purchase_order import CreatePurchaseOrder, ReceivePurchaseOrder, UpdatePurchaseOrderStatus
-from .stock import CreateRawClothBatch, CreateReadymadeStock
+from .stock import CreateRawClothBatch, CreateReadymadeStock, UpdateRawClothBatch
 from .sales import CreateSalesOrder, RecordCreditPayment, UpdateSalesOrderStatus, DispatchSalesOrder
 from .settings import UpdateSystemSettings
 from .supplier import CreateBuyer, CreateSupplier, UpdateBuyer, UpdateSupplier
@@ -90,6 +90,7 @@ class Mutation(graphene.ObjectType):
 
     # Direct stock entry
     create_raw_cloth_batch = CreateRawClothBatch.Field()
+    update_raw_cloth_batch = UpdateRawClothBatch.Field()
     create_readymade_stock = CreateReadymadeStock.Field()
 
     # Production pipeline

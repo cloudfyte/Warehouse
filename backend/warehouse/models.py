@@ -379,6 +379,9 @@ class PurchaseBillItem(models.Model):
     cost_per_meter = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     bin_location = models.CharField(max_length=100, blank=True)
     cloth_code = models.CharField(max_length=20, blank=True)
+    # Known at the moment of buying, so it is captured here and carried onto
+    # the batch. Asking for it again afterwards is the tedium this avoids.
+    design_number = models.CharField(max_length=60, blank=True)
 
     # Readymade fields
     item_type = models.ForeignKey(ItemType, null=True, blank=True, on_delete=models.SET_NULL, related_name="bill_items")
@@ -409,6 +412,14 @@ class RawClothBatch(models.Model):
     available_meters = models.DecimalField(max_digits=10, decimal_places=2)
     cost_per_meter = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     cloth_code = models.CharField(max_length=20, blank=True, help_text="Smart price-embedded code e.g. K7200")
+    # The mill's own design number for this cloth. It is how the shop floor
+    # actually refers to a lot — "the 4472" — and it is what a cutting or
+    # stitching docket is written against, so it has to travel with the batch.
+    design_number = models.CharField(max_length=60, blank=True, db_index=True,
+                                     help_text="The design number this cloth is known by")
+    # Comma-separated storage paths, same as purchase order item photos. A
+    # shade is far easier to match against a roll than a colour name is.
+    photos = models.TextField(blank=True, help_text="Comma-separated photo paths of the cloth")
     bin_location = models.CharField(max_length=80, blank=True, help_text="Shelf / rack in warehouse")
     received_date = models.DateField(default=timezone.now)
     notes = models.TextField(blank=True)

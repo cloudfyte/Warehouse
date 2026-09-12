@@ -3,7 +3,9 @@ from graphql_jwt.decorators import login_required
 
 from warehouse.models import EmployeeProfile
 from warehouse.permissions import require_role
-from warehouse.services.stock import create_raw_cloth_batch, create_readymade_stock
+from warehouse.services.stock import (
+    create_raw_cloth_batch, create_readymade_stock, update_raw_cloth_batch,
+)
 from warehouse.schema.types import RawClothBatchType, ReadymadeStockType
 
 
@@ -18,6 +20,9 @@ class CreateRawClothBatch(graphene.Mutation):
         bin_location = graphene.String()
         notes = graphene.String()
         received_date = graphene.Date()
+        design_number = graphene.String()
+        cloth_code = graphene.String()
+        photos = graphene.String()
 
     batch = graphene.Field(RawClothBatchType)
 
@@ -52,3 +57,21 @@ class CreateReadymadeStock(graphene.Mutation):
             user=info.context.user, supplier_id=supplier_id, item_type_id=item_type_id,
             warehouse_id=warehouse_id, quantity=quantity, **kwargs,
         ))
+
+
+class UpdateRawClothBatch(graphene.Mutation):
+    """Correct a batch's paperwork — design number, code, photos, shelf."""
+    class Arguments:
+        id = graphene.ID(required=True)
+        design_number = graphene.String()
+        cloth_code = graphene.String()
+        photos = graphene.String()
+        bin_location = graphene.String()
+        notes = graphene.String()
+
+    batch = graphene.Field(RawClothBatchType)
+
+    @login_required
+    def mutate(self, info, id, **kwargs):
+        return UpdateRawClothBatch(
+            batch=update_raw_cloth_batch(user=info.context.user, id=id, **kwargs))

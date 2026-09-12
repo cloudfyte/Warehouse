@@ -155,7 +155,7 @@ export const DASHBOARD_QUERY = `
       supplier { id name }
       warehouse { id name }
       items {
-        id itemKind totalMeters costPerMeter binLocation clothCode
+        id itemKind totalMeters costPerMeter binLocation clothCode designNumber
         ageGroup size quantity unitPrice gstRate totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name }
       }
@@ -163,7 +163,8 @@ export const DASHBOARD_QUERY = `
       sourcePo { id poNumber }
     }
     rawClothBatches {
-      id batchNumber totalMeters availableMeters costPerMeter binLocation receivedDate
+      id batchNumber designNumber clothCode photos notes
+      totalMeters availableMeters costPerMeter binLocation receivedDate
       supplier { id name }
       clothCategory { id name }
       clothColor { id name hexCode }

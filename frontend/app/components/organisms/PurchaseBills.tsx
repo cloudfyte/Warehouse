@@ -38,6 +38,7 @@ interface BillItem {
   costPerMeter?: number
   binLocation: string
   clothCode: string
+  designNumber: string
   itemType?: { id: string; name: string }
   size: string
   quantity: number
@@ -89,6 +90,7 @@ interface DraftItem {
   costPerMeter: string
   binLocation: string
   clothCode: string
+  designNumber: string
   itemTypeId: string
   ageGroup: string
   size: string
@@ -125,7 +127,7 @@ function genClothCode(priceStr: string): string {
 function blankItem(): DraftItem {
   return {
     itemKind: "RAW_CLOTH", clothCategoryId: "", clothColorId: "",
-    totalMeters: "", costPerMeter: "", binLocation: "", clothCode: "",
+    totalMeters: "", costPerMeter: "", binLocation: "", clothCode: "", designNumber: "",
     itemTypeId: "", ageGroup: "", size: "", quantity: "", unitPrice: "", gstRate: "", notes: "",
   };
 }
@@ -350,6 +352,7 @@ export default function PurchaseBills({
             costPerMeter: it.costPerMeter ? parseFloat(it.costPerMeter) : null,
             binLocation: it.binLocation,
             clothCode: it.clothCode,
+            designNumber: it.designNumber || undefined,
             itemTypeId: it.itemTypeId || null,
             ageGroup: it.ageGroup || null,
             size: it.size,
@@ -989,7 +992,11 @@ function ItemEditor({
     onChange({ costPerMeter: val });
   }
   function handleCostPerMeterBlur(val: string) {
-    if (val && !item.clothCode) onChange({ clothCode: genClothCode(val) });
+    // Deliberately does nothing now. A fabric code used to be invented from
+    // the price the moment you tabbed out of it, which meant the code on the
+    // roll and the code in the system were two different things. It is the
+    // mill's code, so it is typed.
+    void val;
   }
 
   return (
@@ -1040,22 +1047,25 @@ function ItemEditor({
           <Field label="Bin / Shelf Location">
             <Input value={item.binLocation} onChange={e => onChange({ binLocation: e.target.value })} placeholder="e.g. A-12" />
           </Field>
+          <Field label="Design Number" hint="The number the mill knows this cloth by — it follows the batch.">
+            <Input value={item.designNumber} onChange={e => onChange({ designNumber: e.target.value })}
+              placeholder="e.g. 4472" />
+          </Field>
           <Field label="Cloth Code">
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <Input value={item.clothCode} onChange={e => onChange({ clothCode: e.target.value })}
-                placeholder="Auto-generated" style={{ fontFamily: "monospace", flex: 1 }} />
+                placeholder="e.g. K7200" style={{ fontFamily: "monospace", flex: 1 }} />
               {item.costPerMeter && (
                 <button type="button" onClick={() => onChange({ clothCode: genClothCode(item.costPerMeter) })}
-                  title="Regenerate code" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 14 }}>
+                  title="Make one up from the price" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--canvas)", cursor: "pointer", fontSize: 14 }}>
                   🔄
                 </button>
               )}
             </div>
-            {item.clothCode && (
-              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
-                Code <strong style={{ fontFamily: "monospace" }}>{item.clothCode}</strong> → price embedded
-              </div>
-            )}
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
+              The mill&apos;s own code, typed as it is written on the roll. The button
+              invents one from the price if this cloth came without a code.
+            </div>
           </Field>
         </FormGrid>
       ) : (

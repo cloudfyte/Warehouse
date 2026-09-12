@@ -20,6 +20,7 @@ class PurchaseBillItemInput(graphene.InputObjectType):
     cost_per_meter = graphene.Float()
     bin_location = graphene.String()
     cloth_code = graphene.String()
+    design_number = graphene.String()
     # Readymade
     item_type_id = graphene.ID()
     age_group = graphene.String()

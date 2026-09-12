@@ -726,7 +726,12 @@ export default function Home() {
           </div>
         )}
         {currentTab === "raw_cloth" && (
-          <RawCloth batches={data?.rawClothBatches || []} />
+          <RawCloth
+            batches={data?.rawClothBatches || []}
+            canManage={isAdmin || isSuperAdmin || isManager || isStoreKeeper}
+            onRefresh={() => token && loadData(token)}
+            onMutate={mutate}
+          />
         )}
         {currentTab === "readymade_stock" && (
           <ReadymadeStock

@@ -47,7 +47,11 @@ const emptyItem = (): POItem => ({ kind: "RAW_CLOTH", categoryId: "", colorId: "
 
 const STATUSES = ["DRAFT", "PLACED", "DISPATCHED", "PARTIALLY_RECEIVED", "RECEIVED", "VERIFIED", "CANCELLED"];
 const PER_PAGE = 20;
-const PO_NEXT: Record<string, string> = { DRAFT: "PLACED", PLACED: "DISPATCHED", DISPATCHED: "RECEIVED", PARTIALLY_RECEIVED: "RECEIVED", RECEIVED: "VERIFIED" };
+// An order is placed, then the goods turn up. The in-between states —
+// dispatched, verified — were steps nobody on this floor actually performs,
+// so they are no longer part of the path. The values stay in STATUSES above
+// because orders recorded under the old flow still have to display and filter.
+const PO_NEXT: Record<string, string> = { DRAFT: "PLACED", PLACED: "RECEIVED", DISPATCHED: "RECEIVED", PARTIALLY_RECEIVED: "RECEIVED" };
 
 const CONDITION_LABEL: Record<string, string> = { GOOD: "Good Condition", PARTIAL_DAMAGE: "Partial Damage", DAMAGED: "Damaged" };
 const CONDITION_COLOR: Record<string, string> = { GOOD: "#10b981", PARTIAL_DAMAGE: "#f59e0b", DAMAGED: "#ef4444" };
@@ -577,6 +581,12 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                   <span style={{ marginLeft: 16 }}>
                     <strong style={{ color: "var(--ink)" }}>Received by:</strong>{" "}
                     <span style={{ color: "#2e7d32", fontWeight: 600 }}>{detail.receivedBy.username}</span>
+                  </span>
+                )}
+                {detail.actualDelivery && (
+                  <span style={{ marginLeft: 16 }}>
+                    <strong style={{ color: "var(--ink)" }}>Received on:</strong>{" "}
+                    <span style={{ color: "#2e7d32", fontWeight: 600 }}>{formatDateShort(detail.actualDelivery)}</span>
                   </span>
                 )}
               </div>
