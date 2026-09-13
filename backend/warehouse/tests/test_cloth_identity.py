@@ -113,3 +113,62 @@ class ABatchsPaperworkCanBeCorrected(ClothFixture):
 
         with self.assertRaises(GraphQLError):
             update_raw_cloth_batch(user=tailor, id=batch.id, design_number="9999")
+
+
+class ReadymadeWorkNamesItsCustomer(ClothFixture):
+    """Wholesale stitching goes to stock. Readymade is stitched for one
+    customer, so it has to name the bill it belongs to — otherwise a finished
+    garment cannot be matched back to whoever is waiting for it."""
+
+    def setUp(self):
+        super().setUp()
+        from warehouse.models import ItemType, StitchingJob
+        from warehouse.services.production import (
+            create_cutting_assignment, update_cutting_assignment,
+        )
+
+        self.item_type = ItemType.objects.create(name="Sherwani", active=True)
+        self.batch = create_raw_cloth_batch(
+            user=self.admin, supplier_id=self.supplier.id,
+            category_id=self.category.id, color_id=self.color.id,
+            warehouse_id=self.warehouse.id, total_meters=200, cost_per_meter=100)
+        self.master = EmployeeProfile.objects.create(
+            user=User.objects.create_user("master", password="x"),
+            role=EmployeeProfile.Role.CUTTING_MASTER, active=True)
+        self.tailor = EmployeeProfile.objects.create(
+            user=User.objects.create_user("tailor", password="x"),
+            role=EmployeeProfile.Role.TAILOR, active=True)
+
+        self.cut = create_cutting_assignment(
+            user=self.admin, raw_cloth_batch_id=self.batch.id,
+            cutting_master_id=self.master.id, item_type_id=self.item_type.id,
+            meters_assigned=100, target_pieces=20)
+        update_cutting_assignment(
+            id=self.cut.id, status="COMPLETED", pieces_completed=20,
+            cloth_used=90, cloth_wasted=10)
+        self.StitchingJob = StitchingJob
+
+    def _job(self, **kw):
+        from warehouse.services.production import create_stitching_job
+        return create_stitching_job(
+            user=self.admin, cutting_assignment_id=self.cut.id,
+            tailor_id=self.tailor.id, pieces_assigned=5, **kw)
+
+    def test_work_is_wholesale_unless_said_otherwise(self):
+        job = self._job()
+        self.assertEqual(job.job_type, self.StitchingJob.JobType.WHOLESALE)
+        self.assertEqual(job.customer_bill_number, "")
+
+    def test_readymade_without_a_bill_number_is_refused(self):
+        with self.assertRaises(GraphQLError):
+            self._job(job_type="READYMADE")
+
+    def test_readymade_keeps_the_customers_bill_number(self):
+        job = self._job(job_type="READYMADE", customer_bill_number="SW-1042")
+        self.assertEqual(job.customer_bill_number, "SW-1042")
+
+    def test_a_bill_number_on_wholesale_work_is_dropped(self):
+        """Wholesale work belongs to stock, not to a customer. Keeping a bill
+        number on it would suggest somebody is waiting for it."""
+        job = self._job(job_type="WHOLESALE", customer_bill_number="SW-1042")
+        self.assertEqual(job.customer_bill_number, "")

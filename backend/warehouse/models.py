@@ -521,8 +521,20 @@ class StitchingJob(models.Model):
         REJECTED = "REJECTED", "Rejected / Rework"
         MOVED = "MOVED", "Moved to Finished Goods"
 
+    class JobType(models.TextChoices):
+        WHOLESALE = "WHOLESALE", "Wholesale"
+        READYMADE = "READYMADE", "Readymade (against a customer bill)"
+
     job_number = models.CharField(max_length=40, unique=True, editable=False)
     cutting_assignment = models.ForeignKey(CuttingAssignment, on_delete=models.PROTECT, related_name="stitching_jobs")
+    # Wholesale work goes to stock. Readymade work is stitched against one
+    # customer's order, so it has to name the bill it belongs to — otherwise a
+    # finished garment cannot be matched back to whoever is waiting for it.
+    job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.WHOLESALE)
+    customer_bill_number = models.CharField(
+        max_length=60, blank=True, db_index=True,
+        help_text="The customer's bill this was stitched against. Readymade work only.")
+    photos = models.TextField(blank=True, help_text="Comma-separated photo paths — the sample or the customer's bill")
     tailor = models.ForeignKey(EmployeeProfile, on_delete=models.PROTECT, related_name="stitching_jobs", limit_choices_to={"role": EmployeeProfile.Role.TAILOR})
     pieces_assigned = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RECEIVED)

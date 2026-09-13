@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { buildBillEscPos } from "@/app/lib/useBluetooth";
 import BluetoothPrintButton from "@/app/components/molecules/BluetoothPrintButton";
 import { formatMoney, formatDate, getCurrencySymbol } from "@/app/lib/formatters";
@@ -220,7 +220,38 @@ export default function PurchaseBills({
   const currency = getCurrencySymbol();
 
   const [page, setPage] = useState(1);
-  const paged = bills.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const visible = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return bills.filter(b =>
+      (!statusFilter || b.paymentStatus === statusFilter)
+      && (!term
+          || b.billNumber?.toLowerCase().includes(term)
+          || b.supplier?.name?.toLowerCase().includes(term)
+          || (b.invoiceRef || "").toLowerCase().includes(term)),
+    );
+  }, [bills, search, statusFilter]);
+
+  /**
+   * What the whole book comes to.
+   *
+   * Every invoice showed its own total and nothing added them up, so the one
+   * number a supplier ledger exists to answer — what do we still owe — was not
+   * on the screen at all. Totals follow the filter: narrowed to one supplier,
+   * this is that supplier's position.
+   */
+  const totals = useMemo(() => visible.reduce(
+    (acc, b) => ({
+      purchased: acc.purchased + Number(b.totalAmount || 0),
+      paid: acc.paid + Number(b.amountPaid || 0),
+      pending: acc.pending + Number(b.amountPending || 0),
+    }),
+    { purchased: 0, paid: 0, pending: 0 },
+  ), [visible]);
+
+  const paged = visible.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const [showForm, setShowForm] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -513,39 +544,103 @@ export default function PurchaseBills({
         </>}
       />
 
+      {/* What the book comes to. Filtered, so narrowing to one supplier shows
+          that supplier's position. */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 1,
+        background: "var(--line)", border: "1px solid var(--line)", borderRadius: 12,
+        overflow: "hidden", marginBottom: 14,
+      }}>
+        {([
+          ["Invoices", String(visible.length), undefined],
+          ["Purchased", formatMoney(totals.purchased), undefined],
+          ["Paid", formatMoney(totals.paid), "#2e7d32"],
+          ["Still owed", formatMoney(totals.pending), totals.pending > 0 ? "#e65100" : undefined],
+        ] as const).map(([label, value, color]) => (
+          <div key={label} style={{ background: "var(--paper)", padding: "12px 16px" }}>
+            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        <Input
+          placeholder="Search invoice number, supplier or their reference…"
+          value={search}
+          onChange={e => { setSearch(e.target.value); setPage(1); }}
+          style={{ flex: 1, minWidth: 220 }}
+        />
+        <Select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+          style={{ width: 170 }}>
+          <option value="">All payments</option>
+          <option value="PENDING">Pending</option>
+          <option value="PARTIAL">Partly paid</option>
+          <option value="PAID">Paid</option>
+        </Select>
+      </div>
+
       {/* Bills list */}
-      {bills.length === 0 ? (
+      {visible.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "var(--muted)" }}>
-          No purchase bills yet.{canCreate ? ' Click "Record Purchase" to add one.' : ""}
+          {bills.length === 0
+            ? <>No supplier invoices yet.{canCreate ? ' Click "Record Purchase" to add one.' : ""}</>
+            : "No invoices match that search."}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(150px,1.1fr) minmax(120px,1.4fr) 110px 120px 120px 92px 22px",
+            gap: 12, padding: "0 18px", fontSize: 11, fontWeight: 700,
+            color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4,
+          }}>
+            <span>Invoice</span><span>Supplier</span><span>Date</span>
+            <span style={{ textAlign: "right" }}>Total</span>
+            <span style={{ textAlign: "right" }}>Still owed</span>
+            <span style={{ textAlign: "center" }}>Status</span><span />
+          </div>
           {paged.map(bill => {
             const st = STATUS_COLORS[bill.paymentStatus] ?? STATUS_COLORS.PENDING;
             const isOpen = expanded === bill.id;
             return (
               <div key={bill.id} style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
+                {/* Fixed columns, so the money lines up down the page instead of
+                    floating wherever the supplier's name happens to end. */}
                 <div
                   onClick={() => setExpanded(isOpen ? null : bill.id)}
-                  style={{ padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: isOpen ? "var(--canvas)" : undefined }}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(150px,1.1fr) minmax(120px,1.4fr) 110px 120px 120px 92px 22px",
+                    gap: 12, alignItems: "center", padding: "13px 18px", cursor: "pointer",
+                    background: isOpen ? "var(--canvas)" : undefined,
+                  }}
                 >
-                  <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={{ fontWeight: 700, fontSize: 15 }}>{bill.billNumber}</span>
-                    <span style={{ fontSize: 13, color: "var(--muted)" }}>{bill.supplier.name}</span>
-                    <span style={{ fontSize: 12, color: "var(--muted)" }}>{formatDate(bill.billDate)}</span>
-                    {bill.invoiceRef && <span style={{ fontSize: 12, color: "var(--muted)" }}>Ref: {bill.invoiceRef}</span>}
-                    {bill.sourcePo && <span style={{ fontSize: 11, background: "#e0f2fe", color: "#0369a1", padding: "2px 7px", borderRadius: 99, fontWeight: 600 }}>From {bill.sourcePo.poNumber}</span>}
-                  </div>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <span style={{ fontWeight: 700 }}>{formatMoney(bill.totalAmount)}</span>
-                    {bill.amountPending > 0 && (
-                      <span style={{ fontSize: 12, color: "#e65100" }}>{formatMoney(bill.amountPending)} pending</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{bill.billNumber}</span>
+                    {bill.sourcePo && (
+                      <span style={{ marginLeft: 6, fontSize: 10, background: "#e0f2fe", color: "#0369a1", padding: "2px 6px", borderRadius: 99, fontWeight: 600, whiteSpace: "nowrap" }}>
+                        {bill.sourcePo.poNumber}
+                      </span>
                     )}
-                    <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>
-                      {st.label}
-                    </span>
-                    <span style={{ color: "var(--muted)", fontSize: 16 }}>{isOpen ? "▲" : "▼"}</span>
-                  </div>
+                  </span>
+                  <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {bill.supplier.name}
+                    {bill.invoiceRef && (
+                      <span style={{ color: "var(--muted)", fontSize: 11 }}> · {bill.invoiceRef}</span>
+                    )}
+                  </span>
+                  <span style={{ fontSize: 12, color: "var(--muted)" }}>{formatDate(bill.billDate)}</span>
+                  <span style={{ fontWeight: 700, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    {formatMoney(bill.totalAmount)}
+                  </span>
+                  <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, color: bill.amountPending > 0 ? "#e65100" : "var(--muted)" }}>
+                    {bill.amountPending > 0 ? formatMoney(bill.amountPending) : "—"}
+                  </span>
+                  <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color, textAlign: "center", whiteSpace: "nowrap" }}>
+                    {st.label}
+                  </span>
+                  <span style={{ color: "var(--muted)", fontSize: 14, textAlign: "right" }}>{isOpen ? "\u25b2" : "\u25bc"}</span>
                 </div>
 
                 {isOpen && (
@@ -718,7 +813,7 @@ export default function PurchaseBills({
           })}
         </div>
       )}
-      <Pagination page={page} total={bills.length} perPage={PER_PAGE} onChange={setPage} />
+      <Pagination page={page} total={visible.length} perPage={PER_PAGE} onChange={setPage} />
 
       {/* GST correction — for bills saved before GST was switched on */}
       {gstEdit && (

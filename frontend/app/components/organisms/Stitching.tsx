@@ -14,6 +14,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
@@ -100,7 +101,7 @@ function ProgressBar({ value, max, rejected = 0 }: { value: number; max: number;
 export default function Stitching({ jobs, assignments, tailors, warehouses, isAdmin, isSuperAdmin, isManager, isTailor, onMutate }: Props) {
   const [selected, setSelected] = useState<StitchingJob | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ assignmentId: "", tailorId: "", pieces: "", notes: "" });
+  const [form, setForm] = useState({ assignmentId: "", tailorId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "" });
   const [upd, setUpd] = useState({ status: "", piecesCompleted: 0, piecesRejected: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -183,10 +184,17 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
     setLoading(true); setError("");
     try {
       await onMutate(
-        `mutation C($a:ID!,$t:ID!,$p:Int!,$notes:String){createStitchingJob(cuttingAssignmentId:$a,tailorId:$t,piecesAssigned:$p,notes:$notes){job{id}}}`,
-        { a: form.assignmentId, t: form.tailorId, p: +form.pieces, notes: form.notes }
+        `mutation C($a:ID!,$t:ID!,$p:Int!,$notes:String,$kind:String,$bill:String,$photos:String){`
+        + `createStitchingJob(cuttingAssignmentId:$a,tailorId:$t,piecesAssigned:$p,notes:$notes,`
+        + `jobType:$kind,customerBillNumber:$bill,photos:$photos){job{id}}}`,
+        {
+          a: form.assignmentId, t: form.tailorId, p: +form.pieces, notes: form.notes,
+          kind: form.jobType,
+          bill: form.jobType === "READYMADE" ? form.customerBillNumber : undefined,
+          photos: form.photos || undefined,
+        }
       );
-      setShowForm(false); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" });
+      setShowForm(false); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "" });
       showToast("Stitching job created.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
@@ -235,10 +243,11 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
       {/* New Job modal */}
       {showForm && (
         <Modal title="New Stitching Job" subtitle="Assign cut pieces to a tailor for stitching"
-          onClose={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" }); }} width={480}
+          onClose={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "" }); }} width={480}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <Button onClick={createJob} disabled={loading || !form.assignmentId || !form.tailorId || !form.pieces} style={{ flex: 1 }}>{loading ? "Creating…" : "Create Job"}</Button>
-            <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "" }); }} style={{ flex: 1 }}>Cancel</Button>
+            <Button onClick={createJob} disabled={loading || !form.assignmentId || !form.tailorId || !form.pieces
+              || (form.jobType === "READYMADE" && !form.customerBillNumber.trim())} style={{ flex: 1 }}>{loading ? "Creating…" : "Create Job"}</Button>
+            <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "" }); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
           <ErrorBanner msg={error} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -265,6 +274,36 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                   </div>
               }
             </Field>
+            <Field label="Kind of work" required
+              hint="Wholesale goes to stock. Readymade is stitched for one customer.">
+              <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+                {([["WHOLESALE", "Wholesale"], ["READYMADE", "Readymade"]] as const).map(([key, label]) => (
+                  <button key={key} type="button" onClick={() => setForm(p => ({ ...p, jobType: key }))}
+                    style={{
+                      padding: "7px 16px", fontSize: 13, border: "none",
+                      fontWeight: form.jobType === key ? 700 : 500,
+                      background: form.jobType === key ? "var(--primary)" : "transparent",
+                      color: form.jobType === key ? "#fff" : "var(--muted)", cursor: "pointer",
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            {form.jobType === "READYMADE" && (
+              <>
+                <Field label="Customer bill number" required
+                  hint="Without it a finished garment cannot be matched back to whoever is waiting for it.">
+                  <Input value={form.customerBillNumber} placeholder="e.g. SW-1042"
+                    onChange={e => setForm(p => ({ ...p, customerBillNumber: e.target.value }))} />
+                </Field>
+                <Field label="Photos" hint="The sample, or the customer's own bill.">
+                  <PhotoPicker value={form.photos} onChange={v => setForm(p => ({ ...p, photos: v }))} max={4} />
+                </Field>
+              </>
+            )}
+
             <Field label="Pieces Assigned" required>
               <Input type="number" value={form.pieces} placeholder="0" onChange={e => setForm(p => ({ ...p, pieces: e.target.value }))} />
             </Field>
@@ -383,7 +422,14 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                 {/* Card header */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: 14, letterSpacing: 0.3 }}>{j.jobNumber}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: 0.3 }}>{j.jobNumber}</span>
+                      {j.jobType === "READYMADE" && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: "#ede9fe", color: "#6d28d9", whiteSpace: "nowrap" }}>
+                          Readymade{j.customerBillNumber ? ` · ${j.customerBillNumber}` : ""}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1 }}>{j.cuttingAssignment.itemType.name}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
                       🧵 {j.tailor.username} &nbsp;·&nbsp; from {j.cuttingAssignment.assignmentNumber}

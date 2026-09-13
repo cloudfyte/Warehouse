@@ -139,9 +139,25 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
 
 
 def create_stitching_job(*, user, cutting_assignment_id, tailor_id, pieces_assigned,
-                         assigned_date=None, due_date=None, notes=""):
+                         assigned_date=None, due_date=None, notes="",
+                         job_type=None, customer_bill_number="", photos=""):
+    from warehouse.services.uploads import save_data_urls_csv
+
     if pieces_assigned <= 0:
         raise GraphQLError("Pieces assigned must be greater than zero.")
+
+    job_type = (job_type or StitchingJob.JobType.WHOLESALE).upper()
+    if job_type not in StitchingJob.JobType.values:
+        raise GraphQLError("Stitching work is either wholesale or readymade.")
+    # Readymade work belongs to one customer. Without their bill number the
+    # finished garment cannot be matched back to whoever is waiting for it,
+    # which is the whole reason for separating the two kinds of work.
+    if job_type == StitchingJob.JobType.READYMADE and not (customer_bill_number or "").strip():
+        raise GraphQLError(
+            "Readymade work is stitched against a customer's bill — give the bill number."
+        )
+    if job_type == StitchingJob.JobType.WHOLESALE:
+        customer_bill_number = ""
 
     try:
         tailor = EmployeeProfile.objects.get(pk=tailor_id, role=EmployeeProfile.Role.TAILOR, active=True)
@@ -170,6 +186,9 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id, pieces_assig
             assigned_date=assigned_date or timezone.now().date(),
             due_date=due_date,
             notes=notes.strip(),
+            job_type=job_type,
+            customer_bill_number=(customer_bill_number or "").strip(),
+            photos=save_data_urls_csv(photos or "", "stitching"),
             assigned_by=user,
         )
     notify_user(

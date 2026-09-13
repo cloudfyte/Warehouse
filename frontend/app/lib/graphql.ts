@@ -187,7 +187,9 @@ export const DASHBOARD_QUERY = `
     }
     stitchingJobs(limit: 100) {
       id jobNumber piecesAssigned piecesCompleted piecesRejected status assignedDate dueDate completedDate notes
-      cuttingAssignment { id assignmentNumber size costPerPiece itemType { name } rawClothBatch { warehouse { id name } } }
+      jobType customerBillNumber photos
+      cuttingAssignment { id assignmentNumber size costPerPiece itemType { name }
+        rawClothBatch { designNumber warehouse { id name } } }
       tailor { id username role }
     }
     finishedProducts {

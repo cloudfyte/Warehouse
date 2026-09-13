@@ -119,6 +119,8 @@ export interface StitchingJob {
   tailor: Employee; piecesAssigned: number; status: string
   assignedDate: string; dueDate?: string; piecesCompleted: number
   piecesRejected: number; completedDate?: string; notes: string
+  /** Wholesale work goes to stock; readymade is stitched against one customer's bill. */
+  jobType?: string; customerBillNumber?: string; photos?: string
 }
 
 // ─── finished products ────────────────────────────────────────────────────────
