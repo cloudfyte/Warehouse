@@ -201,6 +201,9 @@ export const DASHBOARD_QUERY = `
       jobType customerBillNumber photos
       ratePerPiece amountPaid amountEarned amountDue
       sizes { id size piecesAssigned piecesCompleted }
+      issueTransporter issueLrNumber issueVehicleNumber issueDate issuePhotos
+      returnTransporter returnLrNumber returnVehicleNumber returnDate returnPhotos
+      returnWarehouse { id name }
       karigar { id name kind city ratePerPiece }
       cuttingAssignment { id assignmentNumber size costPerPiece itemType { name }
         rawClothBatch { designNumber warehouse { id name } } }

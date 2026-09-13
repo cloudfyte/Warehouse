@@ -486,8 +486,18 @@ class CuttingAssignment(models.Model):
         COMPLETED = "COMPLETED", "Completed"
         PARTIAL = "PARTIAL", "Partially Done"
 
+    class JobType(models.TextChoices):
+        WHOLESALE = "WHOLESALE", "Wholesale"
+        READYMADE = "READYMADE", "Readymade (against a customer bill)"
+
     assignment_number = models.CharField(max_length=40, unique=True, editable=False)
     raw_cloth_batch = models.ForeignKey(RawClothBatch, on_delete=models.PROTECT, related_name="cutting_assignments")
+    # Cloth is cut for a reason, and the reason is decided here rather than
+    # three steps later. Wholesale is cut ahead of demand by type and size;
+    # readymade is cut because a customer asked for it, and that customer's
+    # bill number travels with every piece from this point to the tag.
+    job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.WHOLESALE)
+    customer_bill_number = models.CharField(max_length=60, blank=True, db_index=True)
     cutting_master = models.ForeignKey(EmployeeProfile, on_delete=models.PROTECT, related_name="cutting_assignments", limit_choices_to={"role": EmployeeProfile.Role.CUTTING_MASTER})
     item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="cutting_assignments")
     meters_assigned = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
@@ -551,6 +561,26 @@ class StitchingJob(models.Model):
     # and a job already handed over must still settle at what was agreed.
     rate_per_piece = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Cut pieces going out to the karigar. A lorry took them somewhere, and the
+    # LR is usually a photograph of a paper docket rather than anything typed.
+    issue_transporter = models.CharField(max_length=140, blank=True)
+    issue_lr_number = models.CharField(max_length=60, blank=True)
+    issue_vehicle_number = models.CharField(max_length=30, blank=True)
+    issue_date = models.DateField(null=True, blank=True)
+    issue_photos = models.TextField(blank=True, help_text="Comma-separated photos — usually the LR itself")
+
+    # Finished garments coming back, which need not come back to the warehouse
+    # the cloth left from.
+    return_transporter = models.CharField(max_length=140, blank=True)
+    return_lr_number = models.CharField(max_length=60, blank=True)
+    return_vehicle_number = models.CharField(max_length=30, blank=True)
+    return_date = models.DateField(null=True, blank=True)
+    return_photos = models.TextField(blank=True)
+    return_warehouse = models.ForeignKey(
+        WarehouseLocation, null=True, blank=True, on_delete=models.PROTECT,
+        related_name="stitching_returns",
+        help_text="Where the finished pieces land. Blank means back where the cloth came from.")
     # Wholesale work goes to stock. Readymade work is stitched against one
     # customer's order, so it has to name the bill it belongs to — otherwise a
     # finished garment cannot be matched back to whoever is waiting for it.
@@ -655,6 +685,10 @@ class FinishedProduct(models.Model):
     source = models.CharField(max_length=20, choices=Source.choices)
 
     stitching_job = models.ForeignKey(StitchingJob, null=True, blank=True, on_delete=models.SET_NULL, related_name="finished_products")
+    # The end of the line for a customer's bill number. It is set at cutting,
+    # carried through stitching, and lands here — so a finished garment can be
+    # matched to whoever asked for it without walking back up the chain.
+    customer_bill_number = models.CharField(max_length=60, blank=True, db_index=True)
     readymade_stock = models.ForeignKey(ReadymadeStock, null=True, blank=True, on_delete=models.SET_NULL, related_name="finished_products")
 
     quantity = models.PositiveIntegerField(default=0)

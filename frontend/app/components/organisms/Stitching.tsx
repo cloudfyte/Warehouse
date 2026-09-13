@@ -190,6 +190,50 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const readyAssignments = assignments.filter(a => a.piecesCompleted > 0 && a.status !== "PENDING");
 
+  // A lorry took the cut pieces out and another brought garments back. The LR
+  // is usually a photograph of a paper docket rather than anything typed.
+  const [transit, setTransit] = useState<StitchingJob | null>(null);
+  const [leg, setLeg] = useState({
+    issueTransporter: "", issueLrNumber: "", issueVehicleNumber: "", issuePhotos: "",
+    returnTransporter: "", returnLrNumber: "", returnVehicleNumber: "", returnPhotos: "",
+    returnWarehouseId: "",
+  });
+  const [transitBusy, setTransitBusy] = useState(false);
+
+  function openTransit(j: StitchingJob) {
+    setLeg({
+      issueTransporter: j.issueTransporter || "", issueLrNumber: j.issueLrNumber || "",
+      issueVehicleNumber: j.issueVehicleNumber || "", issuePhotos: j.issuePhotos || "",
+      returnTransporter: j.returnTransporter || "", returnLrNumber: j.returnLrNumber || "",
+      returnVehicleNumber: j.returnVehicleNumber || "", returnPhotos: j.returnPhotos || "",
+      returnWarehouseId: j.returnWarehouse?.id || "",
+    });
+    setTransit(j);
+  }
+
+  async function saveTransit() {
+    if (!transit) return;
+    setTransitBusy(true);
+    try {
+      await onMutate(
+        `mutation T($id:ID!,$it:String,$ilr:String,$iv:String,$ip:String,`
+        + `$rt:String,$rlr:String,$rv:String,$rp:String,$rw:ID){`
+        + `updateStitchingJob(id:$id,issueTransporter:$it,issueLrNumber:$ilr,issueVehicleNumber:$iv,issuePhotos:$ip,`
+        + `returnTransporter:$rt,returnLrNumber:$rlr,returnVehicleNumber:$rv,returnPhotos:$rp,returnWarehouseId:$rw)`
+        + `{job{id}}}`,
+        {
+          id: transit.id,
+          it: leg.issueTransporter, ilr: leg.issueLrNumber, iv: leg.issueVehicleNumber, ip: leg.issuePhotos,
+          rt: leg.returnTransporter, rlr: leg.returnLrNumber, rv: leg.returnVehicleNumber, rp: leg.returnPhotos,
+          rw: leg.returnWarehouseId || undefined,
+        },
+      );
+      showToast("Transit details saved.", "success");
+      setTransit(null);
+    } catch (e: unknown) { showToast(friendlyError(e), "error"); }
+    finally { setTransitBusy(false); }
+  }
+
   const [paying, setPaying] = useState<StitchingJob | null>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payBusy, setPayBusy] = useState(false);
@@ -273,6 +317,64 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
       </FilterBar>
 
       {/* New Job modal */}
+      {transit && (
+        <Modal
+          title="Transit"
+          subtitle={`${transit.jobNumber} · ${transit.karigar?.name ?? ""}`}
+          width={560}
+          onClose={() => setTransit(null)}
+          onSubmit={saveTransit}
+          footer={<div style={{ display: "flex", gap: 10 }}>
+            <Button type="submit" disabled={transitBusy} style={{ flex: 1 }}>
+              {transitBusy ? "Saving…" : "Save"}
+            </Button>
+            <Button variant="secondary" onClick={() => setTransit(null)} style={{ flex: 1 }}>Cancel</Button>
+          </div>}>
+          <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6, marginBottom: 14 }}>
+            The LR is usually a photograph of a paper docket. Photograph it rather than
+            typing it out if that is quicker.
+          </div>
+
+          {([
+            ["Cut pieces going out", "issue"],
+            ["Garments coming back", "return"],
+          ] as const).map(([title, key]) => (
+            <div key={key} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>
+                {title}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Field label="Transporter">
+                  <Input value={leg[`${key}Transporter` as const]}
+                    onChange={e => setLeg(l => ({ ...l, [`${key}Transporter`]: e.target.value }))} />
+                </Field>
+                <Field label="LR number">
+                  <Input value={leg[`${key}LrNumber` as const]}
+                    onChange={e => setLeg(l => ({ ...l, [`${key}LrNumber`]: e.target.value }))} />
+                </Field>
+                <Field label="Vehicle">
+                  <Input value={leg[`${key}VehicleNumber` as const]}
+                    onChange={e => setLeg(l => ({ ...l, [`${key}VehicleNumber`]: e.target.value }))} />
+                </Field>
+                {key === "return" && (
+                  <Field label="Lands at" hint="Blank means back where the cloth came from.">
+                    <Select value={leg.returnWarehouseId}
+                      onChange={e => setLeg(l => ({ ...l, returnWarehouseId: e.target.value }))}>
+                      <option value="">Same warehouse</option>
+                      {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </Select>
+                  </Field>
+                )}
+              </div>
+              <Field label="LR photo" style={{ marginTop: 10 }}>
+                <PhotoPicker value={leg[`${key}Photos` as const]}
+                  onChange={v => setLeg(l => ({ ...l, [`${key}Photos`]: v }))} max={3} />
+              </Field>
+            </div>
+          ))}
+        </Modal>
+      )}
+
       {paying && (
         <Modal
           title="Pay karigar"
@@ -347,35 +449,19 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
                   </div>
               }
             </Field>
-            <Field label="Kind of work" required
-              hint="Wholesale goes to stock. Readymade is stitched for one customer.">
-              <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
-                {([["WHOLESALE", "Wholesale"], ["READYMADE", "Readymade"]] as const).map(([key, label]) => (
-                  <button key={key} type="button" onClick={() => setForm(p => ({ ...p, jobType: key }))}
-                    style={{
-                      padding: "7px 16px", fontSize: 13, border: "none",
-                      fontWeight: form.jobType === key ? 700 : 500,
-                      background: form.jobType === key ? "var(--primary)" : "transparent",
-                      color: form.jobType === key ? "#fff" : "var(--muted)", cursor: "pointer",
-                    }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </Field>
-
-            {form.jobType === "READYMADE" && (
-              <>
-                <Field label="Customer bill number" required
-                  hint="Without it a finished garment cannot be matched back to whoever is waiting for it.">
-                  <Input value={form.customerBillNumber} placeholder="e.g. SW-1042"
-                    onChange={e => setForm(p => ({ ...p, customerBillNumber: e.target.value }))} />
-                </Field>
-                <Field label="Photos" hint="The sample, or the customer's own bill.">
-                  <PhotoPicker value={form.photos} onChange={v => setForm(p => ({ ...p, photos: v }))} max={4} />
-                </Field>
-              </>
-            )}
+            {/* Wholesale or readymade was decided when the cloth was cut, and
+                the bill number with it. Asking again here is a second place for
+                the same fact to be wrong. */}
+            {(() => {
+              const ca = assignments.find(a => a.id === form.assignmentId);
+              if (!ca || ca.jobType !== "READYMADE") return null;
+              return (
+                <div style={{ padding: "9px 12px", borderRadius: 9, background: "#ede9fe", fontSize: 12, lineHeight: 1.6 }}>
+                  Readymade — for customer bill <strong>{ca.customerBillNumber}</strong>. It follows
+                  these pieces onto the finished garment.
+                </div>
+              );
+            })()}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <Field label="Pieces Assigned" required
@@ -539,7 +625,25 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
                       )}
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1 }}>{j.cuttingAssignment.itemType.name}</div>
-                    {(j.amountEarned ?? 0) > 0 && (
+                    {canAssign && (
+                    <div style={{ fontSize: 11, marginTop: 3 }}>
+                      <button type="button"
+                        onClick={e => { e.stopPropagation(); openTransit(j); }}
+                        style={{ background: "none", border: "none", color: "var(--primary)", fontWeight: 700, fontSize: 11, cursor: "pointer", padding: 0 }}>
+                        🚚 Transit
+                      </button>
+                      {j.issueLrNumber && (
+                        <span style={{ color: "var(--muted)" }}> · out on {j.issueLrNumber}</span>
+                      )}
+                      {j.returnLrNumber && (
+                        <span style={{ color: "var(--muted)" }}> · back on {j.returnLrNumber}</span>
+                      )}
+                      {j.returnWarehouse && (
+                        <span style={{ color: "var(--muted)" }}> → {j.returnWarehouse.name}</span>
+                      )}
+                    </div>
+                  )}
+                  {(j.amountEarned ?? 0) > 0 && (
                     <div style={{ fontSize: 11, marginTop: 3 }}>
                       <span style={{ color: "var(--muted)" }}>Earned </span>
                       <strong>{formatMoney(j.amountEarned!)}</strong>

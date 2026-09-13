@@ -170,3 +170,116 @@ class WhatEachKarigarIsHolding(KarigarFixture):
         self.assertEqual(
             [(z.size, z.pieces_assigned) for z in StitchingSize.objects.filter(job=job)],
             [("38", 8), ("40", 12)])
+
+
+class TheBillNumberTravelsToTheGarment(KarigarFixture):
+    """Readymade is cut because a customer asked for it. Their bill number is
+    set once, at cutting, and carried to the tag — so a finished garment can be
+    matched to whoever is waiting for it without walking back up the chain."""
+
+    def _readymade_cut(self, bill="SW-1042"):
+        from warehouse.models import ClothCategory, ClothColor, Supplier
+        from warehouse.services.stock import create_raw_cloth_batch
+
+        batch = create_raw_cloth_batch(
+            user=self.admin,
+            supplier_id=Supplier.objects.first().id,
+            category_id=ClothCategory.objects.first().id,
+            color_id=ClothColor.objects.first().id,
+            warehouse_id=self.warehouse.id, total_meters=300,
+            cost_per_meter=100, design_number=f"RM-{bill}")
+        cut = create_cutting_assignment(
+            user=self.admin, raw_cloth_batch_id=batch.id,
+            cutting_master_id=self.master.id, item_type_id=self.item_type.id,
+            meters_assigned=100, target_pieces=20,
+            job_type="READYMADE", customer_bill_number=bill)
+        update_cutting_assignment(id=cut.id, status="COMPLETED",
+                                  pieces_completed=20, cloth_used=95, cloth_wasted=5)
+        return cut
+
+    def test_readymade_cutting_needs_the_bill_number(self):
+        from warehouse.models import ClothCategory, ClothColor, Supplier
+        from warehouse.services.stock import create_raw_cloth_batch
+
+        batch = create_raw_cloth_batch(
+            user=self.admin, supplier_id=Supplier.objects.first().id,
+            category_id=ClothCategory.objects.first().id,
+            color_id=ClothColor.objects.first().id,
+            warehouse_id=self.warehouse.id, total_meters=100,
+            cost_per_meter=100, design_number="RM-NOBILL")
+
+        with self.assertRaises(GraphQLError):
+            create_cutting_assignment(
+                user=self.admin, raw_cloth_batch_id=batch.id,
+                cutting_master_id=self.master.id, item_type_id=self.item_type.id,
+                meters_assigned=50, target_pieces=10, job_type="READYMADE")
+
+    def test_stitching_inherits_the_purpose_without_being_told_again(self):
+        cut = self._readymade_cut()
+
+        job = create_stitching_job(
+            user=self.admin, cutting_assignment_id=cut.id,
+            karigar_id=self.mumbai.id, pieces_assigned=10)
+
+        self.assertEqual(job.job_type, "READYMADE")
+        self.assertEqual(job.customer_bill_number, "SW-1042")
+
+    def test_the_garment_carries_the_bill_it_was_made_for(self):
+        from warehouse.services.production import create_finished_products
+
+        cut = self._readymade_cut(bill="SW-2001")
+        job = create_stitching_job(
+            user=self.admin, cutting_assignment_id=cut.id,
+            karigar_id=self.mumbai.id, pieces_assigned=10)
+        update_stitching_job(id=job.id, pieces_completed=10, status="READY")
+
+        product = create_finished_products(
+            user=self.admin, stitching_job_id=job.id, quantity=10,
+            warehouse_id=self.warehouse.id, cost_price=500, sale_price=1500)
+
+        self.assertEqual(product.customer_bill_number, "SW-2001")
+
+    def test_wholesale_work_carries_no_bill(self):
+        from warehouse.services.production import create_finished_products
+
+        job = self._job(pieces=10)
+        update_stitching_job(id=job.id, pieces_completed=10, status="READY")
+
+        product = create_finished_products(
+            user=self.admin, stitching_job_id=job.id, quantity=10,
+            warehouse_id=self.warehouse.id, cost_price=500, sale_price=1500)
+
+        self.assertEqual(product.customer_bill_number, "")
+
+
+class EveryTransitCarriesItsLR(KarigarFixture):
+    """A lorry took the cut pieces somewhere and another brought garments back.
+    The LR is usually a photograph of a paper docket, not anything typed."""
+
+    def test_both_legs_are_recorded_on_the_job(self):
+        job = self._job(pieces=20)
+
+        update_stitching_job(
+            id=job.id,
+            issue_transporter="VRL", issue_lr_number="LR-88",
+            issue_vehicle_number="MH-01-AB-1234",
+            return_transporter="VRL", return_lr_number="LR-91",
+            return_warehouse_id=self.warehouse.id)
+
+        job.refresh_from_db()
+        self.assertEqual(job.issue_lr_number, "LR-88")
+        self.assertEqual(job.issue_vehicle_number, "MH-01-AB-1234")
+        self.assertEqual(job.return_lr_number, "LR-91")
+        self.assertEqual(job.return_warehouse_id, self.warehouse.id)
+
+    def test_garments_may_come_back_to_a_different_godown(self):
+        """Cloth leaves one place and finished pieces land in another."""
+        from warehouse.models import WarehouseLocation
+
+        other = WarehouseLocation.objects.create(name="Hyderabad", code="HYD")
+        job = self._job(pieces=10)
+
+        update_stitching_job(id=job.id, return_warehouse_id=other.id)
+
+        job.refresh_from_db()
+        self.assertEqual(job.return_warehouse_id, other.id)

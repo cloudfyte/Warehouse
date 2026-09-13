@@ -27,6 +27,10 @@ class CreateCuttingAssignment(graphene.Mutation):
         # Either a size run, or a bare total for a sizeless docket.
         target_pieces = graphene.Int()
         sizes = graphene.List(graphene.NonNull(CuttingSizeInput))
+        # Why this cloth is being cut. Readymade carries the customer's bill
+        # number from here all the way to the tag.
+        job_type = graphene.String()
+        customer_bill_number = graphene.String()
         age_group = graphene.String()
         size = graphene.String()
         assigned_date = graphene.Date()
@@ -113,6 +117,19 @@ class UpdateStitchingJob(graphene.Mutation):
         completed_date = graphene.Date()
         notes = graphene.String()
         sizes = graphene.List(graphene.NonNull(CuttingSizeInput))
+        # The cut pieces going out, and the garments coming back. The LR is
+        # usually a photograph of a paper docket rather than anything typed.
+        issue_transporter = graphene.String()
+        issue_lr_number = graphene.String()
+        issue_vehicle_number = graphene.String()
+        issue_date = graphene.Date()
+        issue_photos = graphene.String()
+        return_transporter = graphene.String()
+        return_lr_number = graphene.String()
+        return_vehicle_number = graphene.String()
+        return_date = graphene.Date()
+        return_photos = graphene.String()
+        return_warehouse_id = graphene.ID()
 
     job = graphene.Field(StitchingJobType)
 
@@ -162,6 +179,7 @@ class CreateFinishedProducts(graphene.Mutation):
         cloth_color_id = graphene.ID()
         age_group = graphene.String()
         size = graphene.String()
+        customer_bill_number = graphene.String()
         quantity = graphene.Int(required=True)
         warehouse_id = graphene.ID(required=True)
         cost_price = graphene.Float(required=True)

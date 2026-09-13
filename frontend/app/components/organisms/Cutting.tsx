@@ -92,6 +92,9 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   const [selected, setSelected] = useState<CuttingAssignment | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
+  // Cloth is cut for a reason, and the reason is decided here rather than
+  // three steps later. Readymade carries the customer's bill number onward.
+  const [purpose, setPurpose] = useState({ jobType: "WHOLESALE", bill: "" });
   const [run, setRun] = useState<{ size: string; pieces: string }[]>([]);
   const runRows = run
     .filter(r => r.size.trim() && +r.pieces > 0)
@@ -169,17 +172,19 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
     setLoading(true); setError("");
     try {
       await onMutate(
-        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int,$ag:String,$size:String,$notes:String,$sizes:[CuttingSizeInput!]){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,ageGroup:$ag,size:$size,notes:$notes,sizes:$sizes){assignment{id}}}`,
+        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int,$ag:String,$size:String,$notes:String,$sizes:[CuttingSizeInput!],$kind:String,$bill:String){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,ageGroup:$ag,size:$size,notes:$notes,sizes:$sizes,jobType:$kind,customerBillNumber:$bill){assignment{id}}}`,
         {
           b: form.batchId, m: form.masterId, t: form.itemTypeId, meters: +form.meters,
           target: runTotal > 0 ? undefined : +form.targetPieces,
+          kind: purpose.jobType,
+          bill: purpose.jobType === "READYMADE" ? purpose.bill.trim() : undefined,
           ag: form.ageGroup || undefined, size: form.size || undefined, notes: form.notes,
           sizes: runRows.length ? runRows : undefined,
         }
       );
       setShowForm(false);
       setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
-      setRun([]);
+      setRun([]); setPurpose({ jobType: "WHOLESALE", bill: "" });
       showToast("Cutting assignment created.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
@@ -233,7 +238,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
         <Modal title="New Cutting Assignment" subtitle="Assign cloth from a batch to a cutting master"
           onClose={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" }); }} width={520}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <Button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId || !form.meters || (runTotal === 0 && !form.targetPieces)} style={{ flex: 1 }}>{loading ? "Assigning…" : "Create Assignment"}</Button>
+            <Button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId || !form.meters || (runTotal === 0 && !form.targetPieces) || (purpose.jobType === "READYMADE" && !purpose.bill.trim())} style={{ flex: 1 }}>{loading ? "Assigning…" : "Create Assignment"}</Button>
             <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" }); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
           <ErrorBanner msg={error} />
@@ -292,6 +297,30 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
                   onChange={e => setForm(p => ({ ...p, targetPieces: e.target.value }))} />
               </Field>
             </FormGrid>
+
+            <Field label="What is this cut for?" required
+              hint="Wholesale is made ahead of demand. Readymade is a customer's order, and their bill number follows the pieces to the tag.">
+              <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+                {([["WHOLESALE", "Wholesale"], ["READYMADE", "Readymade"]] as const).map(([key, label]) => (
+                  <button key={key} type="button" onClick={() => setPurpose(p => ({ ...p, jobType: key }))}
+                    style={{
+                      padding: "7px 16px", fontSize: 13, border: "none", cursor: "pointer",
+                      fontWeight: purpose.jobType === key ? 700 : 500,
+                      background: purpose.jobType === key ? "var(--primary)" : "transparent",
+                      color: purpose.jobType === key ? "#fff" : "var(--muted)",
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            {purpose.jobType === "READYMADE" && (
+              <Field label="Customer bill number" required
+                hint="Carried through stitching onto the finished garment.">
+                <Input value={purpose.bill} placeholder="e.g. SW-1042"
+                  onChange={e => setPurpose(p => ({ ...p, bill: e.target.value }))} />
+              </Field>
+            )}
 
             {/* A docket is cut as twelve of 38 and twenty of 40, not as a lump
                 of thirty-two. Listing the run here is what lets a stitching job

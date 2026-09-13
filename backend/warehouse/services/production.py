@@ -14,7 +14,8 @@ from warehouse.services.notify import notify_managers, notify_user
 
 def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, item_type_id,
                               meters_assigned, target_pieces=None, age_group="", size="",
-                              assigned_date=None, due_date=None, notes="", sizes=None):
+                              assigned_date=None, due_date=None, notes="", sizes=None,
+                              job_type=None, customer_bill_number=""):
     """
     Hand cloth to a cutting master.
 
@@ -24,6 +25,18 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
     is sizeless, which is how dockets were written before.
     """
     from warehouse.models import CuttingSize
+
+    job_type = (job_type or CuttingAssignment.JobType.WHOLESALE).upper()
+    if job_type not in CuttingAssignment.JobType.values:
+        raise GraphQLError("Cutting is either wholesale or readymade.")
+    # Readymade is cut because somebody asked for it. Without their bill number
+    # the pieces cannot be matched back to them at any point down the line.
+    if job_type == CuttingAssignment.JobType.READYMADE and not (customer_bill_number or "").strip():
+        raise GraphQLError(
+            "Readymade work is cut against a customer's bill — give the bill number."
+        )
+    if job_type == CuttingAssignment.JobType.WHOLESALE:
+        customer_bill_number = ""
 
     rows = [r for r in (sizes or []) if (r.get("size") or "").strip()]
     for row in rows:
@@ -73,6 +86,8 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
             target_pieces=target_pieces,
             age_group=age_group.strip(),
             size=size.strip(),
+            job_type=job_type,
+            customer_bill_number=(customer_bill_number or "").strip(),
             assigned_date=assigned_date or timezone.now().date(),
             due_date=due_date,
             notes=notes.strip(),
@@ -237,18 +252,6 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
     if not karigar_id and not tailor_id:
         raise GraphQLError("Who is stitching this? Pick a karigar.")
 
-    job_type = (job_type or StitchingJob.JobType.WHOLESALE).upper()
-    if job_type not in StitchingJob.JobType.values:
-        raise GraphQLError("Stitching work is either wholesale or readymade.")
-    # Readymade work belongs to one customer. Without their bill number the
-    # finished garment cannot be matched back to whoever is waiting for it,
-    # which is the whole reason for separating the two kinds of work.
-    if job_type == StitchingJob.JobType.READYMADE and not (customer_bill_number or "").strip():
-        raise GraphQLError(
-            "Readymade work is stitched against a customer's bill — give the bill number."
-        )
-    if job_type == StitchingJob.JobType.WHOLESALE:
-        customer_bill_number = ""
 
     karigar = None
     tailor = None
@@ -290,6 +293,20 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
         if pieces_assigned > available:
             raise GraphQLError(f"Only {available} unassigned pieces available from this cutting assignment.")
 
+        # The purpose was decided at cutting. Asking for it again here is a
+        # second place for the same fact to be wrong, so it is inherited unless
+        # somebody deliberately says otherwise.
+        kind = (job_type or ca.job_type or StitchingJob.JobType.WHOLESALE).upper()
+        if kind not in StitchingJob.JobType.values:
+            raise GraphQLError("Stitching work is either wholesale or readymade.")
+        bill = (customer_bill_number or "").strip() or (ca.customer_bill_number or "")
+        if kind == StitchingJob.JobType.READYMADE and not bill:
+            raise GraphQLError(
+                "Readymade work is stitched against a customer's bill — give the bill number."
+            )
+        if kind == StitchingJob.JobType.WHOLESALE:
+            bill = ""
+
         job = StitchingJob.objects.create(
             cutting_assignment=ca,
             tailor=tailor,
@@ -297,10 +314,10 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
             assigned_date=assigned_date or timezone.now().date(),
             due_date=due_date,
             notes=notes.strip(),
-            job_type=job_type,
+            job_type=kind,
             karigar=karigar,
             rate_per_piece=rate,
-            customer_bill_number=(customer_bill_number or "").strip(),
+            customer_bill_number=bill,
             photos=save_data_urls_csv(photos or "", "stitching"),
             assigned_by=user,
         )
@@ -324,13 +341,34 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
     return job
 
 
+_TRANSIT_FIELDS = (
+    "issue_transporter", "issue_lr_number", "issue_vehicle_number", "issue_date",
+    "return_transporter", "return_lr_number", "return_vehicle_number", "return_date",
+    "return_warehouse_id",
+)
+
+
 def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejected=None,
-                         completed_date=None, notes=None, sizes=None):
+                         completed_date=None, notes=None, sizes=None,
+                         issue_photos=None, return_photos=None, **transit):
     from warehouse.models import StitchingSize
+    from warehouse.services.uploads import save_data_urls_csv
     try:
         job = StitchingJob.objects.get(pk=id)
     except StitchingJob.DoesNotExist as exc:
         raise GraphQLError("Stitching job not found.") from exc
+
+    # A lorry took the cut pieces somewhere and another brought garments back.
+    # The LR is usually a photograph of a paper docket rather than anything
+    # typed, so both legs carry pictures as well as numbers.
+    for field in _TRANSIT_FIELDS:
+        if transit.get(field) is not None:
+            value = transit[field]
+            setattr(job, field, value.strip() if isinstance(value, str) else value)
+    if issue_photos is not None:
+        job.issue_photos = save_data_urls_csv(issue_photos, "jobwork")
+    if return_photos is not None:
+        job.return_photos = save_data_urls_csv(return_photos, "jobwork")
 
     prev_status = job.status
 
@@ -393,7 +431,8 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
 
 def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=None,
                               item_type_id=None, cloth_category_id=None, cloth_color_id=None,
-                              age_group="", size="", quantity, warehouse_id, cost_price, sale_price):
+                              age_group="", size="", quantity, warehouse_id, cost_price, sale_price,
+                              customer_bill_number=""):
     from warehouse.models import ReadymadeStock
 
     warehouse = get_warehouse(user, warehouse_id)
@@ -424,6 +463,9 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
                     f"({eligible} stitched, {already_moved} already moved)."
                 )
 
+            # The end of the line for the customer's bill number: set at
+            # cutting, carried through stitching, landing on the garment.
+            customer_bill_number = sj.customer_bill_number or ""
             item_type_id = sj.cutting_assignment.item_type_id
             cloth_category_id = sj.cutting_assignment.raw_cloth_batch.cloth_category_id
             cloth_color_id = sj.cutting_assignment.raw_cloth_batch.cloth_color_id
@@ -455,6 +497,7 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             source=source,
             stitching_job=sj,
             readymade_stock=rs,
+            customer_bill_number=(customer_bill_number or "").strip(),
             quantity=quantity,
             warehouse=warehouse,
             cost_price=Decimal(str(cost_price)),

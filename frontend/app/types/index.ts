@@ -112,6 +112,8 @@ export interface CuttingAssignment {
   targetPieces: number; ageGroup?: string; size: string; status: string; assignedDate: string; dueDate?: string
   piecesCompleted: number; clothUsed: number; clothWasted: number; completedDate?: string; notes: string
   costPerPiece?: number; clothReturned?: number
+  /** Why this cloth is being cut. Readymade carries the customer's bill onward. */
+  jobType?: string; customerBillNumber?: string
   /** A docket is cut as a size run, not as a single lump. */
   sizes?: { id: string; size: string; targetPieces: number; piecesCompleted: number }[]
 }
@@ -132,6 +134,12 @@ export interface StitchingJob {
   karigar?: Karigar | null
   ratePerPiece?: number; amountPaid?: number; amountEarned?: number; amountDue?: number
   sizes?: { id: string; size: string; piecesAssigned: number; piecesCompleted: number }[]
+  /** Cut pieces going out, garments coming back. The LR is usually a photo. */
+  issueTransporter?: string; issueLrNumber?: string; issueVehicleNumber?: string
+  issueDate?: string; issuePhotos?: string
+  returnTransporter?: string; returnLrNumber?: string; returnVehicleNumber?: string
+  returnDate?: string; returnPhotos?: string
+  returnWarehouse?: { id: string; name: string } | null
 }
 
 /** One karigar and everything of theirs — the other axis of the stitching screen. */
