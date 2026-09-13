@@ -62,7 +62,12 @@ class UpdateCuttingAssignment(graphene.Mutation):
 class CreateStitchingJob(graphene.Mutation):
     class Arguments:
         cutting_assignment_id = graphene.ID(required=True)
-        tailor_id = graphene.ID(required=True)
+        # Either a karigar (paid per piece, possibly an outside unit) or a
+        # tailor on the payroll. One of the two is required, checked in the
+        # service so both doors enforce it.
+        karigar_id = graphene.ID()
+        tailor_id = graphene.ID()
+        rate_per_piece = graphene.Float()
         pieces_assigned = graphene.Int(required=True)
         job_type = graphene.String()
         customer_bill_number = graphene.String()
@@ -74,11 +79,11 @@ class CreateStitchingJob(graphene.Mutation):
     job = graphene.Field(StitchingJobType)
 
     @login_required
-    def mutate(self, info, cutting_assignment_id, tailor_id, pieces_assigned, **kwargs):
+    def mutate(self, info, cutting_assignment_id, pieces_assigned, **kwargs):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
         return CreateStitchingJob(job=create_stitching_job(
             user=info.context.user, cutting_assignment_id=cutting_assignment_id,
-            tailor_id=tailor_id, pieces_assigned=pieces_assigned, **kwargs,
+            pieces_assigned=pieces_assigned, **kwargs,
         ))
 
 

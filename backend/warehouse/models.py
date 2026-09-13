@@ -537,6 +537,15 @@ class StitchingJob(models.Model):
 
     job_number = models.CharField(max_length=40, unique=True, editable=False)
     cutting_assignment = models.ForeignKey(CuttingAssignment, on_delete=models.PROTECT, related_name="stitching_jobs")
+    # Who is actually doing the work. A karigar is paid by the piece and need
+    # not be staff; tailor stays for jobs booked before karigars existed and
+    # for in-house work still tracked against an employee.
+    karigar = models.ForeignKey("Karigar", null=True, blank=True, on_delete=models.PROTECT,
+                                related_name="stitching_jobs")
+    # Frozen when the job is given out. The karigar's rate may change later,
+    # and a job already handed over must still settle at what was agreed.
+    rate_per_piece = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     # Wholesale work goes to stock. Readymade work is stitched against one
     # customer's order, so it has to name the bill it belongs to — otherwise a
     # finished garment cannot be matched back to whoever is waiting for it.
@@ -545,7 +554,7 @@ class StitchingJob(models.Model):
         max_length=60, blank=True, db_index=True,
         help_text="The customer's bill this was stitched against. Readymade work only.")
     photos = models.TextField(blank=True, help_text="Comma-separated photo paths — the sample or the customer's bill")
-    tailor = models.ForeignKey(EmployeeProfile, on_delete=models.PROTECT, related_name="stitching_jobs", limit_choices_to={"role": EmployeeProfile.Role.TAILOR})
+    tailor = models.ForeignKey(EmployeeProfile, null=True, blank=True, on_delete=models.PROTECT, related_name="stitching_jobs", limit_choices_to={"role": EmployeeProfile.Role.TAILOR})
     pieces_assigned = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RECEIVED)
     assigned_date = models.DateField(default=timezone.now)
@@ -556,6 +565,16 @@ class StitchingJob(models.Model):
     pieces_rejected = models.PositiveIntegerField(default=0)
     completed_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    @property
+    def amount_earned(self):
+        """Pay follows finished work, not work handed out. A rejected piece
+        was not stitched to standard and is not earned."""
+        return (self.rate_per_piece or Decimal("0.00")) * (self.pieces_completed or 0)
+
+    @property
+    def amount_due(self):
+        return self.amount_earned - (self.amount_paid or Decimal("0.00"))
 
     assigned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="stitching_jobs_created")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1863,3 +1882,42 @@ class RetailReturnItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} x {self.finished_product.sku}"
+
+
+# ─── job work ─────────────────────────────────────────────────────────────────
+#
+# A karigar is the person or unit that does the work, and is not staff. They
+# charge by the piece, they may be in another city, and cloth often reaches
+# them without ever passing through this warehouse — bought in Surat, stitched
+# in Mumbai, arriving at Jagtial only as finished garments.
+
+class Karigar(models.Model):
+    """A stitching unit or artisan paid by the piece."""
+    class Kind(models.TextChoices):
+        IN_HOUSE = "IN_HOUSE", "In-house"
+        OUTSIDE = "OUTSIDE", "Outside unit"
+
+    name = models.CharField(max_length=140, db_index=True)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.OUTSIDE)
+    phone = models.CharField(max_length=20, blank=True)
+    whatsapp = models.CharField(max_length=20, blank=True)
+    city = models.CharField(max_length=80, blank=True, help_text="Where the work is done — Mumbai, Surat, local")
+    address = models.TextField(blank=True)
+    # What they charge to stitch one piece. A job can override it, because a
+    # heavier garment is worth more than a plain one, but this is the default
+    # so nobody has to remember the number every time.
+    rate_per_piece = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    # Set when this karigar is also someone on the payroll, so in-house work
+    # still reaches the right person's notifications.
+    employee = models.ForeignKey(EmployeeProfile, null=True, blank=True, on_delete=models.SET_NULL,
+                                 related_name="karigar_records")
+    notes = models.TextField(blank=True)
+    active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_kind_display()})"

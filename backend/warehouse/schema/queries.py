@@ -7,12 +7,13 @@ from .types import (
     AgingReport, AnalyticsStats, AuditLogType, BuyerReturnType, BuyerType, ClothCategoryType,
     ClothColorType, CreditTransactionType, CustomRoleType, CuttingAssignmentType,
     DashboardStats, EmployeeProfileType, ExpenseType, FinishedProductType, ItemTypeType,
-    NotificationType, PLReport, ParcelInspectionType, ProductSetType, PublicSettingsType,
-    PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType, ReadymadeStockType,
-    ReconciliationRowType, RecurringSettlementType, ReorderPointType, RetailChannelType,
-    RetailDispatchType, RetailReturnType, RetailStoreType, SalesOrderType, SettlementType,
-    StitchingJobType, StockAdjustmentType, StockTransferType, SupplierPaymentType,
-    SupplierReturnType, SupplierType, SystemSettingsType, WarehouseLocationType,
+    KarigarType, NotificationType, PLReport, ParcelInspectionType, ProductSetType,
+    PublicSettingsType, PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType,
+    ReadymadeStockType, ReconciliationRowType, RecurringSettlementType, ReorderPointType,
+    RetailChannelType, RetailDispatchType, RetailReturnType, RetailStoreType, SalesOrderType,
+    SettlementType, StitchingJobType, StockAdjustmentType, StockTransferType,
+    SupplierPaymentType, SupplierReturnType, SupplierType, SystemSettingsType,
+    WarehouseLocationType,
 )
 
 
@@ -85,6 +86,7 @@ class Query(graphene.ObjectType):
 
     # Stock transfers
     stock_transfers = graphene.List(StockTransferType, status=graphene.String(), limit=graphene.Int())
+    karigars = graphene.List(KarigarType, include_inactive=graphene.Boolean())
     retail_channel = graphene.Field(RetailChannelType)
     retail_stores = graphene.List(RetailStoreType)
     retail_dispatches = graphene.List(RetailDispatchType, status=graphene.String(), limit=graphene.Int())
@@ -295,6 +297,10 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_stock_transfers(self, info, status=None, limit=100):
         return selectors.get_stock_transfers(info.context.user, status=status, limit=limit)
+
+    @login_required
+    def resolve_karigars(self, info, include_inactive=False):
+        return selectors.get_karigars(info.context.user, include_inactive=include_inactive)
 
     @login_required
     def resolve_retail_channel(self, info):

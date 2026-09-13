@@ -10,13 +10,13 @@ from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
     AuditLog, Buyer, BuyerReturn, ClothCategory, ClothColor, CreditPayment, CreditTransaction,
     CustomRole, CuttingAssignment, EmployeeProfile, Expense, FinishedProduct,
-    FinishedProductOption, ItemType, Notification, OTPCode, ParcelInspection, ProductSet,
-    ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder, PurchaseOrderItem, Quotation,
-    QuotationItem, RawClothBatch, ReadymadeStock, RecurringSettlement, ReorderPoint,
-    RetailChannel, RetailDispatch, RetailDispatchItem, RetailProductLink, RetailReturn,
-    RetailReturnItem, RetailStore, SalesOrder, SalesOrderItem, Settlement, StitchingJob,
-    StockAdjustment, StockTransfer, Supplier, SupplierPayment, SupplierReturn, SystemSettings,
-    WarehouseLocation,
+    FinishedProductOption, ItemType, Karigar, Notification, OTPCode, ParcelInspection,
+    ProductSet, ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder,
+    PurchaseOrderItem, Quotation, QuotationItem, RawClothBatch, ReadymadeStock,
+    RecurringSettlement, ReorderPoint, RetailChannel, RetailDispatch, RetailDispatchItem,
+    RetailProductLink, RetailReturn, RetailReturnItem, RetailStore, SalesOrder, SalesOrderItem,
+    Settlement, StitchingJob, StockAdjustment, StockTransfer, Supplier, SupplierPayment,
+    SupplierReturn, SystemSettings, WarehouseLocation,
 )
 
 
@@ -292,9 +292,26 @@ class CuttingAssignmentType(DjangoObjectType):
 
 
 class StitchingJobType(DjangoObjectType):
+    rate_per_piece = graphene.Float()
+    amount_paid = graphene.Float()
+    amount_earned = graphene.Float()
+    amount_due = graphene.Float()
+
     class Meta:
         model = StitchingJob
         fields = "__all__"
+
+    def resolve_rate_per_piece(self, info):
+        return float(self.rate_per_piece or 0)
+
+    def resolve_amount_paid(self, info):
+        return float(self.amount_paid or 0)
+
+    def resolve_amount_earned(self, info):
+        return float(self.amount_earned or 0)
+
+    def resolve_amount_due(self, info):
+        return float(self.amount_due or 0)
 
 
 class FinishedProductType(DjangoObjectType):
@@ -340,6 +357,17 @@ class ReconciliationRowType(graphene.ObjectType):
     # An unknown, which is not the same as a zero.
     shop_has = graphene.Int()
     difference = graphene.Int()
+
+
+class KarigarType(DjangoObjectType):
+    rate_per_piece = graphene.Float()
+
+    class Meta:
+        model = Karigar
+        fields = "__all__"
+
+    def resolve_rate_per_piece(self, info):
+        return float(self.rate_per_piece or 0)
 
 
 class RetailChannelType(DjangoObjectType):

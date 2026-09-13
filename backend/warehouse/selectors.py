@@ -889,3 +889,10 @@ def get_retail_returns(user, limit=100):
             .filter(to_warehouse__in=accessible_warehouses(user))
             .select_related("store", "to_warehouse")
             .prefetch_related("items__finished_product__item_type")[:limit])
+
+
+def get_karigars(user, include_inactive=False):
+    from warehouse.models import Karigar
+
+    qs = Karigar.objects.all()
+    return qs if include_inactive else qs.filter(active=True)

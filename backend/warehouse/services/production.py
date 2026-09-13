@@ -138,13 +138,17 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
     return assignment
 
 
-def create_stitching_job(*, user, cutting_assignment_id, tailor_id, pieces_assigned,
+def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_assigned=0,
                          assigned_date=None, due_date=None, notes="",
-                         job_type=None, customer_bill_number="", photos=""):
+                         job_type=None, customer_bill_number="", photos="",
+                         karigar_id=None, rate_per_piece=None):
+    from warehouse.models import Karigar
     from warehouse.services.uploads import save_data_urls_csv
 
     if pieces_assigned <= 0:
         raise GraphQLError("Pieces assigned must be greater than zero.")
+    if not karigar_id and not tailor_id:
+        raise GraphQLError("Who is stitching this? Pick a karigar.")
 
     job_type = (job_type or StitchingJob.JobType.WHOLESALE).upper()
     if job_type not in StitchingJob.JobType.values:
@@ -159,10 +163,30 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id, pieces_assig
     if job_type == StitchingJob.JobType.WHOLESALE:
         customer_bill_number = ""
 
-    try:
-        tailor = EmployeeProfile.objects.get(pk=tailor_id, role=EmployeeProfile.Role.TAILOR, active=True)
-    except EmployeeProfile.DoesNotExist as exc:
-        raise GraphQLError("Tailor not found or inactive.") from exc
+    karigar = None
+    tailor = None
+    if karigar_id:
+        try:
+            karigar = Karigar.objects.get(pk=karigar_id, active=True)
+        except Karigar.DoesNotExist as exc:
+            raise GraphQLError("Karigar not found or inactive.") from exc
+        # An in-house karigar may also be on the payroll, so notifications
+        # still reach the right person.
+        tailor = karigar.employee
+    else:
+        try:
+            tailor = EmployeeProfile.objects.get(pk=tailor_id, role=EmployeeProfile.Role.TAILOR, active=True)
+        except EmployeeProfile.DoesNotExist as exc:
+            raise GraphQLError("Tailor not found or inactive.") from exc
+
+    # Frozen at the moment the work is handed over. The karigar's rate may
+    # change later, and a job already given out must settle at what was agreed.
+    rate = Decimal(str(
+        rate_per_piece if rate_per_piece is not None
+        else (karigar.rate_per_piece if karigar else 0)
+    ))
+    if rate < 0:
+        raise GraphQLError("A rate cannot be negative.")
 
     with transaction.atomic():
         # Lock the assignment so two managers cannot each read the same
@@ -187,18 +211,23 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id, pieces_assig
             due_date=due_date,
             notes=notes.strip(),
             job_type=job_type,
+            karigar=karigar,
+            rate_per_piece=rate,
             customer_bill_number=(customer_bill_number or "").strip(),
             photos=save_data_urls_csv(photos or "", "stitching"),
             assigned_by=user,
         )
-    notify_user(
-        user=tailor.user,
-        title=f"New Stitching Job: {job.job_number}",
-        message=f"You have been assigned {pieces_assigned} pieces of "
-                f"{ca.item_type.name} for stitching (job {job.job_number}).",
-        level="INFO",
-        link="stitching",
-    )
+    # An outside unit has no login here, so there is nobody to notify. The
+    # jobslip is what reaches them.
+    if tailor and tailor.user_id:
+        notify_user(
+            user=tailor.user,
+            title=f"New Stitching Job: {job.job_number}",
+            message=f"You have been assigned {pieces_assigned} pieces of "
+                    f"{ca.item_type.name} for stitching (job {job.job_number}).",
+            level="INFO",
+            link="stitching",
+        )
     return job
 
 
