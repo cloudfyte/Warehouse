@@ -7,6 +7,7 @@ from warehouse.models import (
     ClothCategory, ClothColor, ItemType, PurchaseOrder,
     PurchaseOrderItem, RawClothBatch, ReadymadeStock, Supplier,
 )
+from warehouse.services.stock import receive_cloth_into_stock
 from warehouse.permissions import get_scoped, get_warehouse, scoped
 from warehouse.services.uploads import save_data_urls_csv
 
@@ -197,17 +198,24 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                     )
                 poi.received_meters = already + meters
                 poi.save(update_fields=["received_meters"])
-                RawClothBatch.objects.create(
-                    po_item=poi,
-                    supplier=po.supplier,
-                    cloth_category=poi.cloth_category,
-                    cloth_color=poi.cloth_color,
-                    warehouse=po.warehouse,
-                    total_meters=meters,
-                    available_meters=meters,
-                    cost_per_meter=Decimal(str(receipt.get("cost_per_meter") or poi.unit_price or 0)),
-                    bin_location=receipt.get("bin_location", ""),
-                    notes=receipt.get("notes", ""),
+                # The design number is asked for at the bay, because this is
+                # the moment the roll is in front of somebody who can read the
+                # number off it. A second lorry carrying the rest of the same
+                # order tops the same cloth up rather than opening a new lot.
+                receive_cloth_into_stock(
+                    design_number=receipt.get("design_number", ""),
+                    warehouse_id=po.warehouse_id,
+                    meters=meters,
+                    cost_per_meter=receipt.get("cost_per_meter") or poi.unit_price or 0,
+                    defaults={
+                        "po_item": poi,
+                        "supplier": po.supplier,
+                        "cloth_category": poi.cloth_category,
+                        "cloth_color": poi.cloth_color,
+                        "cloth_code": receipt.get("cloth_code", ""),
+                        "bin_location": receipt.get("bin_location", ""),
+                        "notes": receipt.get("notes", ""),
+                    },
                 )
                 booked_anything = True
             else:

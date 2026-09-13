@@ -415,8 +415,14 @@ class RawClothBatch(models.Model):
     # The mill's own design number for this cloth. It is how the shop floor
     # actually refers to a lot — "the 4472" — and it is what a cutting or
     # stitching docket is written against, so it has to travel with the batch.
-    design_number = models.CharField(max_length=60, blank=True, db_index=True,
-                                     help_text="The design number this cloth is known by")
+    # The one code for a cloth, typed by the user and unique. Everything
+    # downstream — the cutting docket, the stitching job, the finished garment —
+    # is traced back through it, which only works if no two cloths share one.
+    #
+    # Unique per warehouse rather than globally: a transfer puts the same cloth
+    # in a second godown, and that is still one cloth, not a clash.
+    design_number = models.CharField(max_length=60, db_index=True,
+                                     help_text="The design number this cloth is known by. Unique, and typed by hand.")
     # Comma-separated storage paths, same as purchase order item photos. A
     # shade is far easier to match against a roll than a colour name is.
     photos = models.TextField(blank=True, help_text="Comma-separated photo paths of the cloth")
@@ -430,6 +436,10 @@ class RawClothBatch(models.Model):
     class Meta:
         ordering = ["-created_at"]
         verbose_name_plural = "Raw cloth batches"
+        constraints = [
+            models.UniqueConstraint(fields=["design_number", "warehouse"],
+                                    name="rawclothbatch_design_number_per_warehouse"),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.batch_number:

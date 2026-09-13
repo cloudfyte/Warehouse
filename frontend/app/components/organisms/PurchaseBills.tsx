@@ -1142,7 +1142,8 @@ function ItemEditor({
           <Field label="Bin / Shelf Location">
             <Input value={item.binLocation} onChange={e => onChange({ binLocation: e.target.value })} placeholder="e.g. A-12" />
           </Field>
-          <Field label="Design Number" hint="The number the mill knows this cloth by — it follows the batch.">
+          <Field label="Design Number" required
+            hint="This cloth's one code. Everything downstream finds it by this. Buying the same code again adds to that cloth.">
             <Input value={item.designNumber} onChange={e => onChange({ designNumber: e.target.value })}
               placeholder="e.g. 4472" />
           </Field>

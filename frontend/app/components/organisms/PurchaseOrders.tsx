@@ -72,6 +72,8 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     /** Ordered, already delivered, and still owed — a delivery is booked against the balance. */
     ordered: number; already: number; outstanding: number;
     receivedMeters: string; receivedQuantity: string; binLocation: string;
+    /** Cloth only. Its one code, read off the roll at the bay. */
+    designNumber: string;
   }
   const [showReceive, setShowReceive] = useState(false);
   const [receiveRows, setReceiveRows] = useState<ReceiveRow[]>([]);
@@ -100,6 +102,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         receivedMeters: isCloth ? String(outstanding) : "",
         receivedQuantity: isCloth ? "" : String(outstanding),
         binLocation: "",
+        designNumber: "",
       };
     }).filter(r => r.outstanding > 0);
     setReceiveRows(rows);
@@ -108,12 +111,20 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
 
   async function submitReceive() {
     if (!detail) return;
+    // Caught here so the whole delivery is not rejected by the server over one
+    // blank box, with the person still standing at the bay.
+    const nameless = receiveRows.find(r => r.kind === "RAW_CLOTH" && !r.designNumber.trim());
+    if (nameless) {
+      setReceiveErr(`Give ${nameless.label} its design number — it is how everything downstream finds this cloth.`);
+      return;
+    }
     setReceiveSaving(true); setReceiveErr("");
     try {
       const items = receiveRows.map(r => ({
         poItemId: r.poItemId,
         ...(r.kind === "RAW_CLOTH"
-          ? { receivedMeters: r.receivedMeters ? +r.receivedMeters : undefined }
+          ? { receivedMeters: r.receivedMeters ? +r.receivedMeters : undefined,
+              designNumber: r.designNumber.trim() }
           : { receivedQuantity: r.receivedQuantity ? +r.receivedQuantity : undefined }),
         binLocation: r.binLocation || undefined,
       }));
@@ -755,6 +766,13 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                     <Input placeholder="e.g. A-12" value={row.binLocation}
                       onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, binLocation: e.target.value } : x))} />
                   </Field>
+                  {row.kind === "RAW_CLOTH" && (
+                    <Field label="Design Number *" style={{ gridColumn: "1 / -1" }}
+                      hint="Read it off the roll. This cloth's one code — the same code arriving again tops that cloth up.">
+                      <Input placeholder="e.g. 4472" value={row.designNumber}
+                        onChange={e => setReceiveRows(r => r.map((x, j) => j === i ? { ...x, designNumber: e.target.value } : x))} />
+                    </Field>
+                  )}
                 </div>
               </div>
             ))}

@@ -137,6 +137,10 @@ def receive_stock_transfer(*, transfer_id, user):
                 total_meters=transfer.meters_to_transfer,
                 available_meters=transfer.meters_to_transfer,
                 cost_per_meter=src.cost_per_meter,
+                # The same cloth, in another godown. Its code travels with it —
+                # that is why the constraint is per warehouse and not global.
+                design_number=src.design_number,
+                cloth_code=src.cloth_code,
                 bin_location=src.bin_location,
                 notes=f"Transferred from {transfer.from_warehouse.name} via {transfer.transfer_number}",
             )

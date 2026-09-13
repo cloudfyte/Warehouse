@@ -31,6 +31,8 @@ class ReceiptItemInput(graphene.InputObjectType):
     received_meters = graphene.Float()
     received_quantity = graphene.Int()
     cost_per_meter = graphene.Float()
+    design_number = graphene.String()
+    cloth_code = graphene.String()
     bin_location = graphene.String()
     notes = graphene.String()
 

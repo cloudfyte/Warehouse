@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 from graphql import GraphQLError
 
+from warehouse.services.stock import receive_cloth_into_stock
 from warehouse.models import (
     ClothCategory, ClothColor, ItemType,
     PurchaseBill, PurchaseBillItem, PurchaseOrder,
@@ -143,18 +144,19 @@ def create_purchase_bill(
 
             # Immediately create stock record
             if kind == "RAW_CLOTH":
-                RawClothBatch.objects.create(
-                    supplier=supplier,
-                    cloth_category_id=item["cloth_category_id"],
-                    cloth_color_id=item["cloth_color_id"],
-                    warehouse=warehouse,
-                    total_meters=meters,
-                    available_meters=meters,
-                    cost_per_meter=cpm,
-                    cloth_code=item.get("cloth_code", ""),
+                receive_cloth_into_stock(
                     design_number=item.get("design_number", ""),
-                    bin_location=item.get("bin_location", ""),
-                    notes=f"Bill {bill.bill_number}" + (f" — {item.get('notes', '')}" if item.get("notes") else ""),
+                    warehouse_id=warehouse.id,
+                    meters=meters,
+                    cost_per_meter=cpm,
+                    defaults={
+                        "supplier": supplier,
+                        "cloth_category_id": item["cloth_category_id"],
+                        "cloth_color_id": item["cloth_color_id"],
+                        "cloth_code": item.get("cloth_code", ""),
+                        "bin_location": item.get("bin_location", ""),
+                        "notes": f"Bill {bill.bill_number}" + (f" — {item.get('notes', '')}" if item.get("notes") else ""),
+                    },
                 )
             else:
                 try:

@@ -170,7 +170,7 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
           onSubmit={save}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <Button variant="primary" type="submit" disabled={saving} style={{ flex: 1 }}>
+              <Button variant="primary" type="submit" disabled={saving || !form.designNumber.trim()} style={{ flex: 1 }}>
                 {saving ? "Saving…" : "Save"}
               </Button>
               <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
@@ -178,7 +178,8 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
           }
         >
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Design number" hint="The number the mill knows this cloth by.">
+            <Field label="Design number" required
+              hint="This cloth's one code — unique in this warehouse.">
               <Input value={form.designNumber} placeholder="e.g. 4472" autoFocus
                 onChange={e => setForm(f => ({ ...f, designNumber: e.target.value }))} />
             </Field>

@@ -278,7 +278,8 @@ class PurchaseOrderReceipt(StockFixture):
 
     def test_receiving_twice_does_not_create_stock_twice(self):
         po, item = self._placed_po()
-        receipt = [{"po_item_id": item.id, "received_meters": Decimal("75.00")}]
+        receipt = [{"po_item_id": item.id, "received_meters": Decimal("75.00"),
+                    "design_number": "D-75"}]
 
         receive_purchase_order(po_id=po.id, user=self.admin, receipt_items=receipt)
         with self.assertRaises(GraphQLError):
@@ -294,7 +295,8 @@ class PurchaseOrderReceipt(StockFixture):
         po, item = self._placed_po()
         receive_purchase_order(
             po_id=po.id, user=self.admin,
-            receipt_items=[{"po_item_id": item.id, "received_meters": Decimal("75.00")}],
+            receipt_items=[{"po_item_id": item.id, "received_meters": Decimal("75.00"),
+                            "design_number": "D-76"}],
         )
 
         with self.assertRaises(GraphQLError):
