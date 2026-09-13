@@ -114,6 +114,11 @@ export interface CuttingAssignment {
   costPerPiece?: number
 }
 
+export interface Karigar {
+  id: string; name: string; kind: string; phone?: string; whatsapp?: string
+  city?: string; address?: string; ratePerPiece: number; active: boolean
+}
+
 export interface StitchingJob {
   id: string; jobNumber: string; cuttingAssignment: CuttingAssignment
   tailor: Employee; piecesAssigned: number; status: string
@@ -121,6 +126,9 @@ export interface StitchingJob {
   piecesRejected: number; completedDate?: string; notes: string
   /** Wholesale work goes to stock; readymade is stitched against one customer's bill. */
   jobType?: string; customerBillNumber?: string; photos?: string
+  /** Paid by the piece. Earned counts finished work, not work handed out. */
+  karigar?: Karigar | null
+  ratePerPiece?: number; amountPaid?: number; amountEarned?: number; amountDue?: number
 }
 
 // ─── finished products ────────────────────────────────────────────────────────
@@ -340,6 +348,7 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points" | "retail_dispatches"
+  | "karigars"
   | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"

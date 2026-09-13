@@ -74,6 +74,7 @@ export const TAB_TITLES: Record<Tab, string> = {
   reports: "Reports",
   ledger: "Party Ledger",
   item_types: "Item Types",
+  karigars: "Karigars",
   employees: "Employees",
   warehouses: "Warehouses",
   roles: "Roles & Permissions",

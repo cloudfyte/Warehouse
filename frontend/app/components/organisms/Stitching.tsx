@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import type { StitchingJob, CuttingAssignment, Employee } from "@/app/types";
+import type { StitchingJob, CuttingAssignment, Karigar } from "@/app/types";
 import { STITCHING_STATUS_LABELS } from "@/app/lib/constants";
-import { formatDateShort } from "@/app/lib/formatters";
+import { formatDateShort, formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
@@ -18,7 +18,9 @@ import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
-  jobs: StitchingJob[]; assignments: CuttingAssignment[]; tailors: Employee[]
+  jobs: StitchingJob[]; assignments: CuttingAssignment[]
+  /** Who actually stitches — paid per piece, and not necessarily staff. */
+  karigars: Karigar[]
   warehouses: { id: string; name: string }[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isTailor: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,10 +100,10 @@ function ProgressBar({ value, max, rejected = 0 }: { value: number; max: number;
   );
 }
 
-export default function Stitching({ jobs, assignments, tailors, warehouses, isAdmin, isSuperAdmin, isManager, isTailor, onMutate }: Props) {
+export default function Stitching({ jobs, assignments, karigars, warehouses, isAdmin, isSuperAdmin, isManager, isTailor, onMutate }: Props) {
   const [selected, setSelected] = useState<StitchingJob | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ assignmentId: "", tailorId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "" });
+  const [form, setForm] = useState({ assignmentId: "", karigarId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "", rate: "" });
   const [upd, setUpd] = useState({ status: "", piecesCompleted: 0, piecesRejected: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -141,28 +143,30 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
   }
 
   // Local tailor list (grows when user creates new ones inline)
-  const [localTailors, setLocalTailors] = useState<Employee[]>(tailors);
-  const [newTailorName, setNewTailorName] = useState("");
-  const [newTailorPass, setNewTailorPass] = useState("");
-  const [addingTailor, setAddingTailor] = useState(false);
-  const [tailorCreating, setTailorCreating] = useState(false);
+  // A karigar can be added without leaving the form — an outside unit turns
+  // up mid-job often enough that sending someone to another tab to record it
+  // is the kind of detour this app is meant to remove.
+  const [newKarigar, setNewKarigar] = useState({ name: "", rate: "", city: "" });
+  const [addingKarigar, setAddingKarigar] = useState(false);
+  const [karigarCreating, setKarigarCreating] = useState(false);
 
-  async function createTailorInline() {
-    if (!newTailorName.trim() || !newTailorPass.trim()) return;
-    setTailorCreating(true);
+  async function createKarigarInline() {
+    if (!newKarigar.name.trim()) return;
+    setKarigarCreating(true);
     try {
       const r = await onMutate(
-        `mutation C($u:String!,$p:String!){createEmployee(username:$u,password:$p,role:"TAILOR"){employee{id username}}}`,
-        { u: newTailorName.trim(), p: newTailorPass.trim() }
+        `mutation C($n:String!,$rate:Float,$city:String){createKarigar(name:$n,ratePerPiece:$rate,city:$city){karigar{id name ratePerPiece}}}`,
+        { n: newKarigar.name.trim(), rate: +newKarigar.rate || 0, city: newKarigar.city.trim() },
       );
-      const created = r?.createEmployee?.employee;
-      if (created) {
-        setLocalTailors(p => [...p, created]);
-        setForm(p => ({ ...p, tailorId: created.id }));
-        setNewTailorName(""); setNewTailorPass(""); setAddingTailor(false);
+      const made = r?.createKarigar?.karigar;
+      if (made) {
+        setForm(p => ({ ...p, karigarId: made.id, rate: String(made.ratePerPiece ?? "") }));
+        setNewKarigar({ name: "", rate: "", city: "" });
+        setAddingKarigar(false);
+        showToast(`${made.name} added.`, "success");
       }
     } catch (e: unknown) { setError(friendlyError(e)); }
-    finally { setTailorCreating(false); }
+    finally { setKarigarCreating(false); }
   }
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -180,21 +184,40 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const readyAssignments = assignments.filter(a => a.piecesCompleted > 0 && a.status !== "PENDING");
 
+  const [paying, setPaying] = useState<StitchingJob | null>(null);
+  const [payAmount, setPayAmount] = useState("");
+  const [payBusy, setPayBusy] = useState(false);
+
+  async function payJob() {
+    if (!paying) return;
+    setPayBusy(true);
+    try {
+      await onMutate(
+        `mutation P($id:ID!,$amt:Float!){payKarigar(stitchingJobId:$id,amount:$amt){job{id amountPaid amountDue}}}`,
+        { id: paying.id, amt: +payAmount },
+      );
+      showToast("Payment recorded.", "success");
+      setPaying(null); setPayAmount("");
+    } catch (e: unknown) { showToast(friendlyError(e), "error"); }
+    finally { setPayBusy(false); }
+  }
+
   async function createJob() {
     setLoading(true); setError("");
     try {
       await onMutate(
-        `mutation C($a:ID!,$t:ID!,$p:Int!,$notes:String,$kind:String,$bill:String,$photos:String){`
-        + `createStitchingJob(cuttingAssignmentId:$a,tailorId:$t,piecesAssigned:$p,notes:$notes,`
-        + `jobType:$kind,customerBillNumber:$bill,photos:$photos){job{id}}}`,
+        `mutation C($a:ID!,$k:ID!,$p:Int!,$notes:String,$kind:String,$bill:String,$photos:String,$rate:Float){`
+        + `createStitchingJob(cuttingAssignmentId:$a,karigarId:$k,piecesAssigned:$p,notes:$notes,`
+        + `jobType:$kind,customerBillNumber:$bill,photos:$photos,ratePerPiece:$rate){job{id}}}`,
         {
-          a: form.assignmentId, t: form.tailorId, p: +form.pieces, notes: form.notes,
+          a: form.assignmentId, k: form.karigarId, p: +form.pieces, notes: form.notes,
+          rate: form.rate === "" ? undefined : +form.rate,
           kind: form.jobType,
           bill: form.jobType === "READYMADE" ? form.customerBillNumber : undefined,
           photos: form.photos || undefined,
         }
       );
-      setShowForm(false); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "" });
+      setShowForm(false); setForm({ assignmentId: "", karigarId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "", rate: "" });
       showToast("Stitching job created.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
@@ -241,13 +264,38 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
       </FilterBar>
 
       {/* New Job modal */}
+      {paying && (
+        <Modal
+          title="Pay karigar"
+          subtitle={`${paying.jobNumber} · ${paying.karigar?.name ?? paying.tailor?.username ?? ""}`}
+          width={400}
+          onClose={() => setPaying(null)}
+          onSubmit={payJob}
+          footer={<div style={{ display: "flex", gap: 10 }}>
+            <Button type="submit" disabled={payBusy || !(+payAmount > 0)} style={{ flex: 1 }}>
+              {payBusy ? "Recording…" : "Record payment"}
+            </Button>
+            <Button variant="secondary" onClick={() => setPaying(null)} style={{ flex: 1 }}>Cancel</Button>
+          </div>}>
+          <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, marginBottom: 12 }}>
+            {paying.piecesCompleted} finished pieces at {formatMoney(paying.ratePerPiece ?? 0)} —{" "}
+            <strong style={{ color: "var(--ink)" }}>{formatMoney(paying.amountEarned ?? 0)}</strong> earned,{" "}
+            {formatMoney(paying.amountPaid ?? 0)} already paid. Rejected pieces are not earned.
+          </div>
+          <Field label="Amount">
+            <Input type="number" min="0" step="0.01" value={payAmount} autoFocus
+              onChange={e => setPayAmount(e.target.value)} />
+          </Field>
+        </Modal>
+      )}
+
       {showForm && (
         <Modal title="New Stitching Job" subtitle="Assign cut pieces to a tailor for stitching"
-          onClose={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "" }); }} width={480}
+          onClose={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", karigarId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "", rate: "" }); }} width={480}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <Button onClick={createJob} disabled={loading || !form.assignmentId || !form.tailorId || !form.pieces
+            <Button onClick={createJob} disabled={loading || !form.assignmentId || !form.karigarId || !form.pieces
               || (form.jobType === "READYMADE" && !form.customerBillNumber.trim())} style={{ flex: 1 }}>{loading ? "Creating…" : "Create Job"}</Button>
-            <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", tailorId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "" }); }} style={{ flex: 1 }}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", karigarId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "", rate: "" }); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
           <ErrorBanner msg={error} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -257,19 +305,35 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                 {readyAssignments.map(a => <option key={a.id} value={a.id}>{a.assignmentNumber} — {a.itemType.name} ({a.piecesCompleted} pieces ready)</option>)}
               </Select>
             </Field>
-            <Field label="Tailor" required>
-              <Select value={form.tailorId} onChange={e => setForm(p => ({ ...p, tailorId: e.target.value }))}>
+            <Field label="Karigar" required hint="Who is stitching this. Paid by the piece.">
+              <Select value={form.karigarId} onChange={e => {
+                const picked = karigars.find(k => k.id === e.target.value);
+                // Their usual rate fills in, and stays editable — a heavy
+                // garment is worth more than a plain one.
+                setForm(p => ({ ...p, karigarId: e.target.value,
+                                rate: picked ? String(picked.ratePerPiece ?? "") : "" }));
+              }}>
                 <option value="">Select…</option>
-                {localTailors.map(t => <option key={t.id} value={t.id}>{t.username}</option>)}
+                {karigars.filter(k => k.active !== false).map(k => (
+                  <option key={k.id} value={k.id}>
+                    {k.name}{k.city ? ` · ${k.city}` : ""} — {formatMoney(k.ratePerPiece)}/pc
+                  </option>
+                ))}
               </Select>
-              {!addingTailor
-                ? <button type="button" onClick={() => setAddingTailor(true)} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}>+ Create new tailor</button>
+              {!addingKarigar
+                ? <button type="button" onClick={() => setAddingKarigar(true)} style={{ fontSize: 12, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}>+ Add a karigar</button>
                 : <div style={{ background: "var(--canvas)", borderRadius: 8, padding: 12, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
-                    <Input placeholder="Username" value={newTailorName} onChange={e => setNewTailorName(e.target.value)} autoFocus />
-                    <Input placeholder="Password" type="password" value={newTailorPass} onChange={e => setNewTailorPass(e.target.value)} />
+                    <Input placeholder="Name — e.g. Mumbai Unit A" value={newKarigar.name} autoFocus
+                      onChange={e => setNewKarigar(k => ({ ...k, name: e.target.value }))} />
                     <div style={{ display: "flex", gap: 8 }}>
-                      <Button type="button" onClick={createTailorInline} disabled={tailorCreating || !newTailorName.trim() || !newTailorPass.trim()} size="sm">{tailorCreating ? "Creating…" : "Create"}</Button>
-                      <Button type="button" variant="secondary" onClick={() => { setAddingTailor(false); setNewTailorName(""); setNewTailorPass(""); }} size="sm">Cancel</Button>
+                      <Input placeholder="City" value={newKarigar.city}
+                        onChange={e => setNewKarigar(k => ({ ...k, city: e.target.value }))} />
+                      <Input type="number" min="0" step="0.01" placeholder="Rate / piece" value={newKarigar.rate}
+                        onChange={e => setNewKarigar(k => ({ ...k, rate: e.target.value }))} />
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Button type="button" onClick={createKarigarInline} disabled={karigarCreating || !newKarigar.name.trim()} size="sm">{karigarCreating ? "Adding…" : "Add"}</Button>
+                      <Button type="button" variant="secondary" onClick={() => { setAddingKarigar(false); setNewKarigar({ name: "", rate: "", city: "" }); }} size="sm">Cancel</Button>
                     </div>
                   </div>
               }
@@ -304,9 +368,22 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
               </>
             )}
 
-            <Field label="Pieces Assigned" required>
-              <Input type="number" value={form.pieces} placeholder="0" onChange={e => setForm(p => ({ ...p, pieces: e.target.value }))} />
-            </Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Field label="Pieces Assigned" required>
+                <Input type="number" value={form.pieces} placeholder="0" onChange={e => setForm(p => ({ ...p, pieces: e.target.value }))} />
+              </Field>
+              <Field label="Rate per piece" hint="Frozen at handover — a later rate change will not move this job.">
+                <Input type="number" min="0" step="0.01" value={form.rate} placeholder="0.00"
+                  onChange={e => setForm(p => ({ ...p, rate: e.target.value }))} />
+              </Field>
+            </div>
+            {form.pieces && form.rate && (
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: -6 }}>
+                {form.pieces} pieces at {formatMoney(+form.rate)} —{" "}
+                <strong style={{ color: "var(--ink)" }}>{formatMoney((+form.pieces) * (+form.rate))}</strong>{" "}
+                if every piece comes back good.
+              </div>
+            )}
             <Field label="Notes">
               <Input value={form.notes} placeholder="Optional notes…" onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
             </Field>
@@ -431,8 +508,29 @@ export default function Stitching({ jobs, assignments, tailors, warehouses, isAd
                       )}
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1 }}>{j.cuttingAssignment.itemType.name}</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                      🧵 {j.tailor.username} &nbsp;·&nbsp; from {j.cuttingAssignment.assignmentNumber}
+                    {(j.amountEarned ?? 0) > 0 && (
+                    <div style={{ fontSize: 11, marginTop: 3 }}>
+                      <span style={{ color: "var(--muted)" }}>Earned </span>
+                      <strong>{formatMoney(j.amountEarned!)}</strong>
+                      {(j.amountDue ?? 0) > 0
+                        ? <span style={{ color: "#e65100" }}> · {formatMoney(j.amountDue!)} to pay</span>
+                        : <span style={{ color: "#2e7d32" }}> · settled</span>}
+                      {canAssign && (j.amountDue ?? 0) > 0 && (
+                        <button type="button"
+                          onClick={e => { e.stopPropagation(); setPaying(j); setPayAmount(String(j.amountDue ?? "")); }}
+                          style={{ marginLeft: 8, background: "none", border: "none", color: "var(--primary)", fontWeight: 700, fontSize: 11, cursor: "pointer", padding: 0 }}>
+                          Pay
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                      🧵 {j.karigar?.name ?? j.tailor?.username ?? "—"}
+                      {j.karigar?.city ? ` · ${j.karigar.city}` : ""}
+                      &nbsp;·&nbsp; from {j.cuttingAssignment.assignmentNumber}
+                      {(j.ratePerPiece ?? 0) > 0 && (
+                        <> &nbsp;·&nbsp; {formatMoney(j.ratePerPiece!)}/pc</>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
