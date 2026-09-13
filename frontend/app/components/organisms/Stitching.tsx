@@ -146,6 +146,12 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
   // A karigar can be added without leaving the form — an outside unit turns
   // up mid-job often enough that sending someone to another tab to record it
   // is the kind of detour this app is meant to remove.
+  // The cutting docket is a size run, so the stitching that follows it is too.
+  const [run, setRun] = useState<{ size: string; pieces: string }[]>([]);
+  const runRows = run.filter(r => r.size.trim() && +r.pieces > 0)
+    .map(r => ({ size: r.size.trim(), pieces: +r.pieces }));
+  const runTotal = runRows.reduce((t, r) => t + r.pieces, 0);
+
   const [newKarigar, setNewKarigar] = useState({ name: "", rate: "", city: "" });
   const [addingKarigar, setAddingKarigar] = useState(false);
   const [karigarCreating, setKarigarCreating] = useState(false);
@@ -206,11 +212,14 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
     setLoading(true); setError("");
     try {
       await onMutate(
-        `mutation C($a:ID!,$k:ID!,$p:Int!,$notes:String,$kind:String,$bill:String,$photos:String,$rate:Float){`
+        `mutation C($a:ID!,$k:ID!,$p:Int,$notes:String,$kind:String,$bill:String,$photos:String,$rate:Float,$sizes:[CuttingSizeInput!]){`
         + `createStitchingJob(cuttingAssignmentId:$a,karigarId:$k,piecesAssigned:$p,notes:$notes,`
-        + `jobType:$kind,customerBillNumber:$bill,photos:$photos,ratePerPiece:$rate){job{id}}}`,
+        + `jobType:$kind,customerBillNumber:$bill,photos:$photos,ratePerPiece:$rate,sizes:$sizes){job{id}}}`,
         {
-          a: form.assignmentId, k: form.karigarId, p: +form.pieces, notes: form.notes,
+          a: form.assignmentId, k: form.karigarId,
+          p: runTotal > 0 ? undefined : +form.pieces,
+          sizes: runRows.length ? runRows : undefined,
+          notes: form.notes,
           rate: form.rate === "" ? undefined : +form.rate,
           kind: form.jobType,
           bill: form.jobType === "READYMADE" ? form.customerBillNumber : undefined,
@@ -293,7 +302,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
         <Modal title="New Stitching Job" subtitle="Assign cut pieces to a tailor for stitching"
           onClose={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", karigarId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "", rate: "" }); }} width={480}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <Button onClick={createJob} disabled={loading || !form.assignmentId || !form.karigarId || !form.pieces
+            <Button onClick={createJob} disabled={loading || !form.assignmentId || !form.karigarId || (runTotal === 0 && !form.pieces)
               || (form.jobType === "READYMADE" && !form.customerBillNumber.trim())} style={{ flex: 1 }}>{loading ? "Creating…" : "Create Job"}</Button>
             <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", karigarId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "", rate: "" }); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
@@ -369,18 +378,40 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
             )}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Field label="Pieces Assigned" required>
-                <Input type="number" value={form.pieces} placeholder="0" onChange={e => setForm(p => ({ ...p, pieces: e.target.value }))} />
+              <Field label="Pieces Assigned" required
+                hint={runTotal > 0 ? "Comes from the size run." : undefined}>
+                <Input type="number" value={runTotal > 0 ? String(runTotal) : form.pieces}
+                  disabled={runTotal > 0} placeholder="0"
+                  onChange={e => setForm(p => ({ ...p, pieces: e.target.value }))} />
               </Field>
               <Field label="Rate per piece" hint="Frozen at handover — a later rate change will not move this job.">
                 <Input type="number" min="0" step="0.01" value={form.rate} placeholder="0.00"
                   onChange={e => setForm(p => ({ ...p, rate: e.target.value }))} />
               </Field>
             </div>
-            {form.pieces && form.rate && (
+            <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
+                Size run <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional</span>
+              </div>
+              {run.map((r, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <Input placeholder="Size — e.g. 40" value={r.size} style={{ flex: 1 }}
+                    onChange={e => setRun(rs => rs.map((x, j) => j === i ? { ...x, size: e.target.value } : x))} />
+                  <Input type="number" min="1" placeholder="Pieces" value={r.pieces} style={{ width: 110 }}
+                    onChange={e => setRun(rs => rs.map((x, j) => j === i ? { ...x, pieces: e.target.value } : x))} />
+                  <button type="button" aria-label={`Remove size ${i + 1}`}
+                    onClick={() => setRun(rs => rs.filter((_, j) => j !== i))}
+                    style={{ background: "none", border: "none", color: "var(--muted)", padding: 6, cursor: "pointer" }}>×</button>
+                </div>
+              ))}
+              <Button type="button" variant="secondary" size="sm"
+                onClick={() => setRun(rs => [...rs, { size: "", pieces: "" }])}>+ Add size</Button>
+            </div>
+
+            {(runTotal > 0 || form.pieces) && form.rate && (
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: -6 }}>
-                {form.pieces} pieces at {formatMoney(+form.rate)} —{" "}
-                <strong style={{ color: "var(--ink)" }}>{formatMoney((+form.pieces) * (+form.rate))}</strong>{" "}
+                {runTotal || +form.pieces} pieces at {formatMoney(+form.rate)} —{" "}
+                <strong style={{ color: "var(--ink)" }}>{formatMoney((runTotal || +form.pieces) * (+form.rate))}</strong>{" "}
                 if every piece comes back good.
               </div>
             )}

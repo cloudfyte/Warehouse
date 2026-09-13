@@ -896,3 +896,44 @@ def get_karigars(user, include_inactive=False):
 
     qs = Karigar.objects.all()
     return qs if include_inactive else qs.filter(active=True)
+
+
+def get_karigar_workload(user):
+    """
+    What each karigar is holding right now, and what is owed on it.
+
+    The stitching screen is organised by job. A karigar standing at the counter
+    wants the other axis: everything of theirs, when it was given out, against
+    which design, and how many of each size.
+    """
+    from decimal import Decimal
+
+    from warehouse.models import Karigar, StitchingJob
+
+    open_states = (StitchingJob.Status.RECEIVED, StitchingJob.Status.PROCESSING,
+                   StitchingJob.Status.QC_CHECK, StitchingJob.Status.REJECTED)
+
+    rows = []
+    jobs = (StitchingJob.objects
+            .filter(karigar__isnull=False)
+            .select_related("karigar", "cutting_assignment__raw_cloth_batch",
+                            "cutting_assignment__item_type")
+            .prefetch_related("sizes"))
+
+    by_karigar = {}
+    for job in jobs:
+        by_karigar.setdefault(job.karigar_id, []).append(job)
+
+    for karigar in Karigar.objects.filter(active=True):
+        mine = by_karigar.get(karigar.id, [])
+        rows.append({
+            "karigar": karigar,
+            "jobs": [j for j in mine if j.status in open_states],
+            "open_pieces": sum(j.pieces_assigned - j.pieces_completed - j.pieces_rejected
+                               for j in mine if j.status in open_states),
+            "finished_pieces": sum(j.pieces_completed for j in mine),
+            "amount_due": sum((j.amount_due for j in mine), Decimal("0.00")),
+        })
+    # Whoever is holding the most work, and whoever is owed the most, first.
+    rows.sort(key=lambda r: (r["open_pieces"], r["amount_due"]), reverse=True)
+    return rows

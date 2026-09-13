@@ -82,7 +82,9 @@ class CreateStitchingJob(graphene.Mutation):
         karigar_id = graphene.ID()
         tailor_id = graphene.ID()
         rate_per_piece = graphene.Float()
-        pieces_assigned = graphene.Int(required=True)
+        # Either a size run, or a bare total for a sizeless job.
+        pieces_assigned = graphene.Int()
+        sizes = graphene.List(graphene.NonNull(CuttingSizeInput))
         job_type = graphene.String()
         customer_bill_number = graphene.String()
         photos = graphene.String()
@@ -93,11 +95,12 @@ class CreateStitchingJob(graphene.Mutation):
     job = graphene.Field(StitchingJobType)
 
     @login_required
-    def mutate(self, info, cutting_assignment_id, pieces_assigned, **kwargs):
+    def mutate(self, info, cutting_assignment_id, pieces_assigned=0, sizes=None, **kwargs):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
         return CreateStitchingJob(job=create_stitching_job(
             user=info.context.user, cutting_assignment_id=cutting_assignment_id,
-            pieces_assigned=pieces_assigned, **kwargs,
+            pieces_assigned=pieces_assigned,
+            sizes=[dict(r) for r in (sizes or [])], **kwargs,
         ))
 
 
@@ -109,6 +112,7 @@ class UpdateStitchingJob(graphene.Mutation):
         pieces_rejected = graphene.Int()
         completed_date = graphene.Date()
         notes = graphene.String()
+        sizes = graphene.List(graphene.NonNull(CuttingSizeInput))
 
     job = graphene.Field(StitchingJobType)
 
@@ -119,7 +123,9 @@ class UpdateStitchingJob(graphene.Mutation):
             EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
             EmployeeProfile.Role.TAILOR,
         )
-        return UpdateStitchingJob(job=update_stitching_job(id=id, **kwargs))
+        sizes = kwargs.pop("sizes", None)
+        return UpdateStitchingJob(job=update_stitching_job(
+            id=id, sizes=None if sizes is None else [dict(r) for r in sizes], **kwargs))
 
 
 class UpdateFinishedProduct(graphene.Mutation):

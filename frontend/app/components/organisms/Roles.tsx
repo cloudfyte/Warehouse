@@ -32,6 +32,7 @@ const ALL_TABS: { key: string; label: string; group: string }[] = [
   { key: "stock_transfers",  label: "Stock Transfers",   group: "Inventory" },
   { key: "retail_dispatches", label: "To the Shop",      group: "Inventory" },
   { key: "karigars",         label: "Karigars",         group: "Production" },
+  { key: "karigar_work",     label: "Karigar Work",     group: "Production" },
   { key: "stock_adjustments",label: "Stock Adjustments", group: "Inventory" },
   { key: "cutting",          label: "Cutting",           group: "Production" },
   { key: "stitching",        label: "Stitching",         group: "Production" },

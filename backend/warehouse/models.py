@@ -1950,3 +1950,26 @@ class CuttingSize(models.Model):
 
     def __str__(self):
         return f"{self.size} × {self.target_pieces}"
+
+
+class StitchingSize(models.Model):
+    """How many pieces of one size a stitching job covers.
+
+    The cutting docket is a size run, so the stitching that follows it is too.
+    A karigar is handed eight of 38 and twelve of 40, and what comes back has
+    to be counted the same way or the sizes stop adding up at the tag.
+    """
+    job = models.ForeignKey(StitchingJob, on_delete=models.CASCADE, related_name="sizes")
+    size = models.CharField(max_length=30)
+    pieces_assigned = models.PositiveIntegerField(default=0)
+    pieces_completed = models.PositiveIntegerField(default=0)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "size"]
+        constraints = [
+            models.UniqueConstraint(fields=["job", "size"], name="stitchingsize_one_row_per_size"),
+        ]
+
+    def __str__(self):
+        return f"{self.size} × {self.pieces_assigned}"

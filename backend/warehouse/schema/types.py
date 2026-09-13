@@ -15,8 +15,8 @@ from warehouse.models import (
     PurchaseOrderItem, Quotation, QuotationItem, RawClothBatch, ReadymadeStock,
     RecurringSettlement, ReorderPoint, RetailChannel, RetailDispatch, RetailDispatchItem,
     RetailProductLink, RetailReturn, RetailReturnItem, RetailStore, SalesOrder, SalesOrderItem,
-    Settlement, StitchingJob, StockAdjustment, StockTransfer, Supplier, SupplierPayment,
-    SupplierReturn, SystemSettings, WarehouseLocation,
+    Settlement, StitchingJob, StitchingSize, StockAdjustment, StockTransfer, Supplier,
+    SupplierPayment, SupplierReturn, SystemSettings, WarehouseLocation,
 )
 
 
@@ -357,6 +357,25 @@ class ReconciliationRowType(graphene.ObjectType):
     # An unknown, which is not the same as a zero.
     shop_has = graphene.Int()
     difference = graphene.Int()
+
+
+class KarigarWorkloadType(graphene.ObjectType):
+    """One karigar, and everything of theirs — the other axis of the stitching
+    screen, which is organised by job."""
+    karigar = graphene.Field("warehouse.schema.types.KarigarType")
+    jobs = graphene.List("warehouse.schema.types.StitchingJobType")
+    open_pieces = graphene.Int()
+    finished_pieces = graphene.Int()
+    amount_due = graphene.Float()
+
+    def resolve_amount_due(self, info):
+        return float(self["amount_due"] or 0)
+
+
+class StitchingSizeType(DjangoObjectType):
+    class Meta:
+        model = StitchingSize
+        fields = "__all__"
 
 
 class CuttingSizeType(DjangoObjectType):

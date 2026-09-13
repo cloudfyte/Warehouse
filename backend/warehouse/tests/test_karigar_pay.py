@@ -137,3 +137,36 @@ class TheKarigarRegister(KarigarFixture):
     def test_a_rate_cannot_be_negative(self):
         with self.assertRaises(GraphQLError):
             create_karigar(user=self.admin, name="Bad Unit", rate_per_piece=-5)
+
+
+class WhatEachKarigarIsHolding(KarigarFixture):
+    """The stitching screen is organised by job. A karigar at the counter wants
+    the other axis: everything of theirs, and what is owed on it."""
+
+    def test_the_workload_totals_open_and_finished_work(self):
+        from warehouse.selectors import get_karigar_workload
+
+        open_job = self._job(pieces=20)
+        done_job = self._job(pieces=10)
+        update_stitching_job(id=done_job.id, pieces_completed=10, status="READY")
+
+        rows = get_karigar_workload(self.admin)
+        mine = next(r for r in rows if r["karigar"].id == self.mumbai.id)
+
+        self.assertEqual(mine["open_pieces"], 20)
+        self.assertEqual(mine["finished_pieces"], 10)
+        self.assertEqual(mine["amount_due"], Decimal("450.00"))
+        self.assertEqual([j.id for j in mine["jobs"]], [open_job.id])
+
+    def test_a_job_carries_its_size_run(self):
+        from warehouse.models import StitchingSize
+
+        job = create_stitching_job(
+            user=self.admin, cutting_assignment_id=self.cut.id,
+            karigar_id=self.mumbai.id,
+            sizes=[{"size": "38", "pieces": 8}, {"size": "40", "pieces": 12}])
+
+        self.assertEqual(job.pieces_assigned, 20)
+        self.assertEqual(
+            [(z.size, z.pieces_assigned) for z in StitchingSize.objects.filter(job=job)],
+            [("38", 8), ("40", 12)])

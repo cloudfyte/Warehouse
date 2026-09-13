@@ -131,6 +131,14 @@ export interface StitchingJob {
   /** Paid by the piece. Earned counts finished work, not work handed out. */
   karigar?: Karigar | null
   ratePerPiece?: number; amountPaid?: number; amountEarned?: number; amountDue?: number
+  sizes?: { id: string; size: string; piecesAssigned: number; piecesCompleted: number }[]
+}
+
+/** One karigar and everything of theirs — the other axis of the stitching screen. */
+export interface KarigarWorkload {
+  karigar: Karigar
+  jobs: StitchingJob[]
+  openPieces: number; finishedPieces: number; amountDue: number
 }
 
 // ─── finished products ────────────────────────────────────────────────────────
@@ -350,7 +358,7 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points" | "retail_dispatches"
-  | "karigars"
+  | "karigars" | "karigar_work"
   | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"

@@ -216,9 +216,21 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
 def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_assigned=0,
                          assigned_date=None, due_date=None, notes="",
                          job_type=None, customer_bill_number="", photos="",
-                         karigar_id=None, rate_per_piece=None):
-    from warehouse.models import Karigar
+                         karigar_id=None, rate_per_piece=None, sizes=None):
+    from warehouse.models import Karigar, StitchingSize
     from warehouse.services.uploads import save_data_urls_csv
+
+    # The cutting docket is a size run, so the stitching that follows it is
+    # too. Given a run, the total is its sum — one number, not two that can
+    # drift apart.
+    rows = [r for r in (sizes or []) if (r.get("size") or "").strip()]
+    for row in rows:
+        if int(row.get("pieces") or 0) <= 0:
+            raise GraphQLError(f"How many pieces of size {row['size']}?")
+    if len({(r["size"] or "").strip().lower() for r in rows}) != len(rows):
+        raise GraphQLError("The same size is listed twice on this job.")
+    if rows:
+        pieces_assigned = sum(int(r["pieces"]) for r in rows)
 
     if pieces_assigned <= 0:
         raise GraphQLError("Pieces assigned must be greater than zero.")
@@ -292,6 +304,12 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
             photos=save_data_urls_csv(photos or "", "stitching"),
             assigned_by=user,
         )
+        if rows:
+            StitchingSize.objects.bulk_create([
+                StitchingSize(job=job, size=r["size"].strip(),
+                              pieces_assigned=int(r["pieces"]), sort_order=i)
+                for i, r in enumerate(rows)
+            ])
     # An outside unit has no login here, so there is nobody to notify. The
     # jobslip is what reaches them.
     if tailor and tailor.user_id:
@@ -307,7 +325,8 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
 
 
 def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejected=None,
-                         completed_date=None, notes=None):
+                         completed_date=None, notes=None, sizes=None):
+    from warehouse.models import StitchingSize
     try:
         job = StitchingJob.objects.get(pk=id)
     except StitchingJob.DoesNotExist as exc:
@@ -319,6 +338,23 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
         raise GraphQLError(
             f"Job is already {job.status.lower().replace('_', ' ')} — only move to Finished Goods is allowed."
         )
+    # Counted back the same way it went out, so the sizes still add up at the
+    # tag. The job total follows the run rather than being typed beside it.
+    if sizes is not None:
+        rows = [r for r in sizes if (r.get("size") or "").strip()]
+        job.sizes.all().delete()
+        StitchingSize.objects.bulk_create([
+            StitchingSize(job=job, size=r["size"].strip(),
+                          pieces_assigned=int(r.get("pieces") or 0),
+                          pieces_completed=int(r.get("completed") or 0), sort_order=i)
+            for i, r in enumerate(rows)
+        ])
+        if rows:
+            job.pieces_assigned = sum(int(r.get("pieces") or 0) for r in rows)
+            done = sum(int(r.get("completed") or 0) for r in rows)
+            if done:
+                pieces_completed = done
+
     if pieces_completed is not None and pieces_completed < 0:
         raise GraphQLError("Pieces completed cannot be negative.")
     if pieces_rejected is not None and pieces_rejected < 0:
@@ -346,7 +382,8 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
     if status == StitchingJob.Status.READY and prev_status != StitchingJob.Status.READY:
         notify_managers(
             title=f"Stitching Ready: {job.job_number}",
-            message=f"{job.tailor.user.username} completed {job.pieces_completed} pieces "
+            message=f"{job.karigar.name if job.karigar else job.tailor.user.username} "
+                    f"completed {job.pieces_completed} pieces "
                     f"(job {job.job_number}) — ready to move to Finished Goods.",
             level="INFO",
             link="stitching",

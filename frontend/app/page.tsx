@@ -25,6 +25,7 @@ import PurchaseBills from "@/app/components/organisms/PurchaseBills";
 import Cutting from "@/app/components/organisms/Cutting";
 import Stitching from "@/app/components/organisms/Stitching";
 import Karigars from "@/app/components/organisms/Karigars";
+import KarigarWork from "@/app/components/organisms/KarigarWork";
 import FinishedProducts from "@/app/components/organisms/FinishedProducts";
 import Settlements from "@/app/components/organisms/Settlements";
 import ProductSets from "@/app/components/organisms/ProductSets";
@@ -67,7 +68,7 @@ const ALL_TABS: Tab[] = [
   "finished_products", "product_sets", "sales_orders", "credit", "returns", "expenses", "settlements",
   "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches",
   "quotations", "reports", "ledger",
-  "karigars",
+  "karigars", "karigar_work",
   "item_types", "employees", "warehouses", "roles", "notifications", "audit_log", "settings", "profile",
 ];
 
@@ -97,7 +98,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
   { label: "Purchasing", tabs: ["suppliers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches"] },
-  { label: "Production", tabs: ["cutting", "stitching", "karigars", "finished_products", "product_sets"] },
+  { label: "Production", tabs: ["cutting", "stitching", "karigars", "karigar_work", "finished_products", "product_sets"] },
   { label: "Sales", tabs: ["buyers", "quotations", "sales_orders", "credit", "returns"] },
   { label: "Finance", tabs: ["expenses", "settlements", "reports", "ledger"] },
   { label: "Admin", tabs: ["item_types", "employees", "warehouses", "roles"] },
@@ -125,6 +126,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   stock_adjustments: <Package size={16} />,
   stock_transfers: <ArrowLeftRight size={16} />,
   karigars: <Scissors size={16} />,
+  karigar_work: <Users size={16} />,
   retail_dispatches: <Store size={16} />,
   reorder_points: <AlertCircle size={16} />,
   quotations: <FileText size={16} />,
@@ -900,6 +902,9 @@ export default function Home() {
             creditTransactions={data?.creditTransactions || []}
             purchaseBills={data?.purchaseBills || []}
           />
+        )}
+        {currentTab === "karigar_work" && (
+          <KarigarWork workload={data?.karigarWorkload || []} />
         )}
         {currentTab === "karigars" && (
           <Karigars
