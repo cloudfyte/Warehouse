@@ -180,8 +180,9 @@ export const DASHBOARD_QUERY = `
     }
     cuttingAssignments(limit: 100) {
       id assignmentNumber metersAssigned targetPieces ageGroup size status assignedDate dueDate
-      piecesCompleted clothUsed clothWasted completedDate notes costPerPiece
-      rawClothBatch { id batchNumber clothCategory { name } clothColor { name hexCode } costPerMeter }
+      piecesCompleted clothUsed clothWasted clothReturned completedDate notes costPerPiece
+      sizes { id size targetPieces piecesCompleted }
+      rawClothBatch { id batchNumber designNumber clothCategory { name } clothColor { name hexCode } costPerMeter }
       cuttingMaster { id username role }
       itemType { id name }
     }

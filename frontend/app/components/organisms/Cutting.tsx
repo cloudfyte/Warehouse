@@ -92,6 +92,11 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   const [selected, setSelected] = useState<CuttingAssignment | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
+  const [run, setRun] = useState<{ size: string; pieces: string }[]>([]);
+  const runRows = run
+    .filter(r => r.size.trim() && +r.pieces > 0)
+    .map(r => ({ size: r.size.trim(), pieces: +r.pieces }));
+  const runTotal = runRows.reduce((t, r) => t + r.pieces, 0);
   const [update, setUpdate] = useState({ piecesCompleted: 0, clothUsed: 0, clothWasted: 0, status: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -164,11 +169,17 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
     setLoading(true); setError("");
     try {
       await onMutate(
-        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int!,$ag:String,$size:String,$notes:String){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,ageGroup:$ag,size:$size,notes:$notes){assignment{id}}}`,
-        { b: form.batchId, m: form.masterId, t: form.itemTypeId, meters: +form.meters, target: +form.targetPieces, ag: form.ageGroup || undefined, size: form.size || undefined, notes: form.notes }
+        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int,$ag:String,$size:String,$notes:String,$sizes:[CuttingSizeInput!]){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,ageGroup:$ag,size:$size,notes:$notes,sizes:$sizes){assignment{id}}}`,
+        {
+          b: form.batchId, m: form.masterId, t: form.itemTypeId, meters: +form.meters,
+          target: runTotal > 0 ? undefined : +form.targetPieces,
+          ag: form.ageGroup || undefined, size: form.size || undefined, notes: form.notes,
+          sizes: runRows.length ? runRows : undefined,
+        }
       );
       setShowForm(false);
       setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
+      setRun([]);
       showToast("Cutting assignment created.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
@@ -222,7 +233,7 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
         <Modal title="New Cutting Assignment" subtitle="Assign cloth from a batch to a cutting master"
           onClose={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" }); }} width={520}
           footer={<div style={{ display: "flex", gap: 10 }}>
-            <Button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId || !form.meters || !form.targetPieces} style={{ flex: 1 }}>{loading ? "Assigning…" : "Create Assignment"}</Button>
+            <Button onClick={createAssignment} disabled={loading || !form.batchId || !form.masterId || !form.itemTypeId || !form.meters || (runTotal === 0 && !form.targetPieces)} style={{ flex: 1 }}>{loading ? "Assigning…" : "Create Assignment"}</Button>
             <Button variant="secondary" onClick={() => { setShowForm(false); setError(""); setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" }); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
           <ErrorBanner msg={error} />
@@ -274,10 +285,43 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
               <Field label="Meters Assigned" required>
                 <Input type="number" step="0.01" value={form.meters} placeholder="0.00" onChange={e => setForm(p => ({ ...p, meters: e.target.value }))} />
               </Field>
-              <Field label="Target Pieces" required>
-                <Input type="number" value={form.targetPieces} placeholder="0" onChange={e => setForm(p => ({ ...p, targetPieces: e.target.value }))} />
+              <Field label="Target Pieces" required
+                hint={runTotal > 0 ? "Comes from the size run below." : "Or list the sizes below."}>
+                <Input type="number" value={runTotal > 0 ? String(runTotal) : form.targetPieces}
+                  disabled={runTotal > 0} placeholder="0"
+                  onChange={e => setForm(p => ({ ...p, targetPieces: e.target.value }))} />
               </Field>
             </FormGrid>
+
+            {/* A docket is cut as twelve of 38 and twenty of 40, not as a lump
+                of thirty-two. Listing the run here is what lets a stitching job
+                — and eventually a tag — know which size it is holding. */}
+            <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
+                Size run <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional</span>
+              </div>
+              {run.map((r, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <Input placeholder="Size — e.g. 40" value={r.size} style={{ flex: 1 }}
+                    onChange={e => setRun(rs => rs.map((x, j) => j === i ? { ...x, size: e.target.value } : x))} />
+                  <Input type="number" min="1" placeholder="Pieces" value={r.pieces} style={{ width: 110 }}
+                    onChange={e => setRun(rs => rs.map((x, j) => j === i ? { ...x, pieces: e.target.value } : x))} />
+                  <button type="button" aria-label={`Remove size ${i + 1}`}
+                    onClick={() => setRun(rs => rs.filter((_, j) => j !== i))}
+                    style={{ background: "none", border: "none", color: "var(--muted)", padding: 6, cursor: "pointer" }}>×</button>
+                </div>
+              ))}
+              <Button type="button" variant="secondary" size="sm"
+                onClick={() => setRun(rs => [...rs, { size: "", pieces: "" }])}>
+                + Add size
+              </Button>
+              {runTotal > 0 && (
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+                  {run.filter(r => r.size.trim() && +r.pieces > 0).length} sizes ·{" "}
+                  <strong style={{ color: "var(--ink)" }}>{runTotal} pieces</strong> in total.
+                </div>
+              )}
+            </div>
             <FormGrid cols={3}>
               <Field label="Age Group (optional)">
                 <AgeGroupSelect value={form.ageGroup} onChange={v => setForm(p => ({ ...p, ageGroup: v, size: "" })) } />
@@ -302,6 +346,13 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
             <Button onClick={saveUpdate} disabled={loading} style={{ flex: 1 }}>{loading ? "Saving…" : "Save Update"}</Button>
             <Button variant="secondary" onClick={() => { setSelected(null); setError(""); }} style={{ flex: 1 }}>Cancel</Button>
           </div>}>
+          {selected.status === "COMPLETED" && (
+            <div style={{ padding: "10px 12px", borderRadius: 9, background: "#0ea5e918", fontSize: 12, lineHeight: 1.6, marginBottom: 12 }}>
+              This docket is already finished, and can still be corrected \u2014 a miscount turns
+              up the next morning often enough. Changing the cloth figures moves the batch by
+              the <strong>difference</strong> only, so the leftover never goes back twice.
+            </div>
+          )}
           <ErrorBanner msg={error} />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Field label="Status">
@@ -349,6 +400,11 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                     <span style={{ fontSize: 11, color: "var(--muted)" }}>{formatDateShort(a.assignedDate)}</span>
+                    {(a.sizes?.length ?? 0) > 0 && (
+                      <span style={{ fontSize: 11, color: "var(--muted)", textAlign: "right" }}>
+                        {a.sizes!.map(z => `${z.size}\u00d7${z.targetPieces}`).join("  ")}
+                      </span>
+                    )}
                     {canUpdate && (
                       <Button size="sm" variant="secondary"
                         onClick={() => { setSelected(a); setUpdate({ piecesCompleted: Number(a.piecesCompleted) || 0, clothUsed: Number(a.clothUsed) || 0, clothWasted: Number(a.clothWasted) || 0, status: a.status }); setError(""); }}

@@ -111,7 +111,9 @@ export interface CuttingAssignment {
   cuttingMaster: Employee; itemType: ItemType; metersAssigned: number
   targetPieces: number; ageGroup?: string; size: string; status: string; assignedDate: string; dueDate?: string
   piecesCompleted: number; clothUsed: number; clothWasted: number; completedDate?: string; notes: string
-  costPerPiece?: number
+  costPerPiece?: number; clothReturned?: number
+  /** A docket is cut as a size run, not as a single lump. */
+  sizes?: { id: string; size: string; targetPieces: number; piecesCompleted: number }[]
 }
 
 export interface Karigar {

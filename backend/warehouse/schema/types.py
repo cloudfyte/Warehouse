@@ -9,7 +9,7 @@ from warehouse.permissions import ELEVATED_ROLES
 from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
     AuditLog, Buyer, BuyerReturn, ClothCategory, ClothColor, CreditPayment, CreditTransaction,
-    CustomRole, CuttingAssignment, EmployeeProfile, Expense, FinishedProduct,
+    CustomRole, CuttingAssignment, CuttingSize, EmployeeProfile, Expense, FinishedProduct,
     FinishedProductOption, ItemType, Karigar, Notification, OTPCode, ParcelInspection,
     ProductSet, ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder,
     PurchaseOrderItem, Quotation, QuotationItem, RawClothBatch, ReadymadeStock,
@@ -357,6 +357,12 @@ class ReconciliationRowType(graphene.ObjectType):
     # An unknown, which is not the same as a zero.
     shop_has = graphene.Int()
     difference = graphene.Int()
+
+
+class CuttingSizeType(DjangoObjectType):
+    class Meta:
+        model = CuttingSize
+        fields = "__all__"
 
 
 class KarigarType(DjangoObjectType):

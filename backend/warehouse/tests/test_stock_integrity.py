@@ -92,7 +92,12 @@ class CuttingReturnsLeftoverCloth(StockFixture):
         self.batch.refresh_from_db()
         self.assertEqual(self.batch.available_meters, Decimal("68.00"))
 
-    def test_completed_assignment_cannot_be_completed_twice(self):
+    def test_completing_twice_does_not_return_the_cloth_twice(self):
+        """A finished docket is editable — a miscount is found the next morning
+        often enough that sealing it just moved the lie somewhere harder to fix.
+        What must not move is the batch: the leftover is settled as a difference
+        against what already went back, so saying the same thing twice is a
+        no-op."""
         assignment = create_cutting_assignment(
             user=self.admin,
             raw_cloth_batch_id=self.batch.id,
@@ -108,11 +113,10 @@ class CuttingReturnsLeftoverCloth(StockFixture):
         self.batch.refresh_from_db()
         after_first = self.batch.available_meters
 
-        with self.assertRaises(GraphQLError):
-            update_cutting_assignment(
-                id=assignment.id, status=CuttingAssignment.Status.COMPLETED,
-                pieces_completed=18, cloth_used=Decimal("30.00"),
-            )
+        update_cutting_assignment(
+            id=assignment.id, status=CuttingAssignment.Status.COMPLETED,
+            pieces_completed=18, cloth_used=Decimal("30.00"),
+        )
 
         self.batch.refresh_from_db()
         self.assertEqual(self.batch.available_meters, after_first)

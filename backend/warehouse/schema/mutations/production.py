@@ -12,13 +12,21 @@ from warehouse.services.production import (
 from warehouse.schema.types import CuttingAssignmentType, FinishedProductType, StitchingJobType
 
 
+class CuttingSizeInput(graphene.InputObjectType):
+    size = graphene.String(required=True)
+    pieces = graphene.Int(required=True)
+    completed = graphene.Int()
+
+
 class CreateCuttingAssignment(graphene.Mutation):
     class Arguments:
         raw_cloth_batch_id = graphene.ID(required=True)
         cutting_master_id = graphene.ID(required=True)
         item_type_id = graphene.ID(required=True)
         meters_assigned = graphene.Float(required=True)
-        target_pieces = graphene.Int(required=True)
+        # Either a size run, or a bare total for a sizeless docket.
+        target_pieces = graphene.Int()
+        sizes = graphene.List(graphene.NonNull(CuttingSizeInput))
         age_group = graphene.String()
         size = graphene.String()
         assigned_date = graphene.Date()
@@ -28,12 +36,14 @@ class CreateCuttingAssignment(graphene.Mutation):
     assignment = graphene.Field(CuttingAssignmentType)
 
     @login_required
-    def mutate(self, info, raw_cloth_batch_id, cutting_master_id, item_type_id, meters_assigned, target_pieces, **kwargs):
+    def mutate(self, info, raw_cloth_batch_id, cutting_master_id, item_type_id,
+               meters_assigned, sizes=None, **kwargs):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
         return CreateCuttingAssignment(assignment=create_cutting_assignment(
             user=info.context.user, raw_cloth_batch_id=raw_cloth_batch_id,
             cutting_master_id=cutting_master_id, item_type_id=item_type_id,
-            meters_assigned=meters_assigned, target_pieces=target_pieces, **kwargs,
+            meters_assigned=meters_assigned,
+            sizes=[dict(r) for r in (sizes or [])], **kwargs,
         ))
 
 
@@ -46,6 +56,8 @@ class UpdateCuttingAssignment(graphene.Mutation):
         cloth_wasted = graphene.Float()
         completed_date = graphene.Date()
         notes = graphene.String()
+        target_pieces = graphene.Int()
+        sizes = graphene.List(graphene.NonNull(CuttingSizeInput))
 
     assignment = graphene.Field(CuttingAssignmentType)
 
@@ -56,7 +68,9 @@ class UpdateCuttingAssignment(graphene.Mutation):
             EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
             EmployeeProfile.Role.CUTTING_MASTER,
         )
-        return UpdateCuttingAssignment(assignment=update_cutting_assignment(id=id, **kwargs))
+        sizes = kwargs.pop("sizes", None)
+        return UpdateCuttingAssignment(assignment=update_cutting_assignment(
+            id=id, sizes=None if sizes is None else [dict(r) for r in sizes], **kwargs))
 
 
 class CreateStitchingJob(graphene.Mutation):

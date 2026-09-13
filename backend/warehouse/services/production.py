@@ -13,7 +13,32 @@ from warehouse.services.notify import notify_managers, notify_user
 
 
 def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, item_type_id,
-                              meters_assigned, target_pieces, age_group="", size="", assigned_date=None, due_date=None, notes=""):
+                              meters_assigned, target_pieces=None, age_group="", size="",
+                              assigned_date=None, due_date=None, notes="", sizes=None):
+    """
+    Hand cloth to a cutting master.
+
+    ``sizes`` is the size run — [{size, pieces}] — because a docket is cut as
+    twelve of 38 and twenty of 40, not as a single lump of thirty-two. Give it
+    and the target is the sum; give a bare target_pieces instead and the docket
+    is sizeless, which is how dockets were written before.
+    """
+    from warehouse.models import CuttingSize
+
+    rows = [r for r in (sizes or []) if (r.get("size") or "").strip()]
+    for row in rows:
+        if int(row.get("pieces") or 0) <= 0:
+            raise GraphQLError(f"How many pieces of size {row['size']}?")
+    seen = {(r["size"] or "").strip().lower() for r in rows}
+    if len(seen) != len(rows):
+        raise GraphQLError("The same size is listed twice on this docket.")
+
+    if rows:
+        target_pieces = sum(int(r["pieces"]) for r in rows)
+    if not target_pieces or int(target_pieces) <= 0:
+        raise GraphQLError("How many pieces is this docket for?")
+    target_pieces = int(target_pieces)
+
     meters = Decimal(str(meters_assigned))
     if meters <= 0:
         raise GraphQLError("Meters assigned must be greater than 0.")
@@ -53,6 +78,12 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
             notes=notes.strip(),
             assigned_by=user,
         )
+        if rows:
+            CuttingSize.objects.bulk_create([
+                CuttingSize(assignment=assignment, size=r["size"].strip(),
+                            target_pieces=int(r["pieces"]), sort_order=i)
+                for i, r in enumerate(rows)
+            ])
         notify_user(
             user=master.user,
             title=f"New Cutting Job: {assignment.assignment_number}",
@@ -65,7 +96,10 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
 
 
 def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_used=None,
-                              cloth_wasted=None, completed_date=None, notes=None):
+                              cloth_wasted=None, completed_date=None, notes=None,
+                              sizes=None, target_pieces=None):
+    from warehouse.models import CuttingSize
+
     with transaction.atomic():
         try:
             assignment = CuttingAssignment.objects.select_for_update().get(pk=id)
@@ -73,12 +107,39 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
             raise GraphQLError("Cutting assignment not found.") from exc
 
         prev_status = assignment.status
-        # Completion returns leftover cloth to the batch, so re-completing an
-        # assignment would return it a second time and invent meters.
-        if prev_status == CuttingAssignment.Status.COMPLETED:
-            raise GraphQLError(
-                f"Assignment {assignment.assignment_number} is already completed and cannot be changed."
-            )
+        # A finished docket used to be sealed, because completing returns the
+        # leftover cloth and doing that twice invents meters. It is editable
+        # now — a miscount is found the next morning often enough that sealing
+        # it just moved the lie somewhere harder to correct. What makes it safe
+        # is cloth_returned: the return is settled as a difference against what
+        # already went back, so it lands on the right number however many times
+        # the figures are corrected.
+        # The size run can be corrected too — "the total stack or pieces" is
+        # exactly the miscount this is here to fix.
+        if sizes is not None:
+            rows = [r for r in sizes if (r.get("size") or "").strip()]
+            for row in rows:
+                if int(row.get("pieces") or 0) < 0:
+                    raise GraphQLError(f"Size {row['size']} cannot be a negative count.")
+            assignment.sizes.all().delete()
+            CuttingSize.objects.bulk_create([
+                CuttingSize(assignment=assignment, size=r["size"].strip(),
+                            target_pieces=int(r.get("pieces") or 0),
+                            pieces_completed=int(r.get("completed") or 0),
+                            sort_order=i)
+                for i, r in enumerate(rows)
+            ])
+            if rows:
+                # The docket total is the run, never typed separately — two
+                # numbers that can disagree is one number too many.
+                assignment.target_pieces = sum(int(r.get("pieces") or 0) for r in rows)
+                done = sum(int(r.get("completed") or 0) for r in rows)
+                if done:
+                    assignment.pieces_completed = done
+        elif target_pieces is not None:
+            if int(target_pieces) <= 0:
+                raise GraphQLError("A docket has to be for at least one piece.")
+            assignment.target_pieces = int(target_pieces)
 
         if pieces_completed is not None:
             if pieces_completed > assignment.target_pieces:
@@ -119,13 +180,27 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
         # The full meters_assigned left the batch when the job was handed out.
         # Whatever the cutting master did not consume is still good cloth — put
         # it back, otherwise every short job silently destroys the remainder.
-        if assignment.status == CuttingAssignment.Status.COMPLETED:
-            leftover = assignment.meters_assigned - consumed
-            if leftover > 0:
-                batch = RawClothBatch.objects.select_for_update().get(
-                    pk=assignment.raw_cloth_batch_id)
-                batch.available_meters += leftover
-                batch.save(update_fields=["available_meters", "updated_at"])
+        # Whatever the cutting master did not consume is still good cloth and
+        # goes back, otherwise every short job silently destroys the remainder.
+        # Settled as a delta so a correction moves the batch by the difference
+        # rather than returning the whole remainder again.
+        should_be_back = (assignment.meters_assigned - consumed
+                          if assignment.status == CuttingAssignment.Status.COMPLETED
+                          else Decimal("0.00"))
+        delta = should_be_back - (assignment.cloth_returned or Decimal("0.00"))
+        if delta:
+            batch = RawClothBatch.objects.select_for_update().get(
+                pk=assignment.raw_cloth_batch_id)
+            if batch.available_meters + delta < 0:
+                raise GraphQLError(
+                    f"Correcting this would pull {-delta}m back out of batch "
+                    f"{batch.batch_number}, which only has {batch.available_meters}m left. "
+                    f"Some of it has already been cut or moved."
+                )
+            batch.available_meters += delta
+            batch.save(update_fields=["available_meters", "updated_at"])
+            assignment.cloth_returned = should_be_back
+            assignment.save(update_fields=["cloth_returned", "updated_at"])
 
     if status == CuttingAssignment.Status.COMPLETED and prev_status != CuttingAssignment.Status.COMPLETED:
         notify_managers(

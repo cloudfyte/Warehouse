@@ -502,6 +502,11 @@ class CuttingAssignment(models.Model):
     pieces_completed = models.PositiveIntegerField(default=0)
     cloth_used = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     cloth_wasted = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    # How much of the assigned cloth has already gone back to the batch.
+    # Completing returns whatever was not consumed; without a record of what
+    # went back, correcting a finished docket would return the remainder a
+    # second time and invent meters that never existed.
+    cloth_returned = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     completed_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
 
@@ -1921,3 +1926,27 @@ class Karigar(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_kind_display()})"
+
+
+class CuttingSize(models.Model):
+    """How many pieces of one size a cutting docket calls for.
+
+    A docket is cut as a size run — twelve of 38, twenty of 40 — not as a
+    single lump. Keeping the breakdown here is what lets a stitching job, and
+    eventually a tag, know which size it is holding.
+    """
+    assignment = models.ForeignKey(CuttingAssignment, on_delete=models.CASCADE, related_name="sizes")
+    size = models.CharField(max_length=30)
+    target_pieces = models.PositiveIntegerField(default=0)
+    pieces_completed = models.PositiveIntegerField(default=0)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "size"]
+        constraints = [
+            models.UniqueConstraint(fields=["assignment", "size"],
+                                    name="cuttingsize_one_row_per_size"),
+        ]
+
+    def __str__(self):
+        return f"{self.size} × {self.target_pieces}"
