@@ -95,11 +95,20 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   // Cloth is cut for a reason, and the reason is decided here rather than
   // three steps later. Readymade carries the customer's bill number onward.
   const [purpose, setPurpose] = useState({ jobType: "WHOLESALE", bill: "" });
+  /**
+   * Extra dockets in the same handout.
+   *
+   * Three cloths to one master, or one cloth split between two with a share
+   * each — both are just more rows, so one screen covers both rather than two.
+   * The first docket is the form above; these are the rest.
+   */
+  const [extra, setExtra] = useState<{ batchId: string; masterId: string; meters: string; pieces: string }[]>([]);
   const [run, setRun] = useState<{ size: string; pieces: string }[]>([]);
   const runRows = run
     .filter(r => r.size.trim() && +r.pieces > 0)
     .map(r => ({ size: r.size.trim(), pieces: +r.pieces }));
   const runTotal = runRows.reduce((t, r) => t + r.pieces, 0);
+  const extraRows = extra.filter(r => +r.meters > 0 && +r.pieces > 0);
   const [update, setUpdate] = useState({ piecesCompleted: 0, clothUsed: 0, clothWasted: 0, status: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -171,21 +180,43 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   async function createAssignment() {
     setLoading(true); setError("");
     try {
-      await onMutate(
-        `mutation C($b:ID!,$m:ID!,$t:ID!,$meters:Float!,$target:Int,$ag:String,$size:String,$notes:String,$sizes:[CuttingSizeInput!],$kind:String,$bill:String){createCuttingAssignment(rawClothBatchId:$b,cuttingMasterId:$m,itemTypeId:$t,metersAssigned:$meters,targetPieces:$target,ageGroup:$ag,size:$size,notes:$notes,sizes:$sizes,jobType:$kind,customerBillNumber:$bill){assignment{id}}}`,
+      // One docket or several — the same call either way. Extra rows repeat
+      // whichever column changes: another cloth for the same master, or the
+      // same cloth shared between masters.
+      const lines = [
         {
-          b: form.batchId, m: form.masterId, t: form.itemTypeId, meters: +form.meters,
-          target: runTotal > 0 ? undefined : +form.targetPieces,
+          rawClothBatchId: form.batchId, cuttingMasterId: form.masterId,
+          itemTypeId: form.itemTypeId, metersAssigned: +form.meters,
+          targetPieces: runTotal > 0 ? undefined : +form.targetPieces,
+          sizes: runRows.length ? runRows : undefined,
+          ageGroup: form.ageGroup || undefined, size: form.size || undefined,
+        },
+        ...extraRows.map(r => ({
+          rawClothBatchId: r.batchId || form.batchId,
+          cuttingMasterId: r.masterId || form.masterId,
+          itemTypeId: form.itemTypeId,
+          metersAssigned: +r.meters,
+          targetPieces: +r.pieces,
+        })),
+      ];
+
+      await onMutate(
+        `mutation C($lines:[CuttingLineInput!]!,$kind:String,$bill:String,$notes:String){`
+        + `createCuttingAssignments(lines:$lines,jobType:$kind,customerBillNumber:$bill,notes:$notes)`
+        + `{assignments{id}}}`,
+        {
+          lines,
           kind: purpose.jobType,
           bill: purpose.jobType === "READYMADE" ? purpose.bill.trim() : undefined,
-          ag: form.ageGroup || undefined, size: form.size || undefined, notes: form.notes,
-          sizes: runRows.length ? runRows : undefined,
+          notes: form.notes,
         }
       );
       setShowForm(false);
       setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
-      setRun([]); setPurpose({ jobType: "WHOLESALE", bill: "" });
-      showToast("Cutting assignment created.", "success");
+      setRun([]); setPurpose({ jobType: "WHOLESALE", bill: "" }); setExtra([]);
+      showToast(extraRows.length
+        ? `${extraRows.length + 1} dockets handed out.`
+        : "Cutting assignment created.", "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
   }
@@ -325,9 +356,52 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
             {/* A docket is cut as twelve of 38 and twenty of 40, not as a lump
                 of thirty-two. Listing the run here is what lets a stitching job
                 — and eventually a tag — know which size it is holding. */}
+            {/* Another cloth for the same master, or the same cloth shared with
+                another — both are just more rows. */}
+            <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
+                Hand out more at once <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional</span>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, lineHeight: 1.5 }}>
+                Leave a box empty to reuse the one above — so you can give the same master another
+                cloth, or split this cloth between masters. Nothing is handed out unless every
+                row is good.
+              </div>
+              {extra.map((r, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <Select value={r.batchId} style={{ flex: 1 }}
+                    onChange={e => setExtra(rs => rs.map((x, j) => j === i ? { ...x, batchId: e.target.value } : x))}>
+                    <option value="">Same cloth</option>
+                    {batches.map(b => <option key={b.id} value={b.id}>{b.designNumber || b.batchNumber} ({b.availableMeters}m)</option>)}
+                  </Select>
+                  <Select value={r.masterId} style={{ flex: 1 }}
+                    onChange={e => setExtra(rs => rs.map((x, j) => j === i ? { ...x, masterId: e.target.value } : x))}>
+                    <option value="">Same master</option>
+                    {localMasters.map(m => <option key={m.id} value={m.id}>{m.username}</option>)}
+                  </Select>
+                  <Input type="number" min="0" step="0.01" placeholder="Metres" value={r.meters} style={{ width: 100 }}
+                    onChange={e => setExtra(rs => rs.map((x, j) => j === i ? { ...x, meters: e.target.value } : x))} />
+                  <Input type="number" min="1" placeholder="Pieces" value={r.pieces} style={{ width: 95 }}
+                    onChange={e => setExtra(rs => rs.map((x, j) => j === i ? { ...x, pieces: e.target.value } : x))} />
+                  <button type="button" aria-label={`Remove docket ${i + 2}`}
+                    onClick={() => setExtra(rs => rs.filter((_, j) => j !== i))}
+                    style={{ background: "none", border: "none", color: "var(--muted)", padding: 6, cursor: "pointer" }}>×</button>
+                </div>
+              ))}
+              <Button type="button" variant="secondary" size="sm"
+                onClick={() => setExtra(rs => [...rs, { batchId: "", masterId: "", meters: "", pieces: "" }])}>
+                + Another docket
+              </Button>
+              {extraRows.length > 0 && (
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+                  <strong style={{ color: "var(--ink)" }}>{extraRows.length + 1} dockets</strong> will be handed out together.
+                </div>
+              )}
+            </div>
+
             <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
-                Size run <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional</span>
+                Size run <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional, first docket</span>
               </div>
               {run.map((r, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>

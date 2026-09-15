@@ -836,3 +836,47 @@ def hand_over_readymade(*, user, id, handed_over_to="", quantity=None):
         product.handed_over_to = (handed_over_to or "").strip()
         product.save(update_fields=["quantity", "handed_over_at", "handed_over_to", "updated_at"])
     return product
+
+
+def create_cutting_assignments(*, user, lines, job_type=None, customer_bill_number="",
+                               assigned_date=None, due_date=None, notes=""):
+    """
+    Hand out several dockets in one action.
+
+    Two shapes, and the same call covers both: three different cloths going to
+    one master, or one cloth split between two masters with a share each. Both
+    are a list of (cloth, master, metres, sizes) — the difference is only which
+    column repeats, so there is no reason for two screens or two services.
+
+    All or nothing. Half a handout leaves cloth deducted for dockets nobody
+    agreed to, which is worse than doing it again.
+    """
+    if not lines:
+        raise GraphQLError("Nothing to hand out.")
+
+    made = []
+    with transaction.atomic():
+        for index, line in enumerate(lines, start=1):
+            if not line.get("raw_cloth_batch_id"):
+                raise GraphQLError(f"Line {index}: which cloth?")
+            if not line.get("cutting_master_id"):
+                raise GraphQLError(f"Line {index}: which cutting master?")
+            made.append(create_cutting_assignment(
+                user=user,
+                raw_cloth_batch_id=line["raw_cloth_batch_id"],
+                cutting_master_id=line["cutting_master_id"],
+                item_type_id=line["item_type_id"],
+                meters_assigned=line["meters_assigned"],
+                target_pieces=line.get("target_pieces"),
+                sizes=line.get("sizes"),
+                age_group=line.get("age_group", ""),
+                size=line.get("size", ""),
+                # The purpose is the handout's, not each line's — you do not
+                # cut half a customer's order and half of stock in one action.
+                job_type=job_type,
+                customer_bill_number=customer_bill_number,
+                assigned_date=assigned_date,
+                due_date=due_date,
+                notes=notes,
+            ))
+    return made

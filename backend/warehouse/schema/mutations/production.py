@@ -5,7 +5,7 @@ from graphql_jwt.decorators import login_required
 from warehouse.models import EmployeeProfile
 from warehouse.permissions import accessible_warehouses, require_role
 from warehouse.services.production import (
-    hand_over_readymade,
+    create_cutting_assignments, hand_over_readymade,
     create_cutting_assignment, create_finished_products, create_product_matrix,
     create_stitching_job, update_cutting_assignment, update_finished_product,
     update_stitching_job,
@@ -256,3 +256,38 @@ class HandOverReadymade(graphene.Mutation):
     def mutate(self, info, id, **kwargs):
         return HandOverReadymade(finished_product=hand_over_readymade(
             user=info.context.user, id=id, **kwargs))
+
+
+class CuttingLineInput(graphene.InputObjectType):
+    """One docket in a handout: a cloth, a master, and their share of it."""
+    raw_cloth_batch_id = graphene.ID(required=True)
+    cutting_master_id = graphene.ID(required=True)
+    item_type_id = graphene.ID(required=True)
+    meters_assigned = graphene.Float(required=True)
+    target_pieces = graphene.Int()
+    sizes = graphene.List(graphene.NonNull(CuttingSizeInput))
+    age_group = graphene.String()
+    size = graphene.String()
+
+
+class CreateCuttingAssignments(graphene.Mutation):
+    """Hand out several dockets at once — several cloths to one master, or one
+    cloth split between several. All or nothing."""
+    class Arguments:
+        lines = graphene.List(graphene.NonNull(CuttingLineInput), required=True)
+        job_type = graphene.String()
+        customer_bill_number = graphene.String()
+        assigned_date = graphene.Date()
+        due_date = graphene.Date()
+        notes = graphene.String()
+
+    assignments = graphene.List(CuttingAssignmentType)
+
+    @login_required
+    def mutate(self, info, lines, **kwargs):
+        require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
+        return CreateCuttingAssignments(assignments=create_cutting_assignments(
+            user=info.context.user,
+            lines=[{**dict(l), "sizes": [dict(z) for z in (l.sizes or [])]} for l in lines],
+            **kwargs,
+        ))
