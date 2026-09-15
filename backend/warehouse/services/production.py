@@ -15,7 +15,8 @@ from warehouse.services.notify import notify_managers, notify_user
 def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, item_type_id,
                               meters_assigned, target_pieces=None, age_group="", size="",
                               assigned_date=None, due_date=None, notes="", sizes=None,
-                              job_type=None, customer_bill_number=""):
+                              job_type=None, customer_bill_number="",
+                              customer_name="", customer_phone="", bill_photos=""):
     """
     Hand cloth to a cutting master.
 
@@ -35,7 +36,18 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
         raise GraphQLError(
             "Readymade work is cut against a customer's bill — give the bill number."
         )
-    if job_type == CuttingAssignment.JobType.WHOLESALE:
+    # The written bill becomes a record here, at the first step that knows
+    # about it, carrying the customer's name and a photograph of the paper —
+    # which is where the measurements actually live.
+    customer_order = None
+    if job_type == CuttingAssignment.JobType.READYMADE:
+        from warehouse.services.customer_order import claim_customer_order
+
+        customer_order = claim_customer_order(
+            user=user, bill_number=customer_bill_number,
+            customer_name=customer_name, customer_phone=customer_phone,
+            bill_photos=bill_photos)
+    else:
         customer_bill_number = ""
 
     rows = [r for r in (sizes or []) if (r.get("size") or "").strip()]
@@ -88,6 +100,7 @@ def create_cutting_assignment(*, user, raw_cloth_batch_id, cutting_master_id, it
             size=size.strip(),
             job_type=job_type,
             customer_bill_number=(customer_bill_number or "").strip(),
+            customer_order=customer_order,
             assigned_date=assigned_date or timezone.now().date(),
             due_date=due_date,
             notes=notes.strip(),
@@ -315,6 +328,7 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
             due_date=due_date,
             notes=notes.strip(),
             job_type=kind,
+            customer_order=ca.customer_order,
             karigar=karigar,
             rate_per_piece=rate,
             customer_bill_number=bill,
@@ -432,7 +446,7 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
 def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=None,
                               item_type_id=None, cloth_category_id=None, cloth_color_id=None,
                               age_group="", size="", quantity, warehouse_id, cost_price, sale_price,
-                              customer_bill_number=""):
+                              customer_bill_number="", customer_order=None):
     from warehouse.models import ReadymadeStock
 
     warehouse = get_warehouse(user, warehouse_id)
@@ -466,6 +480,7 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             # The end of the line for the customer's bill number: set at
             # cutting, carried through stitching, landing on the garment.
             customer_bill_number = sj.customer_bill_number or ""
+            customer_order = sj.customer_order
             item_type_id = sj.cutting_assignment.item_type_id
             cloth_category_id = sj.cutting_assignment.raw_cloth_batch.cloth_category_id
             cloth_color_id = sj.cutting_assignment.raw_cloth_batch.cloth_color_id
@@ -498,6 +513,7 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             stitching_job=sj,
             readymade_stock=rs,
             customer_bill_number=(customer_bill_number or "").strip(),
+            customer_order=customer_order,
             quantity=quantity,
             warehouse=warehouse,
             cost_price=Decimal(str(cost_price)),

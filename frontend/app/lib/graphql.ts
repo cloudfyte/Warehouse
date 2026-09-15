@@ -181,6 +181,8 @@ export const DASHBOARD_QUERY = `
     cuttingAssignments(limit: 100) {
       id assignmentNumber metersAssigned targetPieces ageGroup size status assignedDate dueDate
       piecesCompleted clothUsed clothWasted clothReturned completedDate notes costPerPiece
+      jobType customerBillNumber
+      customerOrder { id billNumber customerName customerPhone billPhotos notes }
       sizes { id size targetPieces piecesCompleted }
       rawClothBatch { id batchNumber designNumber clothCategory { name } clothColor { name hexCode } costPerMeter }
       cuttingMaster { id username role }
@@ -190,6 +192,7 @@ export const DASHBOARD_QUERY = `
     jobworkOrders(limit: 100) {
       id orderNumber status designNumber clothMeters clothCost
       jobType customerBillNumber ratePerPiece amountPaid amountEarned amountDue
+      customerOrder { id billNumber customerName customerPhone billPhotos notes }
       piecesExpected piecesReceived sentDate dueDate receivedDate notes
       sentTransporter sentLrNumber sentVehicleNumber sentPhotos
       returnTransporter returnLrNumber returnVehicleNumber returnPhotos
@@ -201,6 +204,7 @@ export const DASHBOARD_QUERY = `
     }
     awaitingCollection {
       id sku name size quantity salePrice customerBillNumber
+      customerOrder { id billNumber customerName customerPhone billPhotos notes }
       itemType { id name } clothColor { id name } warehouse { id name }
     }
     karigarWorkload {
@@ -215,6 +219,7 @@ export const DASHBOARD_QUERY = `
     stitchingJobs(limit: 100) {
       id jobNumber piecesAssigned piecesCompleted piecesRejected status assignedDate dueDate completedDate notes
       jobType customerBillNumber photos
+      customerOrder { id billNumber customerName customerPhone billPhotos notes }
       ratePerPiece amountPaid amountEarned amountDue
       sizes { id size piecesAssigned piecesCompleted }
       issueTransporter issueLrNumber issueVehicleNumber issueDate issuePhotos

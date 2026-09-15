@@ -34,7 +34,8 @@ def _size_rows(sizes, field="pieces"):
 def create_jobwork_order(*, user, karigar_id, item_type_id, receive_warehouse_id,
                          sizes, supplier_id=None, design_number="", cloth_meters=0,
                          cloth_cost=0, rate_per_piece=None, job_type=None,
-                         customer_bill_number="", due_date=None, notes="", **transit):
+                         customer_bill_number="", customer_name="", customer_phone="",
+                         bill_photos="", due_date=None, notes="", **transit):
     require_role(user, *_MANAGE)
     warehouse = get_warehouse(user, receive_warehouse_id)
 
@@ -54,7 +55,15 @@ def create_jobwork_order(*, user, karigar_id, item_type_id, receive_warehouse_id
         raise GraphQLError(
             "Readymade work is made against a customer's bill — give the bill number."
         )
-    if job_type == JobworkOrder.JobType.WHOLESALE:
+    customer_order = None
+    if job_type == JobworkOrder.JobType.READYMADE:
+        from warehouse.services.customer_order import claim_customer_order
+
+        customer_order = claim_customer_order(
+            user=user, bill_number=customer_bill_number,
+            customer_name=customer_name, customer_phone=customer_phone,
+            bill_photos=bill_photos)
+    else:
         customer_bill_number = ""
 
     # Frozen at the moment the job is placed, like any other handed-out work.
@@ -77,6 +86,7 @@ def create_jobwork_order(*, user, karigar_id, item_type_id, receive_warehouse_id
             cloth_meters=Decimal(str(cloth_meters or 0)),
             cloth_cost=Decimal(str(cloth_cost or 0)),
             job_type=job_type, customer_bill_number=(customer_bill_number or "").strip(),
+            customer_order=customer_order,
             rate_per_piece=rate, due_date=due_date, notes=(notes or "").strip(),
             created_by=user,
             sent_transporter=(transit.get("sent_transporter") or "").strip(),
@@ -158,6 +168,7 @@ def receive_jobwork(*, user, id, sizes, received_date=None, sale_price=None, **t
                     cost_price=cost_each,
                     sale_price=sale_price,
                     customer_bill_number=order.customer_bill_number,
+                    customer_order=order.customer_order,
                 )
     return order
 

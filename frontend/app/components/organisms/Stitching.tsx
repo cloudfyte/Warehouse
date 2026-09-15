@@ -15,6 +15,7 @@ import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import PhotoPicker from "@/app/components/molecules/PhotoPicker";
+import CustomerBill from "@/app/components/molecules/CustomerBill";
 import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
@@ -456,9 +457,11 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
               const ca = assignments.find(a => a.id === form.assignmentId);
               if (!ca || ca.jobType !== "READYMADE") return null;
               return (
-                <div style={{ padding: "9px 12px", borderRadius: 9, background: "#ede9fe", fontSize: 12, lineHeight: 1.6 }}>
-                  Readymade — for customer bill <strong>{ca.customerBillNumber}</strong>. It follows
-                  these pieces onto the finished garment.
+                <div style={{ padding: "9px 12px", borderRadius: 9, background: "#f5f3ff", fontSize: 12, lineHeight: 1.6 }}>
+                  <div style={{ marginBottom: 6 }}>
+                    Readymade — it follows these pieces onto the finished garment.
+                  </div>
+                  <CustomerBill order={ca.customerOrder} billNumber={ca.customerBillNumber} />
                 </div>
               );
             })()}
@@ -619,9 +622,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
                     <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
                       <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: 0.3 }}>{j.jobNumber}</span>
                       {j.jobType === "READYMADE" && (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: "#ede9fe", color: "#6d28d9", whiteSpace: "nowrap" }}>
-                          Readymade{j.customerBillNumber ? ` · ${j.customerBillNumber}` : ""}
-                        </span>
+                        <CustomerBill order={j.customerOrder} billNumber={j.customerBillNumber} compact />
                       )}
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1 }}>{j.cuttingAssignment.itemType.name}</div>

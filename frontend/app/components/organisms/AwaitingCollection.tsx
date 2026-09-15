@@ -11,6 +11,7 @@ import Modal from "@/app/components/atoms/Modal";
 import Field from "@/app/components/molecules/Field";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import CustomerBill from "@/app/components/molecules/CustomerBill";
 
 interface Props {
   products: FinishedProduct[];
@@ -96,7 +97,7 @@ export default function AwaitingCollection({ products, canManage, onRefresh, onM
                 display: "flex", alignItems: "baseline", gap: 10, padding: "11px 16px",
                 background: "var(--canvas)", borderBottom: "1px solid var(--line)",
               }}>
-                <span style={{ fontWeight: 700, fontSize: 14 }}>{bill || "No bill number"}</span>
+                <CustomerBill order={items[0]?.customerOrder} billNumber={bill || "No bill number"} />
                 <span style={{ fontSize: 12, color: "var(--muted)" }}>
                   {items.reduce((t, p) => t + p.quantity, 0)} piece
                   {items.reduce((t, p) => t + p.quantity, 0) === 1 ? "" : "s"}

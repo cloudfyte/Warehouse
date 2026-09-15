@@ -231,3 +231,66 @@ class NothingIsFinishedUntilTheCustomerHasIt(JobworkFixture):
 
         with self.assertRaises(GraphQLError):
             hand_over_readymade(user=self.admin, id=product.id)
+
+
+class TheWrittenBillTravelsWithTheWork(JobworkFixture):
+    """Somebody is measured in the shop and leaves with a handwritten bill. The
+    garment is made here, and every step has to say whose it is — including the
+    photograph of the paper, which is where the measurements actually live."""
+
+    def test_the_bill_becomes_a_record_with_the_customer_on_it(self):
+        from warehouse.models import CustomerOrder
+
+        order = self._order(job_type="READYMADE", customer_bill_number="SW-4001",
+                            customer_name="Ravi Kumar", customer_phone="9876543210",
+                            sizes=[{"size": "40", "pieces": 2}])
+
+        bill = CustomerOrder.objects.get(bill_number="SW-4001")
+        self.assertEqual(bill.customer_name, "Ravi Kumar")
+        self.assertEqual(bill.customer_phone, "9876543210")
+        self.assertEqual(order.customer_order_id, bill.id)
+
+    def test_naming_the_same_bill_twice_does_not_make_two_of_it(self):
+        from warehouse.models import CustomerOrder
+
+        self._order(job_type="READYMADE", customer_bill_number="SW-4002",
+                    customer_name="Ravi", sizes=[{"size": "40", "pieces": 1}])
+        self._order(job_type="READYMADE", customer_bill_number="SW-4002",
+                    sizes=[{"size": "42", "pieces": 1}])
+
+        self.assertEqual(CustomerOrder.objects.filter(bill_number="SW-4002").count(), 1)
+
+    def test_details_given_later_fill_blanks_rather_than_wipe_them(self):
+        """The photograph of the paper usually turns up after somebody has
+        already typed the number."""
+        from warehouse.models import CustomerOrder
+
+        self._order(job_type="READYMADE", customer_bill_number="SW-4003",
+                    customer_name="Ravi", sizes=[{"size": "40", "pieces": 1}])
+        self._order(job_type="READYMADE", customer_bill_number="SW-4003",
+                    customer_name="Somebody Else", customer_phone="99999",
+                    sizes=[{"size": "42", "pieces": 1}])
+
+        bill = CustomerOrder.objects.get(bill_number="SW-4003")
+        self.assertEqual(bill.customer_name, "Ravi")
+        self.assertEqual(bill.customer_phone, "99999")
+
+    def test_the_garment_points_at_the_same_bill(self):
+        from warehouse.models import CustomerOrder
+
+        order = self._order(job_type="READYMADE", customer_bill_number="SW-4004",
+                            customer_name="Ravi", sizes=[{"size": "40", "pieces": 2}])
+        receive_jobwork(user=self.admin, id=order.id, sale_price=4000,
+                        sizes=[{"size": "40", "received": 2}])
+
+        bill = CustomerOrder.objects.get(bill_number="SW-4004")
+        product = FinishedProduct.objects.get()
+        self.assertEqual(product.customer_order_id, bill.id)
+        self.assertEqual(product.customer_bill_number, "SW-4004")
+
+    def test_wholesale_work_makes_no_bill_record(self):
+        from warehouse.models import CustomerOrder
+
+        self._order(sizes=[{"size": "40", "pieces": 2}])
+
+        self.assertEqual(CustomerOrder.objects.count(), 0)

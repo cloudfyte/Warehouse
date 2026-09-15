@@ -960,3 +960,9 @@ def get_awaiting_collection(user):
             .exclude(customer_bill_number="")
             .select_related("item_type", "cloth_color", "warehouse")
             .order_by("customer_bill_number", "size"))
+
+
+def get_customer_orders(user, limit=200):
+    from warehouse.models import CustomerOrder
+
+    return CustomerOrder.objects.all()[:limit]

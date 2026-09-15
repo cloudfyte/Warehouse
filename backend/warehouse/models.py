@@ -498,6 +498,11 @@ class CuttingAssignment(models.Model):
     # bill number travels with every piece from this point to the tag.
     job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.WHOLESALE)
     customer_bill_number = models.CharField(max_length=60, blank=True, db_index=True)
+    # The written bill this was made against. The number stays alongside it
+    # because it is how everybody refers to the job; the record behind it
+    # carries whose it is and the photograph of the paper.
+    customer_order = models.ForeignKey("CustomerOrder", null=True, blank=True,
+                                       on_delete=models.SET_NULL, related_name="cutting_assignments")
     cutting_master = models.ForeignKey(EmployeeProfile, on_delete=models.PROTECT, related_name="cutting_assignments", limit_choices_to={"role": EmployeeProfile.Role.CUTTING_MASTER})
     item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="cutting_assignments")
     meters_assigned = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
@@ -588,6 +593,11 @@ class StitchingJob(models.Model):
     customer_bill_number = models.CharField(
         max_length=60, blank=True, db_index=True,
         help_text="The customer's bill this was stitched against. Readymade work only.")
+    # The written bill this was made against. The number stays alongside it
+    # because it is how everybody refers to the job; the record behind it
+    # carries whose it is and the photograph of the paper.
+    customer_order = models.ForeignKey("CustomerOrder", null=True, blank=True,
+                                       on_delete=models.SET_NULL, related_name="stitching_jobs")
     photos = models.TextField(blank=True, help_text="Comma-separated photo paths — the sample or the customer's bill")
     tailor = models.ForeignKey(EmployeeProfile, null=True, blank=True, on_delete=models.PROTECT, related_name="stitching_jobs", limit_choices_to={"role": EmployeeProfile.Role.TAILOR})
     pieces_assigned = models.PositiveIntegerField()
@@ -689,6 +699,11 @@ class FinishedProduct(models.Model):
     # carried through stitching, and lands here — so a finished garment can be
     # matched to whoever asked for it without walking back up the chain.
     customer_bill_number = models.CharField(max_length=60, blank=True, db_index=True)
+    # The written bill this was made against. The number stays alongside it
+    # because it is how everybody refers to the job; the record behind it
+    # carries whose it is and the photograph of the paper.
+    customer_order = models.ForeignKey("CustomerOrder", null=True, blank=True,
+                                       on_delete=models.SET_NULL, related_name="finished_products")
     # A readymade garment is not finished when it is tagged — it is finished
     # when the person who asked for it is holding it. Wholesale stock has
     # nobody waiting, so this stays empty there.
@@ -2049,6 +2064,11 @@ class JobworkOrder(models.Model):
 
     job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.WHOLESALE)
     customer_bill_number = models.CharField(max_length=60, blank=True, db_index=True)
+    # The written bill this was made against. The number stays alongside it
+    # because it is how everybody refers to the job; the record behind it
+    # carries whose it is and the photograph of the paper.
+    customer_order = models.ForeignKey("CustomerOrder", null=True, blank=True,
+                                       on_delete=models.SET_NULL, related_name="jobwork_orders")
 
     # The unit cuts and stitches, so one rate covers the whole job per piece.
     rate_per_piece = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
@@ -2126,3 +2146,34 @@ class JobworkSize(models.Model):
 
     def __str__(self):
         return f"{self.size} × {self.pieces_expected}"
+
+
+class CustomerOrder(models.Model):
+    """A written bill given to a customer for something made to their measure.
+
+    Somebody walks into the retail shop, is measured, and leaves with a
+    handwritten bill. The garment is then made here. Everything downstream —
+    the cutting docket, the karigar's job, the finished piece — needs to say
+    whose it is, so the bill lives here once rather than being copied onto each
+    of them and drifting apart.
+
+    The photograph matters as much as the number: the paper bill is where the
+    measurements and the customer's own words are, and none of that survives
+    being retyped into fields.
+    """
+    bill_number = models.CharField(max_length=60, unique=True, db_index=True)
+    customer_name = models.CharField(max_length=140, blank=True)
+    customer_phone = models.CharField(max_length=20, blank=True)
+    # Comma-separated storage paths — the written bill itself, photographed.
+    bill_photos = models.TextField(blank=True, help_text="Photos of the written bill")
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="customer_orders_created")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.bill_number} — {self.customer_name or 'customer'}"

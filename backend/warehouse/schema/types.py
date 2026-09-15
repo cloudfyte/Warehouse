@@ -9,14 +9,14 @@ from warehouse.permissions import ELEVATED_ROLES
 from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
     AuditLog, Buyer, BuyerReturn, ClothCategory, ClothColor, CreditPayment, CreditTransaction,
-    CustomRole, CuttingAssignment, CuttingSize, EmployeeProfile, Expense, FinishedProduct,
-    FinishedProductOption, ItemType, JobworkOrder, JobworkSize, Karigar, Notification, OTPCode,
-    ParcelInspection, ProductSet, ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder,
-    PurchaseOrderItem, Quotation, QuotationItem, RawClothBatch, ReadymadeStock,
-    RecurringSettlement, ReorderPoint, RetailChannel, RetailDispatch, RetailDispatchItem,
-    RetailProductLink, RetailReturn, RetailReturnItem, RetailStore, SalesOrder, SalesOrderItem,
-    Settlement, StitchingJob, StitchingSize, StockAdjustment, StockTransfer, Supplier,
-    SupplierPayment, SupplierReturn, SystemSettings, WarehouseLocation,
+    CustomRole, CustomerOrder, CuttingAssignment, CuttingSize, EmployeeProfile, Expense,
+    FinishedProduct, FinishedProductOption, ItemType, JobworkOrder, JobworkSize, Karigar,
+    Notification, OTPCode, ParcelInspection, ProductSet, ProductSetItem, PurchaseBill,
+    PurchaseBillItem, PurchaseOrder, PurchaseOrderItem, Quotation, QuotationItem, RawClothBatch,
+    ReadymadeStock, RecurringSettlement, ReorderPoint, RetailChannel, RetailDispatch,
+    RetailDispatchItem, RetailProductLink, RetailReturn, RetailReturnItem, RetailStore,
+    SalesOrder, SalesOrderItem, Settlement, StitchingJob, StitchingSize, StockAdjustment,
+    StockTransfer, Supplier, SupplierPayment, SupplierReturn, SystemSettings, WarehouseLocation,
 )
 
 
@@ -370,6 +370,22 @@ class KarigarWorkloadType(graphene.ObjectType):
 
     def resolve_amount_due(self, info):
         return float(self["amount_due"] or 0)
+
+
+class CustomerOrderType(DjangoObjectType):
+    created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
+    class Meta:
+        model = CustomerOrder
+        fields = "__all__"
+
+    def resolve_created_by(self, info):
+        if not self.created_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.created_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
 
 
 class JobworkSizeType(DjangoObjectType):

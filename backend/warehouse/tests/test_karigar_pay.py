@@ -323,3 +323,60 @@ class SettlingTheWholeBook(KarigarFixture):
 
         with self.assertRaises(GraphQLError):
             settle_karigar(user=self.admin, karigar_id=self.mumbai.id, amount=100)
+
+
+class TheBillRecordFollowsTheInHouseChain(KarigarFixture):
+    """Cut here, stitched here, tagged here — the customer's bill has to be
+    attached at every one of those, not just its number."""
+
+    def test_cutting_records_the_bill_and_the_chain_inherits_it(self):
+        from warehouse.models import ClothCategory, ClothColor, CustomerOrder, Supplier
+        from warehouse.services.production import create_finished_products
+        from warehouse.services.stock import create_raw_cloth_batch
+
+        batch = create_raw_cloth_batch(
+            user=self.admin, supplier_id=Supplier.objects.first().id,
+            category_id=ClothCategory.objects.first().id,
+            color_id=ClothColor.objects.first().id,
+            warehouse_id=self.warehouse.id, total_meters=200,
+            cost_per_meter=100, design_number="BILL-CHAIN")
+        cut = create_cutting_assignment(
+            user=self.admin, raw_cloth_batch_id=batch.id,
+            cutting_master_id=self.master.id, item_type_id=self.item_type.id,
+            meters_assigned=100, target_pieces=5,
+            job_type="READYMADE", customer_bill_number="SW-7001",
+            customer_name="Ravi Kumar", customer_phone="9876543210")
+        update_cutting_assignment(id=cut.id, status="COMPLETED",
+                                  pieces_completed=5, cloth_used=95, cloth_wasted=5)
+
+        job = create_stitching_job(
+            user=self.admin, cutting_assignment_id=cut.id,
+            karigar_id=self.mumbai.id, pieces_assigned=5)
+        update_stitching_job(id=job.id, pieces_completed=5, status="READY")
+        product = create_finished_products(
+            user=self.admin, stitching_job_id=job.id, quantity=5,
+            warehouse_id=self.warehouse.id, cost_price=500, sale_price=2000)
+
+        bill = CustomerOrder.objects.get(bill_number="SW-7001")
+        self.assertEqual(bill.customer_name, "Ravi Kumar")
+        cut.refresh_from_db(); job.refresh_from_db()
+        self.assertEqual(cut.customer_order_id, bill.id)
+        self.assertEqual(job.customer_order_id, bill.id)
+        self.assertEqual(product.customer_order_id, bill.id)
+
+    def test_readymade_cutting_still_needs_a_bill_number(self):
+        from warehouse.models import ClothCategory, ClothColor, Supplier
+        from warehouse.services.stock import create_raw_cloth_batch
+
+        batch = create_raw_cloth_batch(
+            user=self.admin, supplier_id=Supplier.objects.first().id,
+            category_id=ClothCategory.objects.first().id,
+            color_id=ClothColor.objects.first().id,
+            warehouse_id=self.warehouse.id, total_meters=100,
+            cost_per_meter=100, design_number="BILL-NONE")
+
+        with self.assertRaises(GraphQLError):
+            create_cutting_assignment(
+                user=self.admin, raw_cloth_batch_id=batch.id,
+                cutting_master_id=self.master.id, item_type_id=self.item_type.id,
+                meters_assigned=50, target_pieces=5, job_type="READYMADE")

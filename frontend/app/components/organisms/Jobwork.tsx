@@ -13,6 +13,7 @@ import Field from "@/app/components/molecules/Field";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import CustomerBill from "@/app/components/molecules/CustomerBill";
 
 interface Props {
   orders: JobworkOrder[];
@@ -180,9 +181,7 @@ export default function Jobwork({
                   </span>
                 )}
                 {o.jobType === "READYMADE" && (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: "#ede9fe", color: "#6d28d9" }}>
-                    Readymade · {o.customerBillNumber}
-                  </span>
+                  <CustomerBill order={o.customerOrder} billNumber={o.customerBillNumber} compact />
                 )}
                 <span style={{ marginLeft: "auto", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: st.bg, color: st.fg }}>
                   {st.label}

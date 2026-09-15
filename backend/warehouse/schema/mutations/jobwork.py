@@ -25,6 +25,11 @@ class CreateJobworkOrder(graphene.Mutation):
         rate_per_piece = graphene.Float()
         job_type = graphene.String()
         customer_bill_number = graphene.String()
+        # Who it is for, and the written bill itself. Recorded here because
+        # this is the first step that knows about them.
+        customer_name = graphene.String()
+        customer_phone = graphene.String()
+        bill_photos = graphene.String()
         due_date = graphene.Date()
         notes = graphene.String()
         sent_transporter = graphene.String()

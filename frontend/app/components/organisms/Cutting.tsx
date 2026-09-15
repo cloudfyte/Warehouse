@@ -16,6 +16,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
+import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 import Pagination from "@/app/components/atoms/Pagination";
 
 interface Props {
@@ -94,7 +95,9 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   const [form, setForm] = useState({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
   // Cloth is cut for a reason, and the reason is decided here rather than
   // three steps later. Readymade carries the customer's bill number onward.
-  const [purpose, setPurpose] = useState({ jobType: "WHOLESALE", bill: "" });
+  const [purpose, setPurpose] = useState({
+    jobType: "WHOLESALE", bill: "", name: "", phone: "", photos: "",
+  });
   /**
    * Extra dockets in the same handout.
    *
@@ -201,19 +204,23 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       ];
 
       await onMutate(
-        `mutation C($lines:[CuttingLineInput!]!,$kind:String,$bill:String,$notes:String){`
-        + `createCuttingAssignments(lines:$lines,jobType:$kind,customerBillNumber:$bill,notes:$notes)`
+        `mutation C($lines:[CuttingLineInput!]!,$kind:String,$bill:String,$notes:String,$cname:String,$cphone:String,$cphotos:String){`
+        + `createCuttingAssignments(lines:$lines,jobType:$kind,customerBillNumber:$bill,notes:$notes,`
+        + `customerName:$cname,customerPhone:$cphone,billPhotos:$cphotos)`
         + `{assignments{id}}}`,
         {
           lines,
           kind: purpose.jobType,
           bill: purpose.jobType === "READYMADE" ? purpose.bill.trim() : undefined,
+          cname: purpose.jobType === "READYMADE" ? purpose.name.trim() : undefined,
+          cphone: purpose.jobType === "READYMADE" ? purpose.phone.trim() : undefined,
+          cphotos: purpose.jobType === "READYMADE" ? purpose.photos : undefined,
           notes: form.notes,
         }
       );
       setShowForm(false);
       setForm({ batchId: "", masterId: "", itemTypeId: "", meters: "", targetPieces: "", ageGroup: "", size: "", notes: "" });
-      setRun([]); setPurpose({ jobType: "WHOLESALE", bill: "" }); setExtra([]);
+      setRun([]); setPurpose({ jobType: "WHOLESALE", bill: "", name: "", phone: "", photos: "" }); setExtra([]);
       showToast(extraRows.length
         ? `${extraRows.length + 1} dockets handed out.`
         : "Cutting assignment created.", "success");
@@ -346,11 +353,34 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
               </div>
             </Field>
             {purpose.jobType === "READYMADE" && (
-              <Field label="Customer bill number" required
-                hint="Carried through stitching onto the finished garment.">
-                <Input value={purpose.bill} placeholder="e.g. SW-1042"
-                  onChange={e => setPurpose(p => ({ ...p, bill: e.target.value }))} />
-              </Field>
+              <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
+                  The customer&apos;s written bill
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>
+                  Recorded once, here. It follows the pieces through the karigar and onto the
+                  finished garment, so nobody types it again.
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <Field label="Bill number" required>
+                    <Input value={purpose.bill} placeholder="e.g. SW-1042"
+                      onChange={e => setPurpose(p => ({ ...p, bill: e.target.value }))} />
+                  </Field>
+                  <Field label="Customer name">
+                    <Input value={purpose.name} placeholder="Who ordered it"
+                      onChange={e => setPurpose(p => ({ ...p, name: e.target.value }))} />
+                  </Field>
+                  <Field label="Phone">
+                    <Input value={purpose.phone}
+                      onChange={e => setPurpose(p => ({ ...p, phone: e.target.value }))} />
+                  </Field>
+                </div>
+                <Field label="Photo of the written bill"
+                  hint="The measurements and the customer's own words are on the paper, and none of that survives being retyped.">
+                  <PhotoPicker value={purpose.photos}
+                    onChange={v => setPurpose(p => ({ ...p, photos: v }))} max={4} />
+                </Field>
+              </div>
             )}
 
             {/* A docket is cut as twelve of 38 and twenty of 40, not as a lump

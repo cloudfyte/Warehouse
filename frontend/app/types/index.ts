@@ -106,6 +106,14 @@ export interface ReadymadeStock {
 
 // ─── production ───────────────────────────────────────────────────────────────
 
+/** A written bill for a garment made to somebody's measure. */
+export interface CustomerOrder {
+  id: string; billNumber: string
+  customerName?: string; customerPhone?: string
+  /** The paper bill, photographed — where the measurements actually live. */
+  billPhotos?: string; notes?: string
+}
+
 export interface CuttingAssignment {
   id: string; assignmentNumber: string; rawClothBatch: RawClothBatch
   cuttingMaster: Employee; itemType: ItemType; metersAssigned: number
@@ -114,6 +122,7 @@ export interface CuttingAssignment {
   costPerPiece?: number; clothReturned?: number
   /** Why this cloth is being cut. Readymade carries the customer's bill onward. */
   jobType?: string; customerBillNumber?: string
+  customerOrder?: CustomerOrder | null
   /** A docket is cut as a size run, not as a single lump. */
   sizes?: { id: string; size: string; targetPieces: number; piecesCompleted: number }[]
 }
@@ -130,6 +139,7 @@ export interface StitchingJob {
   piecesRejected: number; completedDate?: string; notes: string
   /** Wholesale work goes to stock; readymade is stitched against one customer's bill. */
   jobType?: string; customerBillNumber?: string; photos?: string
+  customerOrder?: CustomerOrder | null
   /** Paid by the piece. Earned counts finished work, not work handed out. */
   karigar?: Karigar | null
   ratePerPiece?: number; amountPaid?: number; amountEarned?: number; amountDue?: number
@@ -147,6 +157,7 @@ export interface JobworkOrder {
   id: string; orderNumber: string; status: string
   designNumber?: string; clothMeters: number; clothCost: number
   jobType: string; customerBillNumber?: string
+  customerOrder?: CustomerOrder | null
   ratePerPiece: number; amountPaid: number; amountEarned: number; amountDue: number
   piecesExpected: number; piecesReceived: number
   sentDate: string; dueDate?: string; receivedDate?: string; notes?: string
@@ -177,6 +188,7 @@ export interface FinishedProduct {
   profitMargin: number; barcode: string; barcodeSvg: string; tagsPrinted: boolean; createdAt: string
   /** Set at cutting for readymade work, carried here. Wholesale stock has none. */
   customerBillNumber?: string; handedOverAt?: string | null; handedOverTo?: string
+  customerOrder?: CustomerOrder | null
 }
 
 // ─── sales orders ─────────────────────────────────────────────────────────────

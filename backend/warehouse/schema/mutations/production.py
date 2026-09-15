@@ -32,6 +32,11 @@ class CreateCuttingAssignment(graphene.Mutation):
         # number from here all the way to the tag.
         job_type = graphene.String()
         customer_bill_number = graphene.String()
+        # Who it is for, and the written bill itself. Recorded here because
+        # this is the first step that knows about them.
+        customer_name = graphene.String()
+        customer_phone = graphene.String()
+        bill_photos = graphene.String()
         age_group = graphene.String()
         size = graphene.String()
         assigned_date = graphene.Date()
