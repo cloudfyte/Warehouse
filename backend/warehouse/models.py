@@ -423,6 +423,11 @@ class RawClothBatch(models.Model):
     # in a second godown, and that is still one cloth, not a clash.
     design_number = models.CharField(max_length=60, db_index=True,
                                      help_text="The design number this cloth is known by. Unique, and typed by hand.")
+    # True only for batches that predate the design number, where the system
+    # had to put something in the column so it could be made unique. Nobody
+    # typed those, so they are not real design numbers and must not pass as
+    # ones — a placeholder that looks like data is worse than an empty box.
+    design_number_provisional = models.BooleanField(default=False, db_index=True)
     # Comma-separated storage paths, same as purchase order item photos. A
     # shade is far easier to match against a roll than a colour name is.
     photos = models.TextField(blank=True, help_text="Comma-separated photo paths of the cloth")

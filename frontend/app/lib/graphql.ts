@@ -163,7 +163,7 @@ export const DASHBOARD_QUERY = `
       sourcePo { id poNumber }
     }
     rawClothBatches {
-      id batchNumber designNumber clothCode photos notes
+      id batchNumber designNumber designNumberProvisional clothCode photos notes
       totalMeters availableMeters costPerMeter binLocation receivedDate
       supplier { id name }
       clothCategory { id name }

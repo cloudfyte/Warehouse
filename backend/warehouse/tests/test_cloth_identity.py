@@ -304,3 +304,41 @@ class MoreOfTheSameClothIsTheSameCloth(ClothFixture):
         self._receive(200, 100, code="4472")
         self._receive(200, 100, code="4473")
         self.assertEqual(RawClothBatch.objects.count(), 2)
+
+
+class OnlyAUserEntersADesignNumber(ClothFixture):
+    """The design number is the mill's number for the cloth, and nobody but the
+    warehouse user can supply it. Batches that predate the field had a
+    placeholder put in so the column could be made unique — those are not
+    design numbers and must not pass as ones."""
+
+    def _batch(self, design_number="D-1"):
+        return create_raw_cloth_batch(
+            user=self.admin, supplier_id=self.supplier.id,
+            category_id=self.category.id, color_id=self.color.id,
+            warehouse_id=self.warehouse.id, total_meters=50, cost_per_meter=100,
+            design_number=design_number)
+
+    def test_a_number_a_user_typed_is_never_provisional(self):
+        batch = self._batch("4472")
+        self.assertFalse(batch.design_number_provisional)
+
+    def test_typing_a_real_number_clears_the_placeholder_flag(self):
+        batch = self._batch("PLACEHOLDER")
+        RawClothBatch.objects.filter(pk=batch.pk).update(design_number_provisional=True)
+
+        update_raw_cloth_batch(user=self.admin, id=batch.id, design_number="4472")
+
+        batch.refresh_from_db()
+        self.assertEqual(batch.design_number, "4472")
+        self.assertFalse(batch.design_number_provisional)
+
+    def test_editing_something_else_leaves_the_flag_alone(self):
+        """Fixing a bin location does not mean somebody supplied the number."""
+        batch = self._batch("PLACEHOLDER-2")
+        RawClothBatch.objects.filter(pk=batch.pk).update(design_number_provisional=True)
+
+        update_raw_cloth_batch(user=self.admin, id=batch.id, bin_location="A-3")
+
+        batch.refresh_from_db()
+        self.assertTrue(batch.design_number_provisional)

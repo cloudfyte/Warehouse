@@ -96,6 +96,8 @@ export interface RawClothBatch {
   availableMeters: number; costPerMeter: number; binLocation: string; receivedDate: string
   /** The mill's own design number — how the shop floor actually names a lot. */
   designNumber?: string; clothCode?: string; photos?: string; notes?: string
+  /** True when the system put a placeholder there because nobody had typed one. */
+  designNumberProvisional?: boolean
 }
 
 export interface ReadymadeStock {

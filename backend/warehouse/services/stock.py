@@ -138,6 +138,9 @@ def update_raw_cloth_batch(*, user, id, design_number=None, cloth_code=None,
     if design_number is not None:
         batch.design_number = claim_design_number(
             design_number, batch.warehouse_id, exclude_pk=batch.pk)
+        # Somebody has typed it, so it is a real design number now whatever the
+        # system had to put there before.
+        batch.design_number_provisional = False
     if cloth_code is not None:
         batch.cloth_code = cloth_code.strip()
     if bin_location is not None:

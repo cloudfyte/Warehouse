@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Pencil, ImageIcon } from "lucide-react";
+import { Pencil, ImageIcon, AlertTriangle } from "lucide-react";
 import { nameToColorHex } from "@/app/lib/colorUtils";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
@@ -35,6 +35,7 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
+  const needNumbers = batches.filter(b => b.designNumberProvisional).length;
   const q = search.toLowerCase();
   const filtered = batches.filter(b =>
     !q ||
@@ -48,7 +49,9 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
 
   function openEdit(b: RawClothBatch) {
     setForm({
-      designNumber: b.designNumber || "",
+      // A placeholder starts the box empty. Pre-filling it invites editing
+      // around the system's guess instead of typing the mill's real number.
+      designNumber: b.designNumberProvisional ? "" : (b.designNumber || ""),
       clothCode: b.clothCode || "",
       binLocation: b.binLocation || "",
       notes: b.notes || "",
@@ -88,6 +91,21 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
       <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
         Every lot of cloth in the building — who it came from, what design it is, and how much is left.
       </div>
+      {needNumbers > 0 && (
+        <div style={{
+          display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px",
+          borderRadius: 10, background: "#f59e0b18", border: "1px solid #f59e0b55",
+          fontSize: 12, lineHeight: 1.6, marginBottom: 14,
+        }}>
+          <AlertTriangle size={15} style={{ flex: "none", marginTop: 1, color: "#b45309" }} />
+          <div>
+            <strong>{needNumbers} batch{needNumbers === 1 ? "" : "es"} still need a design number.</strong>{" "}
+            These were recorded before the design number existed, so the system put their batch
+            number in the column to keep it unique. Nobody typed those — open one and enter the
+            mill&apos;s real number.
+          </div>
+        </div>
+      )}
       <input
         placeholder="Search batch, design number, party, category, color or warehouse…"
         value={search}
@@ -119,7 +137,16 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
                           <ImageIcon size={13} style={{ color: "var(--muted)" }} />
                         </span>
                       )}
-                      <span style={{ fontWeight: 600 }}>{b.designNumber || <span style={{ color: "var(--muted)", fontWeight: 400 }}>—</span>}</span>
+                      {b.designNumberProvisional ? (
+                        // Nobody typed this. It is the batch number standing in
+                        // so the column could be made unique, and showing it as
+                        // a design number would be a lie.
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 99, background: "#fff3e0", color: "#e65100", whiteSpace: "nowrap" }}>
+                          needs a number
+                        </span>
+                      ) : (
+                        <span style={{ fontWeight: 600 }}>{b.designNumber}</span>
+                      )}
                     </div>
                   </td>
                   <td style={cell}>{b.supplier?.name || "—"}</td>
@@ -179,7 +206,9 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
         >
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Field label="Design number" required
-              hint="This cloth's one code — unique in this warehouse.">
+              hint={editing.designNumberProvisional
+                ? "The mill's number for this cloth. What is here now is a placeholder the system put in — nobody typed it."
+                : "This cloth's one code — unique in this warehouse."}>
               <Input value={form.designNumber} placeholder="e.g. 4472" autoFocus
                 onChange={e => setForm(f => ({ ...f, designNumber: e.target.value }))} />
             </Field>
