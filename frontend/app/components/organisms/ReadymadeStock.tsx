@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { nameToColorHex } from "@/app/lib/colorUtils";
+import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
@@ -21,7 +22,6 @@ interface Line { item: StockItem; qty: string; salePrice: string }
 const label = (s: StockItem) =>
   [s.itemType?.name, s.clothColor?.name, s.size].filter(Boolean).join(" · ");
 
-const cell: React.CSSProperties = { padding: "11px 14px" };
 const inputStyle: React.CSSProperties = {
   padding: "7px 10px", borderRadius: 8, border: "1px solid var(--line)",
   background: "var(--input-bg)", color: "var(--ink)", fontSize: 13, outline: "none", width: "100%",
@@ -37,17 +37,73 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
   const [adding, setAdding] = useState(false);
   const [err, setErr] = useState("");
 
-  const q = search.toLowerCase();
-  const filtered = items.filter(s =>
-    !q ||
-    s.itemType?.name?.toLowerCase().includes(q) ||
-    s.clothCategory?.name?.toLowerCase().includes(q) ||
-    s.clothColor?.name?.toLowerCase().includes(q) ||
-    s.size?.toLowerCase().includes(q) ||
-    s.warehouse?.name?.toLowerCase().includes(q)
-  );
-  const selectable = filtered.filter(s => s.quantityAvailable > 0);
-  const allSelected = selectable.length > 0 && selectable.every(s => selected.includes(s.id));
+  const [itemFilter, setItemFilter] = useState("");
+
+  const itemTypes = useMemo(
+    () => [...new Set(items.map(s => s.itemType?.name).filter(Boolean))].sort() as string[],
+    [items]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter(s =>
+      (!itemFilter || s.itemType?.name === itemFilter)
+      && (!q
+          || s.itemType?.name?.toLowerCase().includes(q)
+          || s.supplier?.name?.toLowerCase().includes(q)
+          || s.clothCategory?.name?.toLowerCase().includes(q)
+          || s.clothColor?.name?.toLowerCase().includes(q)
+          || s.size?.toLowerCase().includes(q)
+          || s.warehouse?.name?.toLowerCase().includes(q)));
+  }, [items, search, itemFilter]);
+
+  /**
+   * A delivery is one style in many sizes, and it was being shown as one row
+   * per size — so eight rows that are really one thing. Gathering them back
+   * together is what makes "how many of this have we got" answerable.
+   */
+  const groups = useMemo(() => {
+    const map = new Map<string, {
+      key: string; itemName: string; colorName?: string; colorHex?: string;
+      category?: string; supplier?: string; warehouse?: string; cost: number;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rows: any[]; available: number; received: number;
+    }>();
+    for (const s of filtered) {
+      const key = [s.itemType?.id, s.clothColor?.id ?? "-", s.warehouse?.id].join("|");
+      let g = map.get(key);
+      if (!g) {
+        g = {
+          key,
+          itemName: s.itemType?.name ?? "—",
+          colorName: s.clothColor?.name,
+          colorHex: s.clothColor?.hexCode,
+          category: s.clothCategory?.name,
+          supplier: s.supplier?.name,
+          warehouse: s.warehouse?.name,
+          cost: Number(s.costPrice ?? 0),
+          rows: [], available: 0, received: 0,
+        };
+        map.set(key, g);
+      }
+      g.rows.push(s);
+      g.available += Number(s.quantityAvailable ?? 0);
+      g.received += Number(s.quantityReceived ?? 0);
+    }
+    const out = [...map.values()];
+    for (const g of out) {
+      // "38" before "40" before "42" — a plain sort puts 10 ahead of 2.
+      g.rows.sort((a, b) => String(a.size || "").localeCompare(String(b.size || ""), undefined, { numeric: true }));
+    }
+    return out.sort((a, b) => a.itemName.localeCompare(b.itemName));
+  }, [filtered]);
+
+  const totals = useMemo(() => filtered.reduce((a, s) => ({
+    available: a.available + Number(s.quantityAvailable ?? 0),
+    received: a.received + Number(s.quantityReceived ?? 0),
+    value: a.value + Number(s.quantityAvailable ?? 0) * Number(s.costPrice ?? 0),
+  }), { available: 0, received: 0, value: 0 }), [filtered]);
+
+  const narrowed = !!(search.trim() || itemFilter);
 
   function toggle(id: string) {
     setSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
@@ -136,89 +192,163 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
 
   return (
     <div style={{ padding: 24 }}>
-      <h2 style={{ margin: "0 0 6px" }}>
-        Readymade Stock{" "}
-        <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 16 }}>({items.length})</span>
-      </h2>
-      <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
-        Everything a supplier delivered, before it is priced and tagged. Tag a whole size run at once
-        by ticking its rows.
+      <div style={{ marginBottom: 18 }}>
+        <h2 style={{ margin: "0 0 4px", fontSize: 22 }}>Readymade Stock</h2>
+        <div style={{ fontSize: 13, color: "var(--muted)" }}>
+          What a supplier delivered, before it is priced and tagged. A style arrives as one row
+          per size, so its sizes are kept together here.
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+      {/* The same question as raw cloth, in pieces: how many of this have we got. */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 1,
+        background: "var(--line)", border: "1px solid var(--line)", borderRadius: 14,
+        overflow: "hidden", marginBottom: 14,
+      }}>
+        {([
+          ["Styles", String(groups.length), undefined],
+          ["Available", `${totals.available} pcs`, "var(--primary)"],
+          ["Received in total", `${totals.received} pcs`, undefined],
+          ["Stock value", formatMoney(totals.value), undefined],
+        ] as const).map(([label_, value, color]) => (
+          <div key={label_} style={{ background: "var(--paper)", padding: "13px 16px" }}>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>
+              {label_}
+            </div>
+            <div style={{ fontSize: 21, fontWeight: 700, color, fontVariantNumeric: "tabular-nums", letterSpacing: -0.3 }}>
+              {value}
+            </div>
+          </div>
+        ))}
+      </div>
+      {narrowed && (
+        <div style={{ fontSize: 12, color: "var(--muted)", margin: "-6px 0 12px" }}>
+          Totals are for what you have filtered, not the whole godown.
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
         <input
-          placeholder="Search item type, fabric, color, size or warehouse…"
+          placeholder="Item type, party, colour, size, godown…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{ padding: "9px 14px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--canvas)", color: "var(--ink)", fontSize: 14, flex: 1, minWidth: 220 }}
+          style={{ ...inputStyle, flex: 1, minWidth: 220, padding: "9px 14px", fontSize: 14 }}
         />
+        <select value={itemFilter} onChange={e => setItemFilter(e.target.value)}
+          style={{ ...inputStyle, width: 190, padding: "9px 12px" }}>
+          <option value="">All item types</option>
+          {itemTypes.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
         {canAddStock && selected.length > 0 && (
           <button type="button" onClick={() => openFor(selected)}
             style={{ padding: "9px 16px", borderRadius: 9, border: "none", background: "var(--primary)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-            → Add {selected.length} to Products
+            Tag {selected.length} &rarr; Products
           </button>
         )}
       </div>
 
-      <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--border)", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "var(--bg)", fontSize: 12, color: "var(--muted)", textAlign: "left" }}>
-              <th style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", width: 34 }}>
-                {canAddStock && selectable.length > 0 && (
-                  <input type="checkbox" checked={allSelected} aria-label="Select all rows with stock"
-                    onChange={() => setSelected(allSelected ? [] : selectable.map(s => s.id))} />
-                )}
-              </th>
-              {["Item Type", "Fabric", "Color", "Size", "Received", "Available", "Cost/pc", "Warehouse", "Date", ""].map(h => (
-                <th key={h} style={{ padding: "10px 14px", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(s => (
-              <tr key={s.id} style={{ borderBottom: "1px solid var(--border)", background: selected.includes(s.id) ? "var(--canvas)" : undefined }}>
-                <td style={cell}>
-                  {canAddStock && s.quantityAvailable > 0 && (
-                    <input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggle(s.id)}
-                      aria-label={`Select ${label(s)}`} />
-                  )}
-                </td>
-                <td style={{ ...cell, fontWeight: 600 }}>{s.itemType?.name}</td>
-                <td style={{ ...cell, fontSize: 12, color: "var(--muted)" }}>{s.clothCategory?.name || "—"}</td>
-                <td style={cell}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {s.clothColor && <span style={{ width: 12, height: 12, borderRadius: 3, background: nameToColorHex(s.clothColor.name, s.clothColor.hexCode), display: "inline-block", flexShrink: 0 }} />}
-                    {s.clothColor?.name || "—"}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {groups.length === 0 ? (
+          <div style={{
+            border: "1px dashed var(--line)", borderRadius: 12, padding: "44px 20px",
+            textAlign: "center", color: "var(--muted)", fontSize: 13,
+          }}>
+            {items.length === 0
+              ? "No readymade stock. Receive a purchase order, or record a supplier invoice."
+              : "Nothing matches."}
+          </div>
+        ) : groups.map(g => {
+          const swatch = g.colorName ? nameToColorHex(g.colorName, g.colorHex) : null;
+          const mine = g.rows.filter(r => r.quantityAvailable > 0).map(r => r.id);
+          const allOn = mine.length > 0 && mine.every(id => selected.includes(id));
+          const low = g.available > 0 && g.available < 5;
+
+          return (
+            <div key={g.key} style={{
+              border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px",
+              background: "var(--paper)",
+            }}>
+              <div style={{
+                display: "grid", gridTemplateColumns: "26px minmax(0,1fr) 150px",
+                gap: 12, alignItems: "center",
+              }}>
+                {canAddStock && mine.length > 0 ? (
+                  <input type="checkbox" checked={allOn}
+                    aria-label={`Select every size of ${g.itemName}`}
+                    onChange={() => setSelected(prev => allOn
+                      ? prev.filter(id => !mine.includes(id))
+                      : [...new Set([...prev, ...mine])])} />
+                ) : <span />}
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{g.itemName}</span>
+                    {g.colorName && (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "2px 9px 2px 3px", borderRadius: 99,
+                        background: "var(--canvas)", border: "1px solid var(--line)", fontSize: 12,
+                      }}>
+                        <span style={{
+                          width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
+                          background: swatch ?? "transparent", border: "1px solid rgba(0,0,0,.18)",
+                        }} />
+                        {g.colorName}
+                      </span>
+                    )}
                   </div>
-                </td>
-                <td style={cell}>{s.size || "—"}</td>
-                <td style={cell}>{s.quantityReceived} pcs</td>
-                <td style={{ ...cell, fontWeight: 700, color: s.quantityAvailable < 5 ? "#f44336" : "inherit" }}>{s.quantityAvailable} pcs</td>
-                <td style={cell}>₹{s.costPrice}</td>
-                <td style={cell}>{s.warehouse?.name}</td>
-                <td style={{ ...cell, fontSize: 12 }}>{s.receivedDate ? new Date(s.receivedDate).toLocaleDateString("en-IN") : "—"}</td>
-                <td style={cell}>
-                  {canAddStock && s.quantityAvailable > 0 && (
-                    <button type="button" onClick={() => openFor([s.id])}
-                      style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-                      → Add to Products
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {[g.category, g.supplier, `${formatMoney(g.cost)}/pc`, g.warehouse]
+                      .filter(Boolean).join(" \u00b7 ")}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 5, justifyContent: "flex-end" }}>
+                    <span style={{
+                      fontSize: 19, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                      color: low ? "#d32f2f" : "var(--ink)", letterSpacing: -0.3,
+                    }}>{g.available}</span>
+                    <span style={{ fontSize: 11.5, color: "var(--muted)" }}>of {g.received} pcs</span>
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>
+                    {g.rows.length} size{g.rows.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+              </div>
+
+              {/* One chip per size — the shape a delivery actually arrives in.
+                  Tapping one picks that size alone for tagging. */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10, paddingLeft: 38 }}>
+                {g.rows.map(r => {
+                  const on = selected.includes(r.id);
+                  const out = r.quantityAvailable <= 0;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      disabled={!canAddStock || out}
+                      onClick={() => toggle(r.id)}
+                      style={{
+                        display: "inline-flex", alignItems: "baseline", gap: 5,
+                        padding: "4px 10px", borderRadius: 8, fontSize: 12,
+                        border: `1px solid ${on ? "var(--primary)" : "var(--line)"}`,
+                        background: on ? "color-mix(in srgb,var(--primary) 12%,transparent)" : "var(--canvas)",
+                        color: out ? "var(--muted)" : "var(--ink)",
+                        cursor: canAddStock && !out ? "pointer" : "default",
+                        opacity: out ? 0.55 : 1,
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                      <strong>{r.size || "one size"}</strong>
+                      <span style={{ color: "var(--muted)" }}>{r.quantityAvailable}</span>
                     </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={11} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
-                  {items.length === 0
-                    ? "No readymade stock. Receive a Purchase Order, or record a supplier invoice, to add readymade items."
-                    : "No items match your search."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {lines && (
