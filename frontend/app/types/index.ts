@@ -142,6 +142,23 @@ export interface StitchingJob {
   returnWarehouse?: { id: string; name: string } | null
 }
 
+/** A whole job — cutting and stitching — given to an outside handler. */
+export interface JobworkOrder {
+  id: string; orderNumber: string; status: string
+  designNumber?: string; clothMeters: number; clothCost: number
+  jobType: string; customerBillNumber?: string
+  ratePerPiece: number; amountPaid: number; amountEarned: number; amountDue: number
+  piecesExpected: number; piecesReceived: number
+  sentDate: string; dueDate?: string; receivedDate?: string; notes?: string
+  sentTransporter?: string; sentLrNumber?: string; sentVehicleNumber?: string; sentPhotos?: string
+  returnTransporter?: string; returnLrNumber?: string; returnVehicleNumber?: string; returnPhotos?: string
+  sizes: { id: string; size: string; piecesExpected: number; piecesReceived: number }[]
+  karigar: Karigar
+  supplier?: { id: string; name: string } | null
+  itemType: ItemType
+  receiveWarehouse: WarehouseLocation
+}
+
 /** One karigar and everything of theirs — the other axis of the stitching screen. */
 export interface KarigarWorkload {
   karigar: Karigar
@@ -158,6 +175,8 @@ export interface FinishedProduct {
   clothColor?: ClothColor; ageGroup?: string; size: string; source: string; quantity: number
   warehouse: WarehouseLocation; costPrice: number; salePrice: number
   profitMargin: number; barcode: string; barcodeSvg: string; tagsPrinted: boolean; createdAt: string
+  /** Set at cutting for readymade work, carried here. Wholesale stock has none. */
+  customerBillNumber?: string; handedOverAt?: string | null; handedOverTo?: string
 }
 
 // ─── sales orders ─────────────────────────────────────────────────────────────
@@ -366,7 +385,7 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points" | "retail_dispatches"
-  | "karigars" | "karigar_work"
+  | "karigars" | "karigar_work" | "jobwork" | "awaiting_collection"
   | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"

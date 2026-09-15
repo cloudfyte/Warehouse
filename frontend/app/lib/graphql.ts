@@ -187,6 +187,22 @@ export const DASHBOARD_QUERY = `
       itemType { id name }
     }
     karigars { id name kind phone whatsapp city address ratePerPiece active }
+    jobworkOrders(limit: 100) {
+      id orderNumber status designNumber clothMeters clothCost
+      jobType customerBillNumber ratePerPiece amountPaid amountEarned amountDue
+      piecesExpected piecesReceived sentDate dueDate receivedDate notes
+      sentTransporter sentLrNumber sentVehicleNumber sentPhotos
+      returnTransporter returnLrNumber returnVehicleNumber returnPhotos
+      sizes { id size piecesExpected piecesReceived }
+      karigar { id name city kind }
+      supplier { id name }
+      itemType { id name }
+      receiveWarehouse { id name }
+    }
+    awaitingCollection {
+      id sku name size quantity salePrice customerBillNumber
+      itemType { id name } clothColor { id name } warehouse { id name }
+    }
     karigarWorkload {
       openPieces finishedPieces amountDue
       karigar { id name kind city phone ratePerPiece }

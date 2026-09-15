@@ -4,10 +4,19 @@ import { ChevronRight, Users } from "lucide-react";
 import type { KarigarWorkload } from "@/app/types";
 import { formatDateShort, formatMoney } from "@/app/lib/formatters";
 import Input from "@/app/components/atoms/Input";
+import Button from "@/app/components/atoms/Button";
+import Modal from "@/app/components/atoms/Modal";
+import Field from "@/app/components/molecules/Field";
+import { friendlyError } from "@/app/lib/errors";
+import { showToast } from "@/app/lib/toast";
 import PageHeader from "@/app/components/molecules/PageHeader";
 
 interface Props {
   workload: KarigarWorkload[];
+  canManage?: boolean;
+  onRefresh?: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onMutate?: (q: string, v: Record<string, unknown>) => Promise<any>;
 }
 
 /**
@@ -18,9 +27,30 @@ interface Props {
  * question is the other way round: what of theirs is out, since when, against
  * which design, and how many of each size.
  */
-export default function KarigarWork({ workload }: Props) {
+export default function KarigarWork({ workload, canManage = false, onRefresh, onMutate }: Props) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
+  // "What do I owe on this docket" is the job screen's question. Standing in
+  // front of a unit, the question is "what do I owe you".
+  const [settling, setSettling] = useState<KarigarWorkload | null>(null);
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function settle() {
+    if (!settling || !onMutate) return;
+    setBusy(true);
+    try {
+      const res = await onMutate(
+        `mutation S($k:ID!,$amt:Float!){settleKarigar(karigarId:$k,amount:$amt){unallocated jobs{id}}}`,
+        { k: settling.karigar.id, amt: +amount },
+      );
+      const cleared = res?.settleKarigar?.jobs?.length ?? 0;
+      showToast(`Paid across ${cleared} job${cleared === 1 ? "" : "s"}.`, "success");
+      setSettling(null); setAmount("");
+      onRefresh?.();
+    } catch (e: unknown) { showToast(friendlyError(e), "error"); }
+    finally { setBusy(false); }
+  }
 
   const q = search.trim().toLowerCase();
   const shown = workload.filter(w =>
@@ -97,6 +127,17 @@ export default function KarigarWork({ workload }: Props) {
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 700, textAlign: "right", fontVariantNumeric: "tabular-nums", color: w.amountDue > 0 ? "#e65100" : "var(--muted)" }}>
                   {w.amountDue > 0 ? formatMoney(w.amountDue) : "—"}
+                  {canManage && onMutate && w.amountDue > 0 && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={e => { e.stopPropagation(); setSettling(w); setAmount(String(w.amountDue)); }}
+                      onKeyDown={e => { if (e.key === "Enter") { e.stopPropagation(); setSettling(w); setAmount(String(w.amountDue)); } }}
+                      style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--primary)", cursor: "pointer" }}
+                    >
+                      Settle
+                    </span>
+                  )}
                 </span>
                 <ChevronRight size={14} style={{
                   color: "var(--muted)",
@@ -151,6 +192,30 @@ export default function KarigarWork({ workload }: Props) {
           );
         })}
       </div>
+
+      {settling && (
+        <Modal
+          title={`Settle ${settling.karigar.name}`}
+          subtitle={`${formatMoney(settling.amountDue)} owed across their open jobs`}
+          width={400}
+          onClose={() => setSettling(null)}
+          onSubmit={settle}
+          footer={<div style={{ display: "flex", gap: 10 }}>
+            <Button type="submit" disabled={busy || !(+amount > 0)} style={{ flex: 1 }}>
+              {busy ? "Recording…" : "Record payment"}
+            </Button>
+            <Button variant="secondary" onClick={() => setSettling(null)} style={{ flex: 1 }}>Cancel</Button>
+          </div>}>
+          <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6, marginBottom: 12 }}>
+            Goes against their oldest jobs first, the way anybody settling a book would work.
+            Paying part of it leaves the rest owing.
+          </div>
+          <Field label="Amount">
+            <Input type="number" min="0" step="0.01" value={amount} autoFocus
+              onChange={e => setAmount(e.target.value)} />
+          </Field>
+        </Modal>
+      )}
 
       {workload.length > 0 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "var(--muted)", marginTop: 12 }}>
