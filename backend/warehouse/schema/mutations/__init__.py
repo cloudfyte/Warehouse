@@ -11,8 +11,8 @@ from .notifications import MarkNotificationsRead
 from .stock_adjustment import CreateStockAdjustment, DeleteStockAdjustment
 from .supplier_payment import CreateSupplierPayment, DeleteSupplierPayment
 from .production import (
-    CreateCuttingAssignment, CreateFinishedProducts, CreateProductMatrix, UpdateFinishedProduct,
-    CreateStitchingJob, UpdateCuttingAssignment, UpdateStitchingJob,
+    CreateCuttingAssignment, CreateFinishedProducts, CreateProductMatrix, CreateStitchingJob,
+    HandOverReadymade, UpdateCuttingAssignment, UpdateFinishedProduct, UpdateStitchingJob,
 )
 from .expense import CreateExpense, UpdateExpense, DeleteExpense
 from .retail import (
@@ -31,7 +31,8 @@ from .settlement import (
 )
 from .purchase_bill import CreatePurchaseBill, GenerateBillFromPO, UpdatePurchaseBillGst
 from .purchase_order import CreatePurchaseOrder, ReceivePurchaseOrder, UpdatePurchaseOrderStatus
-from .karigar import CreateKarigar, PayKarigar, UpdateKarigar
+from .jobwork import CreateJobworkOrder, PayJobwork, ReceiveJobwork
+from .karigar import CreateKarigar, PayKarigar, SettleKarigar, UpdateKarigar
 from .stock import CreateRawClothBatch, CreateReadymadeStock, UpdateRawClothBatch
 from .sales import CreateSalesOrder, RecordCreditPayment, UpdateSalesOrderStatus, DispatchSalesOrder
 from .settings import UpdateSystemSettings
@@ -90,9 +91,13 @@ class Mutation(graphene.ObjectType):
     update_purchase_bill_gst = UpdatePurchaseBillGst.Field()
 
     # Direct stock entry
+    create_jobwork_order = CreateJobworkOrder.Field()
+    receive_jobwork = ReceiveJobwork.Field()
+    pay_jobwork = PayJobwork.Field()
     create_karigar = CreateKarigar.Field()
     update_karigar = UpdateKarigar.Field()
     pay_karigar = PayKarigar.Field()
+    settle_karigar = SettleKarigar.Field()
     create_raw_cloth_batch = CreateRawClothBatch.Field()
     update_raw_cloth_batch = UpdateRawClothBatch.Field()
     create_readymade_stock = CreateReadymadeStock.Field()
@@ -104,6 +109,7 @@ class Mutation(graphene.ObjectType):
     update_stitching_job = UpdateStitchingJob.Field()
     create_finished_products = CreateFinishedProducts.Field()
     update_finished_product = UpdateFinishedProduct.Field()
+    hand_over_readymade = HandOverReadymade.Field()
     create_product_matrix = CreateProductMatrix.Field()
     configure_retail_channel = ConfigureRetailChannel.Field()
     add_retail_store = AddRetailStore.Field()

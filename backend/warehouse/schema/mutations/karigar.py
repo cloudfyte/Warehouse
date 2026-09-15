@@ -1,7 +1,9 @@
 import graphene
 from graphql_jwt.decorators import login_required
 
-from warehouse.services.karigar import create_karigar, pay_karigar, update_karigar
+from warehouse.services.karigar import (
+    create_karigar, pay_karigar, settle_karigar, update_karigar,
+)
 from warehouse.schema.types import KarigarType, StitchingJobType
 
 
@@ -55,3 +57,19 @@ class PayKarigar(graphene.Mutation):
     def mutate(self, info, stitching_job_id, amount):
         return PayKarigar(job=pay_karigar(
             user=info.context.user, stitching_job_id=stitching_job_id, amount=amount))
+
+
+class SettleKarigar(graphene.Mutation):
+    """One payment across everything a karigar is owed, oldest job first."""
+    class Arguments:
+        karigar_id = graphene.ID(required=True)
+        amount = graphene.Float(required=True)
+
+    jobs = graphene.List(StitchingJobType)
+    unallocated = graphene.Float()
+
+    @login_required
+    def mutate(self, info, karigar_id, amount):
+        settled, left = settle_karigar(
+            user=info.context.user, karigar_id=karigar_id, amount=amount)
+        return SettleKarigar(jobs=settled, unallocated=float(left))

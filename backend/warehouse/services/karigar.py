@@ -100,3 +100,54 @@ def pay_karigar(*, user, stitching_job_id, amount):
         job.amount_paid = (job.amount_paid or Decimal("0.00")) + amount
         job.save(update_fields=["amount_paid", "updated_at"])
     return job
+
+
+def settle_karigar(*, user, karigar_id, amount):
+    """
+    One payment across everything a karigar is owed, oldest job first.
+
+    Per-job payment answers "what do I owe on this docket". Standing in front
+    of a unit at the end of a week, the question is "what do I owe you" — one
+    number, one payment, spread over whatever is open. Oldest first, because
+    that is the order anybody settling a book would work in.
+
+    Returns (settled, remaining) — the jobs it touched, and any money left over
+    because more was offered than was owed.
+    """
+    require_role(user, *_MANAGE)
+    amount = Decimal(str(amount or 0))
+    if amount <= 0:
+        raise GraphQLError("A payment has to be more than zero.")
+
+    with transaction.atomic():
+        try:
+            karigar = Karigar.objects.get(pk=karigar_id)
+        except Karigar.DoesNotExist as exc:
+            raise GraphQLError("Karigar not found.") from exc
+
+        jobs = list(StitchingJob.objects
+                    .select_for_update()
+                    .filter(karigar=karigar)
+                    .order_by("assigned_date", "pk"))
+        owed = sum((j.amount_due for j in jobs), Decimal("0.00"))
+        if owed <= 0:
+            raise GraphQLError(f"Nothing is owed to {karigar.name}.")
+        if amount > owed:
+            raise GraphQLError(
+                f"{karigar.name} is owed {owed}. Paying {amount} would be more than the book says."
+            )
+
+        left = amount
+        settled = []
+        for job in jobs:
+            if left <= 0:
+                break
+            due = job.amount_due
+            if due <= 0:
+                continue
+            part = min(due, left)
+            job.amount_paid = (job.amount_paid or Decimal("0.00")) + part
+            job.save(update_fields=["amount_paid", "updated_at"])
+            settled.append(job)
+            left -= part
+    return settled, left

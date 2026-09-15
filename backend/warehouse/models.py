@@ -689,6 +689,11 @@ class FinishedProduct(models.Model):
     # carried through stitching, and lands here — so a finished garment can be
     # matched to whoever asked for it without walking back up the chain.
     customer_bill_number = models.CharField(max_length=60, blank=True, db_index=True)
+    # A readymade garment is not finished when it is tagged — it is finished
+    # when the person who asked for it is holding it. Wholesale stock has
+    # nobody waiting, so this stays empty there.
+    handed_over_at = models.DateTimeField(null=True, blank=True)
+    handed_over_to = models.CharField(max_length=140, blank=True, help_text="Who collected it")
     readymade_stock = models.ForeignKey(ReadymadeStock, null=True, blank=True, on_delete=models.SET_NULL, related_name="finished_products")
 
     quantity = models.PositiveIntegerField(default=0)
@@ -2007,3 +2012,117 @@ class StitchingSize(models.Model):
 
     def __str__(self):
         return f"{self.size} × {self.pieces_assigned}"
+
+
+class JobworkOrder(models.Model):
+    """A whole job given to an outside handler.
+
+    Distinct from cutting-then-stitching, which is the in-house path: cloth
+    reaches the godown, an employed cutting master cuts it, and a karigar
+    stitches the pieces. Here the supplier ships cloth straight to a unit in
+    another city that does both the cutting and the stitching and sends
+    finished garments back. The cloth never touches a godown, so there is no
+    batch to cut and no docket to write — there is one order, and pieces that
+    turn up at the end of it.
+    """
+    class Status(models.TextChoices):
+        SENT = "SENT", "Cloth sent"
+        PARTIAL = "PARTIAL", "Partly received"
+        RECEIVED = "RECEIVED", "Received"
+        CANCELLED = "CANCELLED", "Cancelled"
+
+    class JobType(models.TextChoices):
+        WHOLESALE = "WHOLESALE", "Wholesale"
+        READYMADE = "READYMADE", "Readymade (against a customer bill)"
+
+    order_number = models.CharField(max_length=40, unique=True, editable=False)
+    karigar = models.ForeignKey(Karigar, on_delete=models.PROTECT, related_name="jobwork_orders")
+    # Who the cloth was bought from. It went straight to the unit, so there is
+    # no batch of it here — this records where it came from, not where it is.
+    supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.SET_NULL,
+                                 related_name="jobwork_orders")
+    design_number = models.CharField(max_length=60, blank=True, db_index=True)
+    item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="jobwork_orders")
+    cloth_meters = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    cloth_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"),
+                                     help_text="What the cloth cost, even though it never came here")
+
+    job_type = models.CharField(max_length=20, choices=JobType.choices, default=JobType.WHOLESALE)
+    customer_bill_number = models.CharField(max_length=60, blank=True, db_index=True)
+
+    # The unit cuts and stitches, so one rate covers the whole job per piece.
+    rate_per_piece = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SENT)
+    sent_date = models.DateField(default=timezone.now)
+    due_date = models.DateField(null=True, blank=True)
+    received_date = models.DateField(null=True, blank=True)
+    # Where finished garments land. They come to us, not back to the supplier.
+    receive_warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT,
+                                          related_name="jobwork_orders")
+
+    # Cloth going out — often supplier straight to the unit, so this leg may
+    # never involve us at all beyond paying for it.
+    sent_transporter = models.CharField(max_length=140, blank=True)
+    sent_lr_number = models.CharField(max_length=60, blank=True)
+    sent_vehicle_number = models.CharField(max_length=30, blank=True)
+    sent_photos = models.TextField(blank=True, help_text="Comma-separated photos — usually the LR")
+
+    # Finished garments coming back.
+    return_transporter = models.CharField(max_length=140, blank=True)
+    return_lr_number = models.CharField(max_length=60, blank=True)
+    return_vehicle_number = models.CharField(max_length=30, blank=True)
+    return_photos = models.TextField(blank=True)
+
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="jobwork_orders_created")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.order_number:
+            self.order_number = _serial("JW", JobworkOrder)
+        super().save(*args, **kwargs)
+
+    @property
+    def pieces_expected(self):
+        return sum(s.pieces_expected for s in self.sizes.all())
+
+    @property
+    def pieces_received(self):
+        return sum(s.pieces_received for s in self.sizes.all())
+
+    @property
+    def amount_earned(self):
+        """The unit is paid for what it actually sent back."""
+        return (self.rate_per_piece or Decimal("0.00")) * self.pieces_received
+
+    @property
+    def amount_due(self):
+        return self.amount_earned - (self.amount_paid or Decimal("0.00"))
+
+    def __str__(self):
+        return f"{self.order_number} — {self.karigar.name}"
+
+
+class JobworkSize(models.Model):
+    """Pieces of one size on an outside job — expected, and actually returned."""
+    order = models.ForeignKey(JobworkOrder, on_delete=models.CASCADE, related_name="sizes")
+    size = models.CharField(max_length=30)
+    pieces_expected = models.PositiveIntegerField(default=0)
+    pieces_received = models.PositiveIntegerField(default=0)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "size"]
+        constraints = [
+            models.UniqueConstraint(fields=["order", "size"], name="jobworksize_one_row_per_size"),
+        ]
+
+    def __str__(self):
+        return f"{self.size} × {self.pieces_expected}"

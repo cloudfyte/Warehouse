@@ -10,8 +10,8 @@ from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
     AuditLog, Buyer, BuyerReturn, ClothCategory, ClothColor, CreditPayment, CreditTransaction,
     CustomRole, CuttingAssignment, CuttingSize, EmployeeProfile, Expense, FinishedProduct,
-    FinishedProductOption, ItemType, Karigar, Notification, OTPCode, ParcelInspection,
-    ProductSet, ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder,
+    FinishedProductOption, ItemType, JobworkOrder, JobworkSize, Karigar, Notification, OTPCode,
+    ParcelInspection, ProductSet, ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder,
     PurchaseOrderItem, Quotation, QuotationItem, RawClothBatch, ReadymadeStock,
     RecurringSettlement, ReorderPoint, RetailChannel, RetailDispatch, RetailDispatchItem,
     RetailProductLink, RetailReturn, RetailReturnItem, RetailStore, SalesOrder, SalesOrderItem,
@@ -370,6 +370,54 @@ class KarigarWorkloadType(graphene.ObjectType):
 
     def resolve_amount_due(self, info):
         return float(self["amount_due"] or 0)
+
+
+class JobworkSizeType(DjangoObjectType):
+    class Meta:
+        model = JobworkSize
+        fields = "__all__"
+
+
+class JobworkOrderType(DjangoObjectType):
+    rate_per_piece = graphene.Float()
+    cloth_cost = graphene.Float()
+    cloth_meters = graphene.Float()
+    amount_paid = graphene.Float()
+    amount_earned = graphene.Float()
+    amount_due = graphene.Float()
+    pieces_expected = graphene.Int()
+    pieces_received = graphene.Int()
+    created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
+    class Meta:
+        model = JobworkOrder
+        fields = "__all__"
+
+    def resolve_rate_per_piece(self, info):
+        return float(self.rate_per_piece or 0)
+
+    def resolve_cloth_cost(self, info):
+        return float(self.cloth_cost or 0)
+
+    def resolve_cloth_meters(self, info):
+        return float(self.cloth_meters or 0)
+
+    def resolve_amount_paid(self, info):
+        return float(self.amount_paid or 0)
+
+    def resolve_amount_earned(self, info):
+        return float(self.amount_earned or 0)
+
+    def resolve_amount_due(self, info):
+        return float(self.amount_due or 0)
+
+    def resolve_created_by(self, info):
+        if not self.created_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.created_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
 
 
 class StitchingSizeType(DjangoObjectType):

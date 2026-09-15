@@ -7,13 +7,13 @@ from .types import (
     AgingReport, AnalyticsStats, AuditLogType, BuyerReturnType, BuyerType, ClothCategoryType,
     ClothColorType, CreditTransactionType, CustomRoleType, CuttingAssignmentType,
     DashboardStats, EmployeeProfileType, ExpenseType, FinishedProductType, ItemTypeType,
-    KarigarType, KarigarWorkloadType, NotificationType, PLReport, ParcelInspectionType,
-    ProductSetType, PublicSettingsType, PurchaseBillType, PurchaseOrderType, QuotationType,
-    RawClothBatchType, ReadymadeStockType, ReconciliationRowType, RecurringSettlementType,
-    ReorderPointType, RetailChannelType, RetailDispatchType, RetailReturnType, RetailStoreType,
-    SalesOrderType, SettlementType, StitchingJobType, StockAdjustmentType, StockTransferType,
-    SupplierPaymentType, SupplierReturnType, SupplierType, SystemSettingsType,
-    WarehouseLocationType,
+    JobworkOrderType, KarigarType, KarigarWorkloadType, NotificationType, PLReport,
+    ParcelInspectionType, ProductSetType, PublicSettingsType, PurchaseBillType,
+    PurchaseOrderType, QuotationType, RawClothBatchType, ReadymadeStockType,
+    ReconciliationRowType, RecurringSettlementType, ReorderPointType, RetailChannelType,
+    RetailDispatchType, RetailReturnType, RetailStoreType, SalesOrderType, SettlementType,
+    StitchingJobType, StockAdjustmentType, StockTransferType, SupplierPaymentType,
+    SupplierReturnType, SupplierType, SystemSettingsType, WarehouseLocationType,
 )
 
 
@@ -88,6 +88,8 @@ class Query(graphene.ObjectType):
     stock_transfers = graphene.List(StockTransferType, status=graphene.String(), limit=graphene.Int())
     karigars = graphene.List(KarigarType, include_inactive=graphene.Boolean())
     karigar_workload = graphene.List(KarigarWorkloadType)
+    jobwork_orders = graphene.List(JobworkOrderType, limit=graphene.Int())
+    awaiting_collection = graphene.List(FinishedProductType)
     retail_channel = graphene.Field(RetailChannelType)
     retail_stores = graphene.List(RetailStoreType)
     retail_dispatches = graphene.List(RetailDispatchType, status=graphene.String(), limit=graphene.Int())
@@ -306,6 +308,14 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_karigar_workload(self, info):
         return selectors.get_karigar_workload(info.context.user)
+
+    @login_required
+    def resolve_awaiting_collection(self, info):
+        return selectors.get_awaiting_collection(info.context.user)
+
+    @login_required
+    def resolve_jobwork_orders(self, info, limit=100):
+        return selectors.get_jobwork_orders(info.context.user, limit=limit)
 
     @login_required
     def resolve_retail_channel(self, info):

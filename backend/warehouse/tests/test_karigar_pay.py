@@ -283,3 +283,43 @@ class EveryTransitCarriesItsLR(KarigarFixture):
 
         job.refresh_from_db()
         self.assertEqual(job.return_warehouse_id, other.id)
+
+
+class SettlingTheWholeBook(KarigarFixture):
+    """Per-job payment answers "what do I owe on this docket". Standing in
+    front of a unit at the end of a week, the question is "what do I owe you"."""
+
+    def _earned(self, pieces, completed):
+        job = self._job(pieces=pieces)
+        update_stitching_job(id=job.id, pieces_completed=completed)
+        return job
+
+    def test_one_payment_clears_the_oldest_jobs_first(self):
+        from warehouse.services.karigar import settle_karigar
+
+        first = self._earned(10, 10)     # 450
+        second = self._earned(10, 10)    # 450
+
+        settled, left = settle_karigar(user=self.admin, karigar_id=self.mumbai.id, amount=600)
+
+        first.refresh_from_db(); second.refresh_from_db()
+        self.assertEqual(first.amount_due, Decimal("0.00"))
+        self.assertEqual(second.amount_due, Decimal("300.00"))
+        self.assertEqual(len(settled), 2)
+        self.assertEqual(left, Decimal("0.00"))
+
+    def test_paying_more_than_the_book_says_is_refused(self):
+        from warehouse.services.karigar import settle_karigar
+
+        self._earned(10, 10)
+
+        with self.assertRaises(GraphQLError):
+            settle_karigar(user=self.admin, karigar_id=self.mumbai.id, amount=5000)
+
+    def test_settling_when_nothing_is_owed_is_refused(self):
+        from warehouse.services.karigar import settle_karigar
+
+        self._job(pieces=10)  # assigned, nothing finished, nothing earned
+
+        with self.assertRaises(GraphQLError):
+            settle_karigar(user=self.admin, karigar_id=self.mumbai.id, amount=100)

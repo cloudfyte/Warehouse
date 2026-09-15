@@ -5,6 +5,7 @@ from graphql_jwt.decorators import login_required
 from warehouse.models import EmployeeProfile
 from warehouse.permissions import accessible_warehouses, require_role
 from warehouse.services.production import (
+    hand_over_readymade,
     create_cutting_assignment, create_finished_products, create_product_matrix,
     create_stitching_job, update_cutting_assignment, update_finished_product,
     update_stitching_job,
@@ -239,3 +240,19 @@ class CreateProductMatrix(graphene.Mutation):
             **kwargs,
         )
         return CreateProductMatrix(finished_products=products, product_set=product_set)
+
+
+class HandOverReadymade(graphene.Mutation):
+    """Give a readymade garment to the customer who asked for it."""
+    class Arguments:
+        id = graphene.ID(required=True)
+        handed_over_to = graphene.String()
+        # Part collections split the row — the rest stays under the same bill.
+        quantity = graphene.Int()
+
+    finished_product = graphene.Field(FinishedProductType)
+
+    @login_required
+    def mutate(self, info, id, **kwargs):
+        return HandOverReadymade(finished_product=hand_over_readymade(
+            user=info.context.user, id=id, **kwargs))

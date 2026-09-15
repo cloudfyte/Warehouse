@@ -768,3 +768,71 @@ def create_product_matrix(*, user, item_type_id, warehouse_id, rows,
             return created, product_set
 
     return created, None
+
+
+def hand_over_readymade(*, user, id, handed_over_to="", quantity=None):
+    """
+    Give a readymade garment to the customer who asked for it.
+
+    A readymade piece is not finished when it is tagged — it is finished when
+    the person waiting for it is holding it. Handing it over takes it out of
+    stock, because it is no longer yours to sell.
+
+    A part handover splits the row: two of three collected leaves one still
+    waiting under the same bill, rather than closing the whole line.
+    """
+    from warehouse.models import EmployeeProfile, FinishedProduct
+    from warehouse.permissions import get_scoped, require_role
+
+    require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER,
+                 EmployeeProfile.Role.STORE_KEEPER)
+
+    with transaction.atomic():
+        product = get_scoped(user, FinishedProduct, id, lock=True)
+        if not product.customer_bill_number:
+            raise GraphQLError(
+                f"{product.sku} is wholesale stock — nobody is waiting for it. "
+                f"Sell it through a sales order."
+            )
+        if product.handed_over_at:
+            raise GraphQLError(f"{product.sku} was already collected.")
+
+        count = int(quantity) if quantity is not None else product.quantity
+        if count <= 0:
+            raise GraphQLError("How many were collected?")
+        if count > product.quantity:
+            raise GraphQLError(
+                f"Only {product.quantity} of {product.sku} are here, "
+                f"but {count} were marked collected."
+            )
+
+        if count < product.quantity:
+            # Part collected. The rest stays under the same bill, still waiting.
+            product.quantity -= count
+            product.save(update_fields=["quantity", "updated_at"])
+            collected = FinishedProduct.objects.create(
+                item_type=product.item_type,
+                cloth_category=product.cloth_category,
+                cloth_color=product.cloth_color,
+                name=product.name,
+                age_group=product.age_group,
+                size=product.size,
+                source=product.source,
+                stitching_job=product.stitching_job,
+                customer_bill_number=product.customer_bill_number,
+                quantity=0,
+                warehouse=product.warehouse,
+                cost_price=product.cost_price,
+                sale_price=product.sale_price,
+                handed_over_at=timezone.now(),
+                handed_over_to=(handed_over_to or "").strip(),
+            )
+            collected.barcode_svg = generate_barcode_svg(collected.barcode)
+            collected.save(update_fields=["barcode_svg"])
+            return collected
+
+        product.quantity = 0
+        product.handed_over_at = timezone.now()
+        product.handed_over_to = (handed_over_to or "").strip()
+        product.save(update_fields=["quantity", "handed_over_at", "handed_over_to", "updated_at"])
+    return product

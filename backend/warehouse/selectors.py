@@ -937,3 +937,26 @@ def get_karigar_workload(user):
     # Whoever is holding the most work, and whoever is owed the most, first.
     rows.sort(key=lambda r: (r["open_pieces"], r["amount_due"]), reverse=True)
     return rows
+
+
+def get_jobwork_orders(user, limit=100):
+    from warehouse.models import JobworkOrder
+    from warehouse.permissions import accessible_warehouses
+
+    return (JobworkOrder.objects
+            .filter(receive_warehouse__in=accessible_warehouses(user))
+            .select_related("karigar", "supplier", "item_type", "receive_warehouse")
+            .prefetch_related("sizes")[:limit])
+
+
+def get_awaiting_collection(user):
+    """Readymade garments made for a customer who has not collected them yet."""
+    from warehouse.models import FinishedProduct
+    from warehouse.permissions import accessible_warehouses
+
+    return (FinishedProduct.objects
+            .filter(warehouse__in=accessible_warehouses(user),
+                    handed_over_at__isnull=True, quantity__gt=0)
+            .exclude(customer_bill_number="")
+            .select_related("item_type", "cloth_color", "warehouse")
+            .order_by("customer_bill_number", "size"))
