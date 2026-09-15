@@ -966,3 +966,84 @@ def get_customer_orders(user, limit=200):
     from warehouse.models import CustomerOrder
 
     return CustomerOrder.objects.all()[:limit]
+
+
+def get_customer_bills(user, limit=200):
+    """
+    Every written bill, and where its garment has actually got to.
+
+    "Is my order ready?" is the question somebody rings up and asks, and until
+    now the only way to answer it was to go looking through cutting, then
+    stitching, then finished goods. The stage is the earliest step still
+    unfinished, because that is what is holding the order up — a bill half cut
+    and half stitched is still waiting on the cutting.
+    """
+    from warehouse.models import (
+        CustomerOrder, CuttingAssignment, FinishedProduct, JobworkOrder, StitchingJob,
+    )
+
+    orders = list(CustomerOrder.objects.all()[:limit])
+    if not orders:
+        return []
+    ids = [o.id for o in orders]
+
+    cuts, jobs, outside, made = {}, {}, {}, {}
+    for row in (CuttingAssignment.objects.filter(customer_order_id__in=ids)
+                .select_related("item_type", "cutting_master__user")):
+        cuts.setdefault(row.customer_order_id, []).append(row)
+    for row in (StitchingJob.objects.filter(customer_order_id__in=ids)
+                .select_related("karigar", "cutting_assignment__item_type")):
+        jobs.setdefault(row.customer_order_id, []).append(row)
+    for row in (JobworkOrder.objects.filter(customer_order_id__in=ids)
+                .select_related("karigar", "item_type")):
+        outside.setdefault(row.customer_order_id, []).append(row)
+    for row in (FinishedProduct.objects.filter(customer_order_id__in=ids)
+                .select_related("item_type")):
+        made.setdefault(row.customer_order_id, []).append(row)
+
+    rows = []
+    for order in orders:
+        my_cuts = cuts.get(order.id, [])
+        my_jobs = jobs.get(order.id, [])
+        my_outside = outside.get(order.id, [])
+        my_made = made.get(order.id, [])
+
+        ready = sum(p.quantity for p in my_made if not p.handed_over_at)
+        collected = sum(1 for p in my_made if p.handed_over_at)
+
+        cutting_open = any(c.status != CuttingAssignment.Status.COMPLETED for c in my_cuts)
+        stitching_open = any(
+            j.status not in (StitchingJob.Status.READY, StitchingJob.Status.MOVED)
+            for j in my_jobs)
+        outside_open = any(
+            o.status in (JobworkOrder.Status.SENT, JobworkOrder.Status.PARTIAL)
+            for o in my_outside)
+
+        if not (my_cuts or my_jobs or my_outside or my_made):
+            stage = "NOT_STARTED"
+        elif cutting_open:
+            stage = "CUTTING"
+        elif stitching_open or outside_open:
+            stage = "STITCHING"
+        elif ready > 0:
+            stage = "READY"
+        elif collected:
+            stage = "COLLECTED"
+        else:
+            stage = "STITCHING"
+
+        rows.append({
+            "order": order,
+            "stage": stage,
+            "cutting_assignments": my_cuts,
+            "stitching_jobs": my_jobs,
+            "jobwork_orders": my_outside,
+            "pieces_ready": ready,
+            "pieces_collected": collected,
+        })
+
+    # Whatever is furthest from done, first — that is what somebody chasing an
+    # order needs to see.
+    weight = {"NOT_STARTED": 0, "CUTTING": 1, "STITCHING": 2, "READY": 3, "COLLECTED": 4}
+    rows.sort(key=lambda r: (weight.get(r["stage"], 9), r["order"].bill_number))
+    return rows

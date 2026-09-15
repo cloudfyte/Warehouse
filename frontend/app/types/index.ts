@@ -106,12 +106,29 @@ export interface ReadymadeStock {
 
 // ─── production ───────────────────────────────────────────────────────────────
 
+/** A bill, and where its garment has actually got to. */
+export interface CustomerBillStatus {
+  order: CustomerOrder
+  /** The earliest step still unfinished — what is holding the order up. */
+  stage: string
+  piecesReady: number; piecesCollected: number
+  cuttingAssignments: { id: string; assignmentNumber: string; status: string
+    targetPieces: number; piecesCompleted: number
+    itemType: { name: string }; cuttingMaster?: { id: string; username: string } | null }[]
+  stitchingJobs: { id: string; jobNumber: string; status: string
+    piecesAssigned: number; piecesCompleted: number
+    karigar?: { id: string; name: string; city?: string } | null }[]
+  jobworkOrders: { id: string; orderNumber: string; status: string
+    piecesExpected: number; piecesReceived: number
+    karigar: { id: string; name: string; city?: string }; itemType: { name: string } }[]
+}
+
 /** A written bill for a garment made to somebody's measure. */
 export interface CustomerOrder {
   id: string; billNumber: string
   customerName?: string; customerPhone?: string
   /** The paper bill, photographed — where the measurements actually live. */
-  billPhotos?: string; notes?: string
+  billPhotos?: string; notes?: string; createdAt?: string
 }
 
 export interface CuttingAssignment {
@@ -397,7 +414,7 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points" | "retail_dispatches"
-  | "karigars" | "karigar_work" | "jobwork" | "awaiting_collection"
+  | "karigars" | "karigar_work" | "jobwork" | "awaiting_collection" | "customer_bills"
   | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"

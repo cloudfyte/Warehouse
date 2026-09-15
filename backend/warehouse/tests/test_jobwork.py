@@ -294,3 +294,62 @@ class TheWrittenBillTravelsWithTheWork(JobworkFixture):
         self._order(sizes=[{"size": "40", "pieces": 2}])
 
         self.assertEqual(CustomerOrder.objects.count(), 0)
+
+
+class WhereIsMyOrder(JobworkFixture):
+    """"Is my order ready?" is what somebody rings up and asks. Answering it
+    used to mean going through cutting, then stitching, then finished goods."""
+
+    def _bill(self, number, **kw):
+        kw.setdefault("sizes", [{"size": "40", "pieces": 2}])
+        return self._order(job_type="READYMADE", customer_bill_number=number,
+                           customer_name=f"Customer {number}", **kw)
+
+    def test_a_bill_out_with_the_unit_reads_as_stitching(self):
+        from warehouse.selectors import get_customer_bills
+
+        self._bill("SW-5001")
+
+        row = next(r for r in get_customer_bills(self.admin)
+                   if r["order"].bill_number == "SW-5001")
+        self.assertEqual(row["stage"], "STITCHING")
+        self.assertEqual(row["pieces_ready"], 0)
+
+    def test_a_bill_whose_garments_are_back_reads_as_ready(self):
+        from warehouse.selectors import get_customer_bills
+
+        order = self._bill("SW-5002")
+        receive_jobwork(user=self.admin, id=order.id, sale_price=4000,
+                        sizes=[{"size": "40", "received": 2}])
+
+        row = next(r for r in get_customer_bills(self.admin)
+                   if r["order"].bill_number == "SW-5002")
+        self.assertEqual(row["stage"], "READY")
+        self.assertEqual(row["pieces_ready"], 2)
+
+    def test_a_collected_bill_reads_as_collected(self):
+        from warehouse.selectors import get_customer_bills
+        from warehouse.services.production import hand_over_readymade
+
+        order = self._bill("SW-5003")
+        receive_jobwork(user=self.admin, id=order.id, sale_price=4000,
+                        sizes=[{"size": "40", "received": 2}])
+        product = FinishedProduct.objects.get(customer_bill_number="SW-5003")
+        hand_over_readymade(user=self.admin, id=product.id, handed_over_to="Ravi")
+
+        row = next(r for r in get_customer_bills(self.admin)
+                   if r["order"].bill_number == "SW-5003")
+        self.assertEqual(row["stage"], "COLLECTED")
+        self.assertEqual(row["pieces_ready"], 0)
+
+    def test_the_furthest_from_done_comes_first(self):
+        """Whoever is chasing an order needs to see what is holding it up."""
+        from warehouse.selectors import get_customer_bills
+
+        done = self._bill("SW-5005")
+        receive_jobwork(user=self.admin, id=done.id, sale_price=4000,
+                        sizes=[{"size": "40", "received": 2}])
+        self._bill("SW-5004")
+
+        stages = [r["stage"] for r in get_customer_bills(self.admin)]
+        self.assertLess(stages.index("STITCHING"), stages.index("READY"))

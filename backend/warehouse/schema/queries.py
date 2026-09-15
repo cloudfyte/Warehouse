@@ -5,8 +5,8 @@ from warehouse import selectors
 
 from .types import (
     AgingReport, AnalyticsStats, AuditLogType, BuyerReturnType, BuyerType, ClothCategoryType,
-    ClothColorType, CreditTransactionType, CustomRoleType, CustomerOrderType,
-    CuttingAssignmentType, DashboardStats, EmployeeProfileType, ExpenseType,
+    ClothColorType, CreditTransactionType, CustomRoleType, CustomerBillStatusType,
+    CustomerOrderType, CuttingAssignmentType, DashboardStats, EmployeeProfileType, ExpenseType,
     FinishedProductType, ItemTypeType, JobworkOrderType, KarigarType, KarigarWorkloadType,
     NotificationType, PLReport, ParcelInspectionType, ProductSetType, PublicSettingsType,
     PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType, ReadymadeStockType,
@@ -91,6 +91,7 @@ class Query(graphene.ObjectType):
     jobwork_orders = graphene.List(JobworkOrderType, limit=graphene.Int())
     awaiting_collection = graphene.List(FinishedProductType)
     customer_orders = graphene.List(CustomerOrderType, limit=graphene.Int())
+    customer_bills = graphene.List(CustomerBillStatusType, limit=graphene.Int())
     retail_channel = graphene.Field(RetailChannelType)
     retail_stores = graphene.List(RetailStoreType)
     retail_dispatches = graphene.List(RetailDispatchType, status=graphene.String(), limit=graphene.Int())
@@ -309,6 +310,10 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_karigar_workload(self, info):
         return selectors.get_karigar_workload(info.context.user)
+
+    @login_required
+    def resolve_customer_bills(self, info, limit=200):
+        return selectors.get_customer_bills(info.context.user, limit=limit)
 
     @login_required
     def resolve_customer_orders(self, info, limit=200):

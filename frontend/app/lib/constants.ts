@@ -78,6 +78,7 @@ export const TAB_TITLES: Record<Tab, string> = {
   karigar_work: "Karigar Work",
   jobwork: "Outside Jobs",
   awaiting_collection: "Ready for Customers",
+  customer_bills: "Customer Orders",
   employees: "Employees",
   warehouses: "Warehouses",
   roles: "Roles & Permissions",

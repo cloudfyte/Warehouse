@@ -188,6 +188,16 @@ export const DASHBOARD_QUERY = `
       cuttingMaster { id username role }
       itemType { id name }
     }
+    customerBills(limit: 200) {
+      stage piecesReady piecesCollected
+      order { id billNumber customerName customerPhone billPhotos notes createdAt }
+      cuttingAssignments { id assignmentNumber status targetPieces piecesCompleted
+        itemType { name } cuttingMaster { id username } }
+      stitchingJobs { id jobNumber status piecesAssigned piecesCompleted
+        karigar { id name city } }
+      jobworkOrders { id orderNumber status piecesExpected piecesReceived
+        karigar { id name city } itemType { name } }
+    }
     karigars { id name kind phone whatsapp city address ratePerPiece active }
     jobworkOrders(limit: 100) {
       id orderNumber status designNumber clothMeters clothCost

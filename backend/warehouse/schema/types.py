@@ -372,6 +372,18 @@ class KarigarWorkloadType(graphene.ObjectType):
         return float(self["amount_due"] or 0)
 
 
+class CustomerBillStatusType(graphene.ObjectType):
+    """A written bill, and where its garment has actually got to."""
+    order = graphene.Field("warehouse.schema.types.CustomerOrderType")
+    # The earliest step still unfinished — that is what is holding it up.
+    stage = graphene.String()
+    cutting_assignments = graphene.List("warehouse.schema.types.CuttingAssignmentType")
+    stitching_jobs = graphene.List("warehouse.schema.types.StitchingJobType")
+    jobwork_orders = graphene.List("warehouse.schema.types.JobworkOrderType")
+    pieces_ready = graphene.Int()
+    pieces_collected = graphene.Int()
+
+
 class CustomerOrderType(DjangoObjectType):
     created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
 
