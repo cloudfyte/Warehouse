@@ -342,3 +342,56 @@ class OnlyAUserEntersADesignNumber(ClothFixture):
 
         batch.refresh_from_db()
         self.assertTrue(batch.design_number_provisional)
+
+
+class PicturesComeBackAsAddressesNotPaths(ClothFixture):
+    """A stored path is not something a browser can fetch.
+
+    Every photo field added since the parcel inspection one was returning the
+    raw storage path, so every picture rendered as a broken image. The fix is
+    the resolver that was always there and simply never applied.
+    """
+
+    def _batch(self):
+        return create_raw_cloth_batch(
+            user=self.admin, supplier_id=self.supplier.id,
+            category_id=self.category.id, color_id=self.color.id,
+            warehouse_id=self.warehouse.id, total_meters=50, cost_per_meter=100,
+            design_number="PIC-1")
+
+    def test_every_photo_field_is_resolved_to_a_url(self):
+        from warehouse.schema.types import (
+            CustomerOrderType, JobworkOrderType, RawClothBatchType, StitchingJobType,
+        )
+
+        # A picture that is not resolved is a broken image on somebody's screen,
+        # so each of these must declare the resolver rather than fall through to
+        # the raw column.
+        expected = {
+            RawClothBatchType: ["resolve_photos"],
+            StitchingJobType: ["resolve_photos", "resolve_issue_photos", "resolve_return_photos"],
+            JobworkOrderType: ["resolve_sent_photos", "resolve_return_photos"],
+            CustomerOrderType: ["resolve_bill_photos"],
+        }
+        missing = [
+            f"{cls.__name__}.{name}"
+            for cls, names in expected.items()
+            for name in names
+            if not hasattr(cls, name)
+        ]
+        self.assertEqual(missing, [])
+
+    def test_a_stored_path_becomes_something_fetchable(self):
+        from warehouse.services.uploads import to_urls_csv
+
+        batch = self._batch()
+        batch.photos = "raw-cloth/abc.jpg,raw-cloth/def.jpg"
+        batch.save(update_fields=["photos"])
+
+        out = to_urls_csv(batch.photos)
+        self.assertEqual(len(out.split(",")), 2)
+        for url in out.split(","):
+            self.assertNotEqual(url, "")
+            # Whatever the storage backend, the result must not still be the
+            # bare relative path the column holds.
+            self.assertTrue(url.startswith("http") or url.startswith("/"))

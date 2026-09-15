@@ -22,8 +22,8 @@ interface Props {
 }
 
 const cell: React.CSSProperties = { padding: "11px 14px" };
-const HEADS = ["Batch #", "Design #", "Party", "Category", "Color",
-               "Total m", "Available m", "Cost/m", "Bin", "Warehouse", "Received", ""];
+const HEADS = ["Design #", "Party", "Category", "Color",
+               "Total m", "Available m", "Cost/m", "Bin", "Batch #", "Warehouse", "Received", ""];
 
 /** First photo of a batch, for the thumbnail. */
 const firstPhoto = (csv?: string) => (csv || "").split(",").map(s => s.trim()).filter(Boolean)[0];
@@ -126,7 +126,6 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
               const photo = firstPhoto(b.photos);
               return (
                 <tr key={b.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td style={{ ...cell, fontWeight: 600 }}>{b.batchNumber}</td>
                   <td style={cell}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       {photo ? (
@@ -161,6 +160,7 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
                   <td style={{ ...cell, fontWeight: 700, color: b.availableMeters < 5 ? "#f44336" : "inherit" }}>{b.availableMeters}m</td>
                   <td style={cell}>₹{b.costPerMeter}</td>
                   <td style={{ ...cell, fontSize: 12, color: "var(--muted)" }}>{b.binLocation || "—"}</td>
+                  <td style={{ ...cell, fontSize: 12, color: "var(--muted)", fontFamily: "monospace" }}>{b.batchNumber}</td>
                   <td style={cell}>{b.warehouse?.name}</td>
                   <td style={{ ...cell, fontSize: 12 }}>{b.receivedDate ? new Date(b.receivedDate).toLocaleDateString("en-IN") : "—"}</td>
                   <td style={cell}>

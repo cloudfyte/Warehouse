@@ -254,6 +254,11 @@ class PurchaseBillType(DjangoObjectType):
 
 
 class RawClothBatchType(DjangoObjectType):
+    photos = graphene.String()
+
+    def resolve_photos(self, info):
+        return to_urls_csv(self.photos)
+
     available_meters = graphene.Float()
     total_meters = graphene.Float()
     cost_per_meter = graphene.Float()
@@ -293,6 +298,9 @@ class CuttingAssignmentType(DjangoObjectType):
 
 
 class StitchingJobType(DjangoObjectType):
+    photos = graphene.String()
+    issue_photos = graphene.String()
+    return_photos = graphene.String()
     rate_per_piece = graphene.Float()
     amount_paid = graphene.Float()
     amount_earned = graphene.Float()
@@ -301,6 +309,15 @@ class StitchingJobType(DjangoObjectType):
     class Meta:
         model = StitchingJob
         fields = "__all__"
+
+    def resolve_photos(self, info):
+        return to_urls_csv(self.photos)
+
+    def resolve_issue_photos(self, info):
+        return to_urls_csv(self.issue_photos)
+
+    def resolve_return_photos(self, info):
+        return to_urls_csv(self.return_photos)
 
     def resolve_rate_per_piece(self, info):
         return float(self.rate_per_piece or 0)
@@ -414,7 +431,11 @@ class CustomerBillStatusType(graphene.ObjectType):
 
 
 class CustomerOrderType(DjangoObjectType):
+    bill_photos = graphene.String()
     created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
+    def resolve_bill_photos(self, info):
+        return to_urls_csv(self.bill_photos)
 
     class Meta:
         model = CustomerOrder
@@ -436,6 +457,8 @@ class JobworkSizeType(DjangoObjectType):
 
 
 class JobworkOrderType(DjangoObjectType):
+    sent_photos = graphene.String()
+    return_photos = graphene.String()
     rate_per_piece = graphene.Float()
     cloth_cost = graphene.Float()
     cloth_meters = graphene.Float()
@@ -449,6 +472,12 @@ class JobworkOrderType(DjangoObjectType):
     class Meta:
         model = JobworkOrder
         fields = "__all__"
+
+    def resolve_sent_photos(self, info):
+        return to_urls_csv(self.sent_photos)
+
+    def resolve_return_photos(self, info):
+        return to_urls_csv(self.return_photos)
 
     def resolve_rate_per_piece(self, info):
         return float(self.rate_per_piece or 0)
