@@ -2182,3 +2182,42 @@ class CustomerOrder(models.Model):
 
     def __str__(self):
         return f"{self.bill_number} — {self.customer_name or 'customer'}"
+
+
+class GoodsReceipt(models.Model):
+    """One delivery arriving against a purchase order.
+
+    An order records who received it and when, but a supplier delivers over two
+    or three trips, and each arrival used to overwrite the last — so an order
+    taken in by one storekeeper on Monday and another on Thursday remembered
+    only Thursday. Every arrival is its own record here, which is what makes
+    "who took this in, and when" answerable rather than approximately true.
+    """
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE,
+                                       related_name="receipts")
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                    null=True, related_name="goods_receipts")
+    # The moment it was booked in, to the minute. The order carries a date for
+    # the whole delivery; this is the actual time somebody stood at the bay.
+    received_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["received_at"]
+
+    def __str__(self):
+        return f"{self.purchase_order.po_number} — {self.received_at:%d %b %Y %H:%M}"
+
+
+class GoodsReceiptLine(models.Model):
+    """What one delivery actually contained, line by line."""
+    receipt = models.ForeignKey(GoodsReceipt, on_delete=models.CASCADE, related_name="lines")
+    po_item = models.ForeignKey(PurchaseOrderItem, on_delete=models.CASCADE,
+                                related_name="receipt_lines")
+    meters_received = models.DecimalField(max_digits=10, decimal_places=2,
+                                          null=True, blank=True)
+    quantity_received = models.PositiveIntegerField(null=True, blank=True)
+    design_number = models.CharField(max_length=60, blank=True)
+
+    def __str__(self):
+        return f"{self.meters_received or self.quantity_received} on {self.receipt_id}"

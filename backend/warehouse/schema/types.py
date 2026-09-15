@@ -10,13 +10,14 @@ from warehouse.services.uploads import to_url, to_urls_csv
 from warehouse.models import (
     AuditLog, Buyer, BuyerReturn, ClothCategory, ClothColor, CreditPayment, CreditTransaction,
     CustomRole, CustomerOrder, CuttingAssignment, CuttingSize, EmployeeProfile, Expense,
-    FinishedProduct, FinishedProductOption, ItemType, JobworkOrder, JobworkSize, Karigar,
-    Notification, OTPCode, ParcelInspection, ProductSet, ProductSetItem, PurchaseBill,
-    PurchaseBillItem, PurchaseOrder, PurchaseOrderItem, Quotation, QuotationItem, RawClothBatch,
-    ReadymadeStock, RecurringSettlement, ReorderPoint, RetailChannel, RetailDispatch,
-    RetailDispatchItem, RetailProductLink, RetailReturn, RetailReturnItem, RetailStore,
-    SalesOrder, SalesOrderItem, Settlement, StitchingJob, StitchingSize, StockAdjustment,
-    StockTransfer, Supplier, SupplierPayment, SupplierReturn, SystemSettings, WarehouseLocation,
+    FinishedProduct, FinishedProductOption, GoodsReceipt, GoodsReceiptLine, ItemType,
+    JobworkOrder, JobworkSize, Karigar, Notification, OTPCode, ParcelInspection, ProductSet,
+    ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder, PurchaseOrderItem, Quotation,
+    QuotationItem, RawClothBatch, ReadymadeStock, RecurringSettlement, ReorderPoint,
+    RetailChannel, RetailDispatch, RetailDispatchItem, RetailProductLink, RetailReturn,
+    RetailReturnItem, RetailStore, SalesOrder, SalesOrderItem, Settlement, StitchingJob,
+    StitchingSize, StockAdjustment, StockTransfer, Supplier, SupplierPayment, SupplierReturn,
+    SystemSettings, WarehouseLocation,
 )
 
 
@@ -370,6 +371,34 @@ class KarigarWorkloadType(graphene.ObjectType):
 
     def resolve_amount_due(self, info):
         return float(self["amount_due"] or 0)
+
+
+class GoodsReceiptLineType(DjangoObjectType):
+    meters_received = graphene.Float()
+
+    class Meta:
+        model = GoodsReceiptLine
+        fields = "__all__"
+
+    def resolve_meters_received(self, info):
+        return None if self.meters_received is None else float(self.meters_received)
+
+
+class GoodsReceiptType(DjangoObjectType):
+    """One delivery arriving — who took it in, and at what time."""
+    received_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+
+    class Meta:
+        model = GoodsReceipt
+        fields = "__all__"
+
+    def resolve_received_by(self, info):
+        if not self.received_by_id:
+            return None
+        try:
+            return EmployeeProfile.objects.get(user_id=self.received_by_id)
+        except EmployeeProfile.DoesNotExist:
+            return None
 
 
 class CustomerBillStatusType(graphene.ObjectType):

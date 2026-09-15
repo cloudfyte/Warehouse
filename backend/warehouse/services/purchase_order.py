@@ -4,6 +4,7 @@ from django.db import transaction
 from graphql import GraphQLError
 
 from warehouse.models import (
+    GoodsReceipt, GoodsReceiptLine,
     ClothCategory, ClothColor, ItemType, PurchaseOrder,
     PurchaseOrderItem, RawClothBatch, ReadymadeStock, Supplier,
 )
@@ -170,6 +171,9 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                 f"this one is {po.get_status_display().lower()}."
             )
 
+        # Each arrival is its own record. A supplier delivering over three
+        # trips used to leave only the last one's name and date on the order.
+        arrival = GoodsReceipt.objects.create(purchase_order=po, received_by=user)
         booked_anything = False
         for receipt in receipt_items:
             try:
@@ -198,6 +202,10 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                     )
                 poi.received_meters = already + meters
                 poi.save(update_fields=["received_meters"])
+                GoodsReceiptLine.objects.create(
+                    receipt=arrival, po_item=poi, meters_received=meters,
+                    design_number=(receipt.get("design_number") or "").strip(),
+                )
                 # The design number is asked for at the bay, because this is
                 # the moment the roll is in front of somebody who can read the
                 # number off it. A second lorry carrying the rest of the same
@@ -239,6 +247,8 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                     )
                 poi.received_quantity = already + qty
                 poi.save(update_fields=["received_quantity"])
+                GoodsReceiptLine.objects.create(
+                    receipt=arrival, po_item=poi, quantity_received=qty)
                 ReadymadeStock.objects.create(
                     po_item=poi,
                     supplier=po.supplier,
@@ -254,6 +264,9 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                 booked_anything = True
 
         if not booked_anything:
+            # Nothing arrived, so nothing happened — the empty record would be
+            # a delivery that never took place.
+            arrival.delete()
             raise GraphQLError("Nothing left to receive on this order — every item is already complete.")
 
         from django.utils import timezone

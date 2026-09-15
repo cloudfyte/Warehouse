@@ -86,6 +86,13 @@ export interface PurchaseOrder {
   createdBy?: { id: string; username: string }
   receivedBy?: { id: string; username: string }
   parcelInspection?: ParcelInspection
+  /** One record per delivery — who took it in, and at what time. */
+  receipts?: {
+    id: string; receivedAt: string; notes?: string
+    receivedBy?: { id: string; username: string } | null
+    lines: { id: string; metersReceived?: number | null; quantityReceived?: number | null
+      designNumber?: string; poItem: { id: string } }[]
+  }[]
 }
 
 // ─── inventory ────────────────────────────────────────────────────────────────

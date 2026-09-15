@@ -603,6 +603,40 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               </div>
             </div>
 
+            {/* Every arrival, not just the last one. A supplier delivering over
+                three trips used to leave only the final name and date here. */}
+            {(detail.receipts?.length ?? 0) > 0 && (
+              <div style={{ border: "1px solid var(--line)", borderRadius: 10, marginBottom: 16, overflow: "hidden" }}>
+                <div style={{
+                  padding: "9px 14px", background: "var(--canvas)", fontSize: 11, fontWeight: 700,
+                  color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4,
+                }}>
+                  Goods received — {detail.receipts!.length} deliver{detail.receipts!.length === 1 ? "y" : "ies"}
+                </div>
+                {detail.receipts!.map(r => {
+                  const when = new Date(r.receivedAt);
+                  return (
+                    <div key={r.id} style={{ padding: "10px 14px", borderTop: "1px solid var(--line)", fontSize: 13 }}>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+                        <strong style={{ color: "#2e7d32" }}>{r.receivedBy?.username ?? "—"}</strong>
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                          {when.toLocaleDateString("en-IN")} at{" "}
+                          {when.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
+                        {r.lines.map(l => [
+                          l.metersReceived != null ? `${l.metersReceived}m` : null,
+                          l.quantityReceived != null ? `${l.quantityReceived} pcs` : null,
+                          l.designNumber ? `design ${l.designNumber}` : null,
+                        ].filter(Boolean).join(" · ")).join("  |  ")}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Progress steps */}
             <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 20 }}>
               {["DRAFT", "PLACED", "DISPATCHED", "RECEIVED", "VERIFIED"].map((s, i, arr) => {

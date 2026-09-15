@@ -139,6 +139,11 @@ export const DASHBOARD_QUERY = `
       receivedBy { id username }
       items { id itemKind orderedMeters receivedMeters orderedQuantity receivedQuantity unitPrice totalPrice notes photos ageGroup size
         clothCategory { id name } clothColor { id name hexCode } itemType { id name } }
+      receipts {
+        id receivedAt notes
+        receivedBy { id username }
+        lines { id metersReceived quantityReceived designNumber poItem { id } }
+      }
       parcelInspection {
         id parcelCondition quantityCheckPassed discrepancyNotes photos notes inspectionDate createdAt
         inspectedBy { id username }
