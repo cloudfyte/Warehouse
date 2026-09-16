@@ -115,8 +115,11 @@ export default function Settings({ settings, isSuperAdmin, retailChannel, onMuta
   // The shop this godown belongs to. The handle is stable; the numeric id is
   // not, so it is looked up rather than typed.
   const [shop, setShop] = useState({
+    // The handle and the address are the same every time for this godown, so
+    // they are filled in — the only thing left is the login, which is the one
+    // thing nobody but you can supply.
     subsiteName: retailChannel?.subsiteName ?? "sriweddings",
-    apiUrl: retailChannel?.apiUrl ?? "",
+    apiUrl: retailChannel?.apiUrl ?? "https://backend.hms.rest/graphql/",
     serviceUsername: retailChannel?.serviceUsername ?? "",
     servicePassword: "",
   });
@@ -451,11 +454,13 @@ export default function Settings({ settings, isSuperAdmin, retailChannel, onMuta
               <Input value={shop.subsiteName} placeholder="sriweddings"
                 onChange={e => setShop(p => ({ ...p, subsiteName: e.target.value }))} />
             </Field>
-            <Field label="Their GraphQL address">
+            <Field label="Their GraphQL address"
+              hint="The shop's own backend. Filled in already — change it only if the shop moves.">
               <Input value={shop.apiUrl} placeholder="https://…/graphql/"
                 onChange={e => setShop(p => ({ ...p, apiUrl: e.target.value }))} />
             </Field>
-            <Field label="Service username">
+            <Field label="Service username"
+              hint="An account on the shop's side that can see the sriweddings subsite.">
               <Input value={shop.serviceUsername}
                 onChange={e => setShop(p => ({ ...p, serviceUsername: e.target.value }))} />
             </Field>
