@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { productName } from "@/app/lib/formatters";
+import { nameToColorHex } from "@/app/lib/colorUtils";
 import { ArrowLeftRight } from "lucide-react";
 import type { StockTransfer, WarehouseLocation, RawClothBatch, FinishedProduct } from "@/app/types";
 import Button from "@/app/components/atoms/Button";
@@ -10,7 +11,6 @@ import Select from "@/app/components/atoms/Select";
 import Textarea from "@/app/components/atoms/Textarea";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
-import PageHeader from "@/app/components/molecules/PageHeader";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import { showToast } from "@/app/lib/toast";
 import Modal from "@/app/components/atoms/Modal";
@@ -43,11 +43,10 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [filter, setFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [filter]);
+  useEffect(() => { setPage(1); }, [filter, search]);
 
-  const filtered = filter === "ALL" ? transfers : transfers.filter(t => t.status === filter);
-  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   async function handleCreate() {
     if (!form.fromWarehouseId || !form.toWarehouseId) { setErr("Select both warehouses."); return; }
@@ -100,90 +99,202 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
     } catch (e: unknown) { showToast(friendlyError(e), "error"); }
   }
 
-  return (
-    <div style={{ padding: "0 0 40px" }}>
-      <PageHeader
-        title="Stock Transfers"
-        sub="Move cloth or finished products between warehouse locations"
-        actions={<Button variant="primary" onClick={() => setCreating(true)}>+ New Transfer</Button>}
-      />
+  const q = search.trim().toLowerCase();
+  const filtered = transfers.filter(t =>
+    (filter === "ALL" || t.status === filter)
+    && (!q
+        || t.transferNumber?.toLowerCase().includes(q)
+        || t.fromWarehouse?.name?.toLowerCase().includes(q)
+        || t.toWarehouse?.name?.toLowerCase().includes(q)
+        || (t.rawClothBatch?.designNumber || "").toLowerCase().includes(q)
+        || (t.rawClothBatch?.clothColor?.name || "").toLowerCase().includes(q)
+        || (t.finishedProduct ? productName(t.finishedProduct) : "").toLowerCase().includes(q)));
 
-      {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  /** Stock that has left one godown and not yet arrived at the other — the
+   *  thing worth knowing on this screen, and the thing it never showed. */
+  const moving = transfers.filter(t => t.status === "IN_TRANSIT");
+  const waiting = transfers.filter(t => t.status === "PENDING");
+  const inTransitMeters = moving.reduce((a, t) => a + Number(t.metersToTransfer ?? 0), 0);
+  const inTransitPieces = moving.reduce((a, t) => a + Number(t.quantityToTransfer ?? 0), 0);
+
+  return (
+    <div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
+        <div>
+          <h2 style={{ margin: "0 0 4px", fontSize: 22 }}>Stock Transfers</h2>
+          <div style={{ fontSize: 14, color: "var(--muted)" }}>
+            Cloth and finished goods moving between your godowns.
+          </div>
+        </div>
+        <Button variant="primary" onClick={() => setCreating(true)}>+ New Transfer</Button>
+      </div>
+
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 1,
+        background: "var(--line)", border: "1px solid var(--line)", borderRadius: 14,
+        overflow: "hidden", marginBottom: 14,
+      }}>
+        {([
+          ["On the road", String(moving.length), moving.length ? "#6366f1" : undefined],
+          ["Cloth in transit", `${inTransitMeters.toLocaleString("en-IN", { maximumFractionDigits: 0 })}m`, undefined],
+          ["Pieces in transit", `${inTransitPieces}`, undefined],
+          ["Waiting to go", String(waiting.length), waiting.length ? "#e65100" : undefined],
+        ] as const).map(([label, value, color]) => (
+          <div key={label} style={{ background: "var(--paper)", padding: "15px 18px" }}>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 25, fontWeight: 700, color, fontVariantNumeric: "tabular-nums", letterSpacing: -0.5 }}>
+              {value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
+        <Input placeholder="Transfer number, godown, design number, colour…" value={search}
+          onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 240 }} />
         {["ALL", "PENDING", "IN_TRANSIT", "RECEIVED", "CANCELLED"].map(s => {
           const count = s === "ALL" ? transfers.length : transfers.filter(t => t.status === s).length;
           const active = filter === s;
           return (
             <button type="button" key={s} onClick={() => setFilter(s)} style={{
-              padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              padding: "8px 14px", borderRadius: 20, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
               border: `1px solid ${active ? "var(--primary)" : "var(--line)"}`,
               background: active ? "var(--primary)" : "var(--paper)",
               color: active ? "#fff" : "var(--muted)",
-              display: "flex", alignItems: "center", gap: 6,
+              display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
             }}>
-              {s.replace(/_/g, " ")}
+              {s === "ALL" ? "All" : s.replace(/_/g, " ").toLowerCase().replace(/^./, c => c.toUpperCase())}
               {count > 0 && (
-                <span style={{ background: active ? "rgba(255,255,255,0.25)" : "var(--canvas)", color: active ? "#fff" : "var(--ink)", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "0 6px", lineHeight: "18px" }}>{count}</span>
+                <span style={{
+                  background: active ? "rgba(255,255,255,0.25)" : "var(--canvas)",
+                  color: active ? "#fff" : "var(--ink)", borderRadius: 99,
+                  fontSize: 11, fontWeight: 700, padding: "0 7px", lineHeight: "18px",
+                }}>{count}</span>
               )}
             </button>
           );
         })}
       </div>
 
-      {/* Transfer list */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "64px 24px" }}>
-            <div style={{ marginBottom: 12, opacity: 0.3, display: "flex", justifyContent: "center" }}><ArrowLeftRight size={36} /></div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
-              {filter === "ALL" ? "No transfers yet" : `No ${filter.replace(/_/g, " ").toLowerCase()} transfers`}
+          <div style={{
+            border: "1px dashed var(--line)", borderRadius: 12, padding: "52px 24px", textAlign: "center",
+          }}>
+            <ArrowLeftRight size={30} style={{ opacity: 0.25, marginBottom: 10 }} />
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 5 }}>
+              {filter === "ALL" && !q ? "Nothing has moved yet" : "Nothing matches"}
             </div>
-            <div style={{ fontSize: 13, color: "var(--muted)" }}>
-              {filter === "ALL" ? "Use + New Transfer to move stock between warehouse locations" : "Try selecting a different status filter"}
+            <div style={{ fontSize: 13.5, color: "var(--muted)" }}>
+              {filter === "ALL" && !q
+                ? "Use New Transfer to send cloth or finished goods to another godown."
+                : "Try another status, or clear the search."}
             </div>
           </div>
-        ) : paged.map(t => (
-          <div key={t.id} style={{ background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 18px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{t.transferNumber}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: STATUS_BG[t.status] ?? "#f3f4f6", color: STATUS_COLOR[t.status] ?? "#6b7280" }}>
-                    {t.status.replace("_", " ")}
+        ) : paged.map(t => {
+          const cloth = t.rawClothBatch;
+          const made = t.finishedProduct;
+          const colour = cloth?.clothColor ?? made?.clothColor;
+          const swatch = colour ? nameToColorHex(colour.name, colour.hexCode) : null;
+          const amount = cloth ? `${t.metersToTransfer}m` : `${t.quantityToTransfer} pcs`;
+
+          return (
+            <div key={t.id} style={{
+              background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 12,
+              padding: "14px 16px",
+              display: "grid",
+              gridTemplateColumns: "minmax(150px,1fr) minmax(230px,1.5fr) 110px 190px",
+              gap: 16, alignItems: "center",
+            }}>
+              {/* What is moving. The design number leads, as it does everywhere. */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>
+                    {cloth ? (cloth.designNumber || cloth.batchNumber) : (made ? productName(made) : "—")}
                   </span>
-                  <span style={{ fontSize: 11, color: "var(--muted)", background: "var(--canvas)", padding: "2px 8px", borderRadius: 100 }}>{t.transferKind.replace("_", " ")}</span>
+                  {colour && (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "2px 10px 2px 3px", borderRadius: 99,
+                      background: "var(--canvas)", border: "1px solid var(--line)", fontSize: 12.5,
+                    }}>
+                      <span style={{
+                        width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
+                        background: swatch ?? "transparent", border: "1px solid rgba(0,0,0,.18)",
+                      }} />
+                      {colour.name}
+                    </span>
+                  )}
                 </div>
-                <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600, color: "var(--ink)" }}>{t.fromWarehouse.name}</span>
-                  <span style={{ margin: "0 8px" }}>→</span>
-                  <span style={{ fontWeight: 600, color: "var(--ink)" }}>{t.toWarehouse.name}</span>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  {t.rawClothBatch && <span>{t.rawClothBatch.clothCategory.name} · {t.rawClothBatch.clothColor.name} · <strong>{t.metersToTransfer}m</strong></span>}
-                  {t.finishedProduct && <span>{productName(t.finishedProduct)} ({t.finishedProduct.sku}) · <strong>{t.quantityToTransfer} pcs</strong></span>}
-                </div>
-                {t.notes && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, fontStyle: "italic" }}>{t.notes}</div>}
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
-                  {t.createdBy?.username && <span>Created by {t.createdBy.username}</span>}
-                  {t.receivedBy?.username && <span> · Received by {t.receivedBy.username}</span>}
+                <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+                  {cloth ? cloth.clothCategory?.name : [made?.itemType?.name, made?.size].filter(Boolean).join(" · ")}
+                  {" · "}{t.transferNumber}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                {t.status === "PENDING" && (
-                  <>
-                    <Button size="sm" variant="primary" style={{ background: "#6366f1" }} onClick={() => action("dispatchStockTransfer", t.id)}>Dispatch</Button>
-                    <Button size="sm" variant="secondary" onClick={() => action("cancelStockTransfer", t.id)}>Cancel</Button>
-                  </>
-                )}
-                {t.status === "IN_TRANSIT" && (
-                  <Button size="sm" variant="primary" style={{ background: "#10b981" }} onClick={() => action("receiveStockTransfer", t.id)}>Mark Received</Button>
-                )}
+
+              {/* The movement itself — the reason this screen exists. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <span style={{ fontSize: 14.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {t.fromWarehouse.name}
+                </span>
+                <ArrowLeftRight size={16} style={{ color: "var(--primary)", flexShrink: 0 }} />
+                <span style={{ fontSize: 14.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {t.toWarehouse.name}
+                </span>
               </div>
+
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: -0.4, lineHeight: 1.1 }}>
+                  {amount}
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>
+                  {t.transferKind === "RAW_CLOTH" ? "raw cloth" : "finished"}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                <span style={{
+                  fontSize: 11.5, fontWeight: 700, padding: "3px 11px", borderRadius: 100,
+                  background: STATUS_BG[t.status] ?? "#f3f4f6", color: STATUS_COLOR[t.status] ?? "#6b7280",
+                  whiteSpace: "nowrap",
+                }}>
+                  {t.status.replace("_", " ")}
+                </span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {t.status === "PENDING" && (
+                    <>
+                      <Button size="sm" variant="primary" style={{ background: "#6366f1" }}
+                        onClick={() => action("dispatchStockTransfer", t.id)}>Dispatch</Button>
+                      <Button size="sm" variant="secondary"
+                        onClick={() => action("cancelStockTransfer", t.id)}>Cancel</Button>
+                    </>
+                  )}
+                  {t.status === "IN_TRANSIT" && (
+                    <Button size="sm" variant="primary" style={{ background: "#10b981" }}
+                      onClick={() => action("receiveStockTransfer", t.id)}>Mark Received</Button>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "right" }}>
+                  {t.createdBy?.username && <>by {t.createdBy.username}</>}
+                  {t.receivedBy?.username && <> · taken in by {t.receivedBy.username}</>}
+                </div>
+              </div>
+
+              {t.notes && (
+                <div style={{ gridColumn: "1 / -1", fontSize: 12.5, color: "var(--muted)", borderTop: "1px solid var(--line)", paddingTop: 9 }}>
+                  {t.notes}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
-      <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
+          );
+        })}
+        <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
       </div>
+
 
       {/* Create modal */}
       {creating && (
@@ -203,7 +314,7 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
         >
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <ErrorBanner msg={err} />
-              <Field label="Transfer Kind">
+              <Field label="What are you moving">
                 <Select value={form.transferKind} onChange={e => setForm(f => ({ ...f, transferKind: e.target.value, rawClothBatchId: "", finishedProductId: "", metersToTransfer: "", quantityToTransfer: "" }))}>
                   <option value="RAW_CLOTH">Raw Cloth</option>
                   <option value="FINISHED">Finished Products</option>
@@ -225,11 +336,14 @@ export default function StockTransfers({ transfers, warehouses, rawClothBatches,
               </FormGrid>
               {form.transferKind === "RAW_CLOTH" ? (
                 <>
-                  <Field label="Cloth Batch">
+                  <Field label="Which cloth" hint="Only cloth sitting in the godown you are sending from.">
                     <Select value={form.rawClothBatchId} onChange={e => setForm(f => ({ ...f, rawClothBatchId: e.target.value }))}>
                       <option value="">Select batch…</option>
                       {rawClothBatches.filter(b => !form.fromWarehouseId || b.warehouse.id === form.fromWarehouseId).map(b => (
-                        <option key={b.id} value={b.id}>{b.batchNumber} — {b.clothCategory.name} {b.clothColor.name} ({b.availableMeters}m available)</option>
+                        <option key={b.id} value={b.id}>
+                          {b.designNumberProvisional ? b.batchNumber : b.designNumber}
+                          {" — "}{b.clothCategory?.name} {b.clothColor?.name} ({b.availableMeters}m left)
+                        </option>
                       ))}
                     </Select>
                   </Field>

@@ -271,9 +271,11 @@ export interface ReorderPoint {
 export interface StockTransfer {
   id: string; transferNumber: string; status: string; transferKind: string
   fromWarehouse: WarehouseLocation; toWarehouse: WarehouseLocation
-  rawClothBatch?: { id: string; batchNumber: string; clothCategory: { name: string }; clothColor: { name: string } }
+  rawClothBatch?: { id: string; batchNumber: string; designNumber?: string
+    clothCategory: { name: string }; clothColor: { name: string; hexCode?: string } }
   metersToTransfer?: number
-  finishedProduct?: { id: string; sku: string; itemType: { name: string } }
+  finishedProduct?: { id: string; sku: string; name?: string; size?: string
+    itemType: { name: string }; clothColor?: { name: string; hexCode?: string } }
   quantityToTransfer?: number
   notes: string
   createdBy?: { id: string; username: string }

@@ -333,8 +333,8 @@ export const DASHBOARD_QUERY = `
       id transferNumber status transferKind metersToTransfer quantityToTransfer notes createdAt dispatchedAt receivedAt
       fromWarehouse { id name }
       toWarehouse { id name }
-      rawClothBatch { id batchNumber clothCategory { name } clothColor { name } }
-      finishedProduct { id name sku itemType { name } }
+      rawClothBatch { id batchNumber designNumber clothCategory { name } clothColor { name hexCode } }
+      finishedProduct { id name sku size itemType { name } clothColor { name hexCode } }
       createdBy { id username }
       receivedBy { id username }
     }
