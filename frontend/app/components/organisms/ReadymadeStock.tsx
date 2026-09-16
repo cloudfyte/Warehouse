@@ -27,6 +27,20 @@ const inputStyle: React.CSSProperties = {
   background: "var(--input-bg)", color: "var(--ink)", fontSize: 13, outline: "none", width: "100%",
 };
 
+/** One labelled fact, so the eye can jump to the party or the rate. */
+function Cell({ label: heading, value }: { label: string; value?: string | null }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {heading}
+      </div>
+      <div style={{ fontSize: 14, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {value || "—"}
+      </div>
+    </div>
+  );
+}
+
 export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -194,7 +208,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 18 }}>
         <h2 style={{ margin: "0 0 4px", fontSize: 22 }}>Readymade Stock</h2>
-        <div style={{ fontSize: 13, color: "var(--muted)" }}>
+        <div style={{ fontSize: 14, color: "var(--muted)" }}>
           What a supplier delivered, before it is priced and tagged. A style arrives as one row
           per size, so its sizes are kept together here.
         </div>
@@ -212,11 +226,11 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
           ["Received in total", `${totals.received} pcs`, undefined],
           ["Stock value", formatMoney(totals.value), undefined],
         ] as const).map(([label_, value, color]) => (
-          <div key={label_} style={{ background: "var(--paper)", padding: "13px 16px" }}>
-            <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>
+          <div key={label_} style={{ background: "var(--paper)", padding: "15px 18px" }}>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>
               {label_}
             </div>
-            <div style={{ fontSize: 21, fontWeight: 700, color, fontVariantNumeric: "tabular-nums", letterSpacing: -0.3 }}>
+            <div style={{ fontSize: 25, fontWeight: 700, color, fontVariantNumeric: "tabular-nums", letterSpacing: -0.5 }}>
               {value}
             </div>
           </div>
@@ -270,8 +284,9 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
               background: "var(--paper)",
             }}>
               <div style={{
-                display: "grid", gridTemplateColumns: "26px minmax(0,1fr) 150px",
-                gap: 12, alignItems: "center",
+                display: "grid",
+                gridTemplateColumns: "26px minmax(190px,1.4fr) minmax(130px,1fr) minmax(110px,0.8fr) 100px 170px",
+                gap: 16, alignItems: "center",
               }}>
                 {canAddStock && mine.length > 0 ? (
                   <input type="checkbox" checked={allOn}
@@ -283,37 +298,37 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
 
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{g.itemName}</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3 }}>{g.itemName}</span>
                     {g.colorName && (
                       <span style={{
                         display: "inline-flex", alignItems: "center", gap: 6,
-                        padding: "2px 9px 2px 3px", borderRadius: 99,
-                        background: "var(--canvas)", border: "1px solid var(--line)", fontSize: 12,
+                        padding: "3px 11px 3px 4px", borderRadius: 99,
+                        background: "var(--canvas)", border: "1px solid var(--line)", fontSize: 13,
                       }}>
                         <span style={{
-                          width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
+                          width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
                           background: swatch ?? "transparent", border: "1px solid rgba(0,0,0,.18)",
                         }} />
                         {g.colorName}
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {[g.category, g.supplier, `${formatMoney(g.cost)}/pc`, g.warehouse]
-                      .filter(Boolean).join(" \u00b7 ")}
-                  </div>
                 </div>
+
+                <Cell label="Party" value={g.supplier} />
+                <Cell label="Category" value={g.category} />
+                <Cell label="Rate" value={`${formatMoney(g.cost)}/pc`} />
 
                 <div style={{ textAlign: "right" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 5, justifyContent: "flex-end" }}>
                     <span style={{
-                      fontSize: 19, fontWeight: 700, fontVariantNumeric: "tabular-nums",
-                      color: low ? "#d32f2f" : "var(--ink)", letterSpacing: -0.3,
+                      fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                      color: low ? "#d32f2f" : "var(--ink)", letterSpacing: -0.5, lineHeight: 1.1,
                     }}>{g.available}</span>
-                    <span style={{ fontSize: 11.5, color: "var(--muted)" }}>of {g.received} pcs</span>
+                    <span style={{ fontSize: 13, color: "var(--muted)" }}>of {g.received} pcs</span>
                   </div>
-                  <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>
-                    {g.rows.length} size{g.rows.length === 1 ? "" : "s"}
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 5 }}>
+                    {g.rows.length} size{g.rows.length === 1 ? "" : "s"} · {g.warehouse}
                   </div>
                 </div>
               </div>
@@ -332,7 +347,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
                       onClick={() => toggle(r.id)}
                       style={{
                         display: "inline-flex", alignItems: "baseline", gap: 5,
-                        padding: "4px 10px", borderRadius: 8, fontSize: 12,
+                        padding: "6px 12px", borderRadius: 8, fontSize: 13,
                         border: `1px solid ${on ? "var(--primary)" : "var(--line)"}`,
                         background: on ? "color-mix(in srgb,var(--primary) 12%,transparent)" : "var(--canvas)",
                         color: out ? "var(--muted)" : "var(--ink)",
@@ -340,8 +355,8 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
                         opacity: out ? 0.55 : 1,
                         fontVariantNumeric: "tabular-nums",
                       }}>
-                      <strong>{r.size || "one size"}</strong>
-                      <span style={{ color: "var(--muted)" }}>{r.quantityAvailable}</span>
+                      <strong style={{ fontSize: 13.5 }}>{r.size || "one size"}</strong>
+                      <span style={{ color: "var(--muted)", fontSize: 12.5 }}>{r.quantityAvailable}</span>
                     </button>
                   );
                 })}

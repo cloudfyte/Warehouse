@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Pencil, ImageIcon, AlertTriangle } from "lucide-react";
+import { Pencil, AlertTriangle } from "lucide-react";
 import { nameToColorHex } from "@/app/lib/colorUtils";
 import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
@@ -13,6 +13,7 @@ import Modal from "@/app/components/atoms/Modal";
 import Textarea from "@/app/components/atoms/Textarea";
 import Field from "@/app/components/molecules/Field";
 import PhotoPicker from "@/app/components/molecules/PhotoPicker";
+import PhotoViewer from "@/app/components/molecules/PhotoViewer";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 
 interface Props {
@@ -23,8 +24,22 @@ interface Props {
   onMutate?: (q: string, v: Record<string, unknown>) => Promise<any>;
 }
 
-const firstPhoto = (csv?: string) => (csv || "").split(",").map(s => s.trim()).filter(Boolean)[0];
 const num = (v: unknown) => Number(v ?? 0);
+
+/** One labelled fact. Named rather than run into a sentence, so the eye can
+ *  jump straight to the party or the rate without reading the whole line. */
+function Cell({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 14, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {value || "—"}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Raw cloth, read the way somebody on the floor asks about it.
@@ -110,7 +125,7 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 18 }}>
         <h2 style={{ margin: "0 0 4px", fontSize: 22 }}>Raw Cloth</h2>
-        <div style={{ fontSize: 13, color: "var(--muted)" }}>
+        <div style={{ fontSize: 14, color: "var(--muted)" }}>
           Every lot in the building — what design it is, whose it was, and how much is left.
         </div>
       </div>
@@ -127,11 +142,11 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
           ["Received in total", metres(totals.total), undefined],
           ["Stock value", formatMoney(totals.value), undefined],
         ] as const).map(([label, value, color]) => (
-          <div key={label} style={{ background: "var(--paper)", padding: "13px 16px" }}>
-            <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>
+          <div key={label} style={{ background: "var(--paper)", padding: "15px 18px" }}>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6 }}>
               {label}
             </div>
-            <div style={{ fontSize: 21, fontWeight: 700, color, fontVariantNumeric: "tabular-nums", letterSpacing: -0.3 }}>
+            <div style={{ fontSize: 25, fontWeight: 700, color, fontVariantNumeric: "tabular-nums", letterSpacing: -0.5 }}>
               {value}
             </div>
           </div>
@@ -186,7 +201,6 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
               : "Nothing matches."}
           </div>
         ) : shown.map(b => {
-          const photo = firstPhoto(b.photos);
           const swatch = b.clothColor ? nameToColorHex(b.clothColor.name, b.clothColor.hexCode) : null;
           const available = num(b.availableMeters);
           const total = num(b.totalMeters);
@@ -195,85 +209,75 @@ export default function RawCloth({ batches, canManage = false, onRefresh, onMuta
 
           return (
             <div key={b.id} style={{
-              display: "grid", gridTemplateColumns: "48px minmax(0,1fr) 150px 40px",
-              gap: 14, alignItems: "center",
-              border: "1px solid var(--line)", borderRadius: 12, padding: "12px 14px",
+              display: "grid",
+              // The facts get columns of their own rather than being crushed
+              // into one muted line that truncates while the row sits half empty.
+              // Minimums sum to ~830 with the gaps, so it still fits a 1280
+              // laptop with the sidebar open rather than scrolling sideways again.
+              gridTemplateColumns: "64px minmax(160px,1.4fr) minmax(115px,1fr) minmax(95px,0.8fr) 90px 175px 36px",
+              gap: 16, alignItems: "center",
+              border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px",
               background: "var(--paper)",
             }}>
-              {photo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photo} alt="" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 9, border: "1px solid var(--line)" }} />
-              ) : (
-                <span style={{
-                  width: 48, height: 48, borderRadius: 9, border: "1px dashed var(--line)",
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  background: swatch ? `${swatch}22` : "var(--canvas)",
-                }}>
-                  <ImageIcon size={16} style={{ color: "var(--muted)" }} />
-                </span>
-              )}
+              <PhotoViewer value={b.photos} size={64} tint={swatch} alt={b.designNumber || b.batchNumber} />
 
               <div style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  {b.designNumberProvisional ? (
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 7, background: "#fff3e0", color: "#b45309" }}>
-                      no design number
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>{b.designNumber}</span>
-                  )}
-                  {b.clothColor && (
+                {b.designNumberProvisional ? (
+                  <span style={{ fontSize: 12.5, fontWeight: 700, padding: "3px 10px", borderRadius: 7, background: "#fff3e0", color: "#b45309" }}>
+                    no design number
+                  </span>
+                ) : (
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.2 }}>
+                    {b.designNumber}
+                  </div>
+                )}
+                {b.clothColor && (
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6,
+                    padding: "3px 11px 3px 4px", borderRadius: 99,
+                    background: "var(--canvas)", border: "1px solid var(--line)", fontSize: 13,
+                  }}>
                     <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "2px 9px 2px 3px", borderRadius: 99,
-                      background: "var(--canvas)", border: "1px solid var(--line)",
-                      fontSize: 12,
-                    }}>
-                      <span style={{
-                        width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
-                        background: swatch ?? "transparent",
-                        border: "1px solid rgba(0,0,0,.18)",
-                      }} />
-                      {b.clothColor.name}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {b.clothCategory?.name}
-                  {b.supplier?.name ? ` · ${b.supplier.name}` : ""}
-                  {` · ${formatMoney(b.costPerMeter)}/m`}
-                  {b.binLocation ? ` · bin ${b.binLocation}` : ""}
-                  {b.warehouse?.name ? ` · ${b.warehouse.name}` : ""}
-                </div>
+                      width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                      background: swatch ?? "transparent", border: "1px solid rgba(0,0,0,.18)",
+                    }} />
+                    {b.clothColor.name}
+                  </span>
+                )}
               </div>
 
+              <Cell label="Party" value={b.supplier?.name} />
+              <Cell label="Category" value={b.clothCategory?.name} />
+              <Cell label="Rate" value={`${formatMoney(b.costPerMeter)}/m`} />
+
               <div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 5, justifyContent: "flex-end" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: "flex-end" }}>
                   <span style={{
-                    fontSize: 19, fontWeight: 700, fontVariantNumeric: "tabular-nums",
-                    color: low ? "#d32f2f" : "var(--ink)", letterSpacing: -0.3,
+                    fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                    color: low ? "#d32f2f" : "var(--ink)", letterSpacing: -0.5, lineHeight: 1.1,
                   }}>
                     {metres(available)}
                   </span>
-                  <span style={{ fontSize: 11.5, color: "var(--muted)" }}>of {metres(total)}</span>
+                  <span style={{ fontSize: 13, color: "var(--muted)" }}>of {metres(total)}</span>
                 </div>
                 {/* How much of this lot is still on the shelf, at a glance. */}
-                <div style={{ height: 4, borderRadius: 99, background: "var(--line)", marginTop: 6, overflow: "hidden" }}>
+                <div style={{ height: 5, borderRadius: 99, background: "var(--line)", marginTop: 7, overflow: "hidden" }}>
                   <div style={{
                     width: `${pct}%`, height: "100%", borderRadius: 99,
                     background: low ? "#d32f2f" : "var(--primary)",
                   }} />
                 </div>
-                <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 4, textAlign: "right", fontFamily: "monospace" }}>
-                  {b.batchNumber}
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 5, textAlign: "right" }}>
+                  {b.binLocation ? `bin ${b.binLocation} · ` : ""}{b.warehouse?.name}
+                  <span style={{ fontFamily: "monospace", opacity: 0.7 }}> · {b.batchNumber}</span>
                 </div>
               </div>
 
               <div style={{ textAlign: "right" }}>
                 {canManage && onMutate && (
                   <button type="button" onClick={() => openEdit(b)} aria-label={`Edit ${b.designNumber || b.batchNumber}`}
-                    style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 6 }}>
-                    <Pencil size={15} />
+                    style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 8 }}>
+                    <Pencil size={17} />
                   </button>
                 )}
               </div>
