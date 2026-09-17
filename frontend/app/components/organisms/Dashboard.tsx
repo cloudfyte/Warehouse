@@ -388,84 +388,42 @@ function Dashboard({
             </div>
           )}
 
-          <SectionLabel>Inventory Snapshot</SectionLabel>
+          {/* Two rows, not six. A dashboard is the first thing opened in the
+              morning: what is in the building, what is being made, and what
+              money is moving either way. Everything else has its own page. */}
+          <SectionLabel>In the building</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
-            <StatCard label="Raw Cloth Available" value={`${(stats.totalRawMeters ?? 0).toFixed(1)} m`} color={outRaw.length > 0 || lowRaw.length > 0 ? "#f59e0b" : "var(--primary)"} />
-            <StatCard label="Finished Pieces" value={stats.totalFinishedPieces ?? 0} sub={`${stats.inhousePieces ?? 0} stitched · ${stats.readymadePieces ?? 0} imported`} />
-            <StatCard label="Suppliers" value={stats.totalSuppliers ?? 0} />
-            <StatCard label="Buyers" value={stats.totalBuyers ?? 0} />
-          </div>
-
-          <SectionLabel>Active Operations</SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
-            <StatCard label="Purchase Orders" value={stats.activePurchaseOrders ?? 0} color="#2196f3" />
-            <StatCard label="Sales Orders" value={stats.activeSalesOrders ?? 0} color="#9c27b0" />
-            <StatCard label="Cutting In Progress" value={stats.cuttingInProgress ?? 0} color="#ff9800" />
-            <StatCard label="Stitching In Progress" value={stats.stitchingInProgress ?? 0} color="#ff9800" />
+            <StatCard label="Raw cloth" value={`${(stats.totalRawMeters ?? 0).toFixed(1)} m`}
+              sub="available to cut"
+              color={outRaw.length > 0 || lowRaw.length > 0 ? "#f59e0b" : "var(--primary)"} />
+            <StatCard label="Being made"
+              value={(stats.cuttingInProgress ?? 0) + (stats.stitchingInProgress ?? 0)}
+              sub={`${stats.cuttingInProgress ?? 0} cutting · ${stats.stitchingInProgress ?? 0} stitching`}
+              color="#ff9800" />
+            <StatCard label="Finished pieces" value={stats.totalFinishedPieces ?? 0}
+              sub={`${stats.inhousePieces ?? 0} stitched · ${stats.readymadePieces ?? 0} bought in`} />
+            <StatCard label="Orders open"
+              value={(stats.activePurchaseOrders ?? 0) + (stats.activeSalesOrders ?? 0)}
+              sub={`${stats.activePurchaseOrders ?? 0} buying · ${stats.activeSalesOrders ?? 0} selling`}
+              color="#2196f3" />
           </div>
 
           {!isAuditor && (
             <>
-              <SectionLabel>Revenue</SectionLabel>
+              <SectionLabel>Money</SectionLabel>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 8 }}>
-                <StatCard label="Revenue This Month" value={formatMoney(stats.revenueThisMonth ?? 0)} color="var(--accent)" />
-                <StatCard label="Revenue This Year" value={formatMoney(stats.revenueThisYear ?? 0)} color="var(--accent)" />
-              </div>
-              <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 20 }}>Delivered orders only</div>
-
-              <SectionLabel>Supplier Payments (Invoices)</SectionLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
-                <StatCard
-                  label="Total Purchased"
-                  value={formatMoney(stats.supplierTotalPurchased ?? 0)}
-                  color="var(--ink)"
-                />
-                <StatCard
-                  label="Paid to Suppliers"
-                  value={formatMoney(stats.supplierTotalPaid ?? 0)}
-                  color="#2e7d32"
-                />
-                <StatCard
-                  label="Pending to Suppliers"
-                  value={formatMoney(stats.supplierTotalPending ?? 0)}
-                  color={(stats.supplierTotalPending ?? 0) > 0 ? "#e65100" : "#2e7d32"}
-                  sub={(stats.supplierTotalPending ?? 0) > 0 ? "Amount still owed" : "All settled"}
-                />
-              </div>
-
-              <SectionLabel>Expenses</SectionLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14, marginBottom: 28 }}>
-                <StatCard label="Expenses This Month" value={formatMoney(stats.expensesThisMonth ?? 0)} color="#dc2626" />
-                <StatCard label="Expenses This Year" value={formatMoney(stats.expensesThisYear ?? 0)} color="#b91c1c" />
-              </div>
-
-              <SectionLabel>Buyer Credit & Payments</SectionLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
-                <StatCard
-                  label="Outstanding (Unpaid)"
-                  value={formatMoney(stats.creditOutstanding ?? 0)}
+                <StatCard label="Revenue this month" value={formatMoney(stats.revenueThisMonth ?? 0)}
+                  sub={`${formatMoney(stats.revenueThisYear ?? 0)} this year`} color="var(--accent)" />
+                <StatCard label="Expenses this month" value={formatMoney(stats.expensesThisMonth ?? 0)}
+                  sub={`${formatMoney(stats.expensesThisYear ?? 0)} this year`} color="#dc2626" />
+                <StatCard label="Buyers owe us" value={formatMoney(stats.creditOutstanding ?? 0)}
                   color={(stats.creditOutstanding ?? 0) > 0 ? "#f44336" : "#4caf50"}
-                  sub="Pending from buyers"
-                />
-                <StatCard
-                  label="Received from Buyers"
-                  value={formatMoney(stats.creditReceived ?? 0)}
-                  color="#1565c0"
-                  sub="Paid on credit accounts"
-                />
-                <StatCard
-                  label="Overdue"
-                  value={formatMoney(stats.creditOverdue ?? 0)}
-                  color={(stats.creditOverdue ?? 0) > 0 ? "#b71c1c" : "#4caf50"}
-                  sub="Past due date"
-                />
-                <StatCard
-                  label="Fully Settled"
-                  value={formatMoney(stats.creditSettled ?? 0)}
-                  color="#2e7d32"
-                  sub="Closed credit accounts"
-                />
+                  sub={(stats.creditOverdue ?? 0) > 0 ? `${formatMoney(stats.creditOverdue ?? 0)} of it overdue` : "nothing overdue"} />
+                <StatCard label="We owe suppliers" value={formatMoney(stats.supplierTotalPending ?? 0)}
+                  color={(stats.supplierTotalPending ?? 0) > 0 ? "#e65100" : "#2e7d32"}
+                  sub={`${formatMoney(stats.supplierTotalPaid ?? 0)} paid of ${formatMoney(stats.supplierTotalPurchased ?? 0)}`} />
               </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>Revenue counts delivered orders only.</div>
             </>
           )}
         </>

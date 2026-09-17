@@ -14,6 +14,7 @@ import Field from "@/app/components/molecules/Field";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import Pagination from "@/app/components/atoms/Pagination";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
 import Drawer from "@/app/components/atoms/Drawer";
 
 const PER_PAGE = 20;
@@ -138,9 +139,16 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
     <div style={{ padding: 24 }}>
       <PageHeader
         title="Returns"
-        sub={`${total === 0 ? "No returns recorded" : `${total} return${total === 1 ? "" : "s"} total`}`}
-        style={{ marginBottom: 28 }}
+        sub="What came back to us, and what we sent back"
+        style={{ marginBottom: 18 }}
       />
+
+      <TotalsBar totals={[
+        { label: "Returns", value: String(total) },
+        { label: "From buyers", value: String(buyerReturns.length) },
+        { label: "Pieces back", value: String(buyerReturns.reduce((t, r) => t + (r.quantity || 0), 0)), color: "var(--primary)" },
+        { label: "To suppliers", value: String(supplierReturns.length) },
+      ]} />
 
       {/* Customer Returns */}
       <div style={{ marginBottom: 32 }}>

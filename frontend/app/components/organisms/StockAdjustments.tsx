@@ -11,6 +11,7 @@ import FormGrid from "@/app/components/molecules/FormGrid";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
 import ConfirmDialog from "@/app/components/molecules/ConfirmDialog";
 import type { ConfirmState } from "@/app/types";
 import { downloadCsv } from "@/app/lib/csv";
@@ -197,6 +198,23 @@ export default function StockAdjustments({
           {Object.entries(ADJ_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </Select>
       </FilterBar>
+
+      <TotalsBar
+        narrowed={filtered.length !== adjustments.length}
+        note="Totals are for what you have filtered, not every correction."
+        totals={[
+          { label: "Corrections", value: String(filtered.length) },
+          {
+            label: "Written off",
+            value: String(filtered.reduce((t, a) => t + Math.min(0, Number(a.quantityChange) || 0), 0)),
+            color: "#d32f2f",
+          },
+          {
+            label: "Added back",
+            value: `+${filtered.reduce((t, a) => t + Math.max(0, Number(a.quantityChange) || 0), 0)}`,
+          },
+        ]}
+      />
 
       {/* Summary chips */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>

@@ -10,6 +10,7 @@ import Select from "@/app/components/atoms/Select";
 import Textarea from "@/app/components/atoms/Textarea";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import FilterBar from "@/app/components/molecules/FilterBar";
@@ -235,6 +236,7 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
     <div className="space-y-4">
       <PageHeader
         title="Quotations"
+        sub="What you have quoted, and what turned into an order"
         actions={<Button variant="primary" onClick={() => setShowCreate(true)}>+ New Quotation</Button>}
       />
 
@@ -252,6 +254,17 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
           </button>
         ))}
       </FilterBar>
+
+      <TotalsBar
+        narrowed={visible.length !== quotations.length}
+        note="Totals are for what you have filtered, not every quotation."
+        totals={[
+          { label: "Quotations", value: String(visible.length) },
+          { label: "Quoted value", value: formatMoney(visible.reduce((t, q) => t + (q.totalAmount || 0), 0)) },
+          { label: "Accepted", value: String(visible.filter(q => q.status === "ACCEPTED").length), color: "var(--primary)" },
+          { label: "Became orders", value: String(visible.filter(q => q.convertedTo).length) },
+        ]}
+      />
 
       {/* Table */}
       <div className="card overflow-hidden">
