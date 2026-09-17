@@ -48,6 +48,9 @@ interface BillItem {
   gstRate: number
   totalPrice: number
   notes: string
+  /** Set when this cloth was railed straight to a stitching unit. */
+  deliverToKarigar?: { id: string; name: string; city?: string } | null
+  jobworkOrder?: { id: string; orderNumber: string; status: string } | null
 }
 
 interface SupplierPayment {
@@ -718,6 +721,13 @@ export default function PurchaseBills({
                                   ? [item.clothCategory?.name, item.clothColor?.name, item.binLocation].filter(Boolean).join(" · ")
                                   : [item.itemType?.name, item.size].filter(Boolean).join(" · ")
                                 }
+                                {item.deliverToKarigar && (
+                                  <div style={{ fontSize: 12, color: "#6d28d9", marginTop: 3 }}>
+                                    → {item.deliverToKarigar.name}
+                                    {item.deliverToKarigar.city ? ` · ${item.deliverToKarigar.city}` : ""}
+                                    {item.jobworkOrder ? ` · job ${item.jobworkOrder.orderNumber}` : ""}
+                                  </div>
+                                )}
                               </td>
                               <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>
                                 {item.clothCode || "—"}

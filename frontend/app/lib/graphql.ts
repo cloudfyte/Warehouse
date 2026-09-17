@@ -163,6 +163,8 @@ export const DASHBOARD_QUERY = `
         id itemKind totalMeters costPerMeter binLocation clothCode designNumber
         ageGroup size quantity unitPrice gstRate totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name }
+        deliverToKarigar { id name city }
+        jobworkOrder { id orderNumber status }
       }
       supplierPayments { id paymentNumber amount paymentDate paymentMode reference notes createdAt }
       sourcePo { id poNumber }
