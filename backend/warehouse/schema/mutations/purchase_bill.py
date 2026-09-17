@@ -3,7 +3,6 @@ from graphql_jwt.decorators import login_required
 
 from warehouse.models import EmployeeProfile
 from warehouse.permissions import require_role
-from warehouse.services.audit import log_action
 from warehouse.services.notify import notify_managers
 from warehouse.services.purchase_bill import (
     create_purchase_bill, generate_bill_from_po, update_purchase_bill_gst,
@@ -75,15 +74,6 @@ class CreatePurchaseBill(graphene.Mutation):
             **kwargs,
         )
         try:
-            log_action(
-                entity_type="PurchaseBill", entity_id=bill.pk, action="CREATED",
-                actor=info.context.user,
-                detail={"bill_number": bill.bill_number, "supplier": bill.supplier.name,
-                        "total": str(bill.total_amount), "paid": str(bill.amount_paid)},
-            )
-        except Exception:
-            pass
-        try:
             notify_managers(
                 title=f"Purchase Bill: {bill.bill_number}",
                 message=f"{bill.bill_number} from {bill.supplier.name} — ₹{bill.total_amount} (paid ₹{bill.amount_paid})",
@@ -105,15 +95,6 @@ class GenerateBillFromPO(graphene.Mutation):
         user = info.context.user
         require_role(user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.SUPER_ADMIN, EmployeeProfile.Role.MANAGER, EmployeeProfile.Role.STORE_KEEPER)
         bill = generate_bill_from_po(po_id=po_id, user=user)
-        try:
-            log_action(
-                entity_type="PurchaseBill", entity_id=bill.pk, action="CREATED",
-                actor=user,
-                detail={"bill_number": bill.bill_number, "source_po": bill.source_po.po_number,
-                        "supplier": bill.supplier.name, "total": str(bill.total_amount)},
-            )
-        except Exception:
-            pass
         return GenerateBillFromPO(purchase_bill=bill)
 
 
@@ -138,13 +119,4 @@ class UpdatePurchaseBillGst(graphene.Mutation):
             user=user, bill_id=bill_id, gst_rate=gst_rate,
             items=[dict(i) for i in items] if items else None,
         )
-        try:
-            log_action(
-                entity_type="PurchaseBill", entity_id=bill.pk, action="UPDATED",
-                actor=user,
-                detail={"bill_number": bill.bill_number, "gst_restated": True,
-                        "tax": str(bill.tax_amount), "total": str(bill.total_amount)},
-            )
-        except Exception:
-            pass
         return UpdatePurchaseBillGst(purchase_bill=bill)

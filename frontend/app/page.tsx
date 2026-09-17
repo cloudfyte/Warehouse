@@ -40,6 +40,7 @@ import Analytics from "@/app/components/organisms/Analytics";
 import Settings from "@/app/components/organisms/Settings";
 import Profile from "@/app/components/organisms/Profile";
 import AuditLogs from "@/app/components/organisms/AuditLogs";
+import { SIDEBAR_SECTIONS } from "@/app/lib/nav";
 import Expenses from "@/app/components/organisms/Expenses";
 import StockAdjustments from "@/app/components/organisms/StockAdjustments";
 import StockTransfers from "@/app/components/organisms/StockTransfers";
@@ -90,21 +91,6 @@ function getVisibleTabs(role: string, customRole?: CustomRole | null): Tab[] {
   if (role === "AUDITOR") return ["dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "sales_orders", "credit", "returns", "notifications", "audit_log", ...profileTab];
   return ["dashboard", "notifications", ...profileTab];
 }
-
-// ─── Sidebar section structure ────────────────────────────────────────────────
-
-interface SidebarSection { label: string; tabs: Tab[] }
-
-const SIDEBAR_SECTIONS: SidebarSection[] = [
-  { label: "Overview", tabs: ["dashboard", "analytics"] },
-  { label: "Purchasing", tabs: ["suppliers", "purchase_orders", "purchase_bills"] },
-  { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches"] },
-  { label: "Production", tabs: ["cutting", "stitching", "jobwork", "karigars", "customer_bills", "finished_products", "product_sets"] },
-  { label: "Sales", tabs: ["buyers", "quotations", "sales_orders", "credit", "returns"] },
-  { label: "Finance", tabs: ["expenses", "settlements", "reports", "ledger"] },
-  { label: "Admin", tabs: ["item_types", "employees", "warehouses", "roles"] },
-  { label: "System", tabs: ["notifications", "audit_log", "settings"] },
-];
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
   dashboard: <LayoutDashboard size={16} />,
@@ -956,6 +942,7 @@ export default function Home() {
         {currentTab === "roles" && (
           <Roles
             roles={data?.customRoles || []}
+            employees={data?.employees || []}
             isSuperAdmin={isSuperAdmin}
             gql={runQuery}
             onRefresh={() => loadData(token!)}

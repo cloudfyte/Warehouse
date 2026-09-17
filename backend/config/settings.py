@@ -121,6 +121,8 @@ GRAPHENE = {
     "SCHEMA": "config.schema.schema",
     "MIDDLEWARE": [
         "graphql_jwt.middleware.JSONWebTokenMiddleware",
+        # Runs after auth, so it knows who is asking.
+        "warehouse.services.audit_middleware.AuditMiddleware",
     ],
 }
 

@@ -1,96 +1,59 @@
 "use client";
 import { useState } from "react";
-import type { CustomRole } from "@/app/types";
+import type { CustomRole, Employee, Tab } from "@/app/types";
 import Modal from "@/app/components/atoms/Modal";
 import Button from "@/app/components/atoms/Button";
 import Input from "@/app/components/atoms/Input";
-import Select from "@/app/components/atoms/Select";
-import Badge from "@/app/components/atoms/Badge";
-import Pagination from "@/app/components/atoms/Pagination";
 import Field from "@/app/components/molecules/Field";
-import FormGrid from "@/app/components/molecules/FormGrid";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import { GRANTABLE_TABS } from "@/app/lib/nav";
 import { showToast } from "@/app/lib/toast";
 import { friendlyError } from "@/app/lib/errors";
 
-// All configurable tabs in display order
-const ALL_TABS: { key: string; label: string; group: string }[] = [
-  { key: "dashboard",        label: "Dashboard",         group: "Core" },
-  { key: "analytics",        label: "Analytics",         group: "Core" },
-  { key: "notifications",    label: "Notifications",     group: "Core" },
-  { key: "suppliers",        label: "Suppliers",         group: "Procurement" },
-  { key: "buyers",           label: "Buyers",            group: "Procurement" },
-  { key: "purchase_orders",  label: "Purchase Orders",   group: "Procurement" },
-  { key: "purchase_bills",   label: "Supplier Invoices", group: "Procurement" },
-  { key: "quotations",       label: "Quotations",        group: "Procurement" },
-  { key: "raw_cloth",        label: "Raw Cloth",         group: "Inventory" },
-  { key: "readymade_stock",  label: "Readymade Stock",   group: "Inventory" },
-  { key: "item_types",       label: "Item Types",        group: "Inventory" },
-  { key: "reorder_points",   label: "Reorder Points",    group: "Inventory" },
-  { key: "settlements",      label: "Settlements",       group: "Finance" },
-  { key: "product_sets",     label: "Sets",              group: "Production" },
-  { key: "stock_transfers",  label: "Stock Transfers",   group: "Inventory" },
-  { key: "retail_dispatches", label: "To the Shop",      group: "Inventory" },
-  { key: "karigars",         label: "Karigars",         group: "Production" },
-  { key: "jobwork",          label: "Outside Jobs",     group: "Production" },
-  { key: "customer_bills",   label: "Customer Orders",   group: "Production" },
-  { key: "stock_adjustments",label: "Stock Adjustments", group: "Inventory" },
-  { key: "cutting",          label: "Cutting",           group: "Production" },
-  { key: "stitching",        label: "Stitching",         group: "Production" },
-  { key: "finished_products",label: "Finished Products", group: "Production" },
-  { key: "sales_orders",     label: "Sales Orders",      group: "Sales & Finance" },
-  { key: "credit",           label: "Credit",            group: "Sales & Finance" },
-  { key: "returns",          label: "Returns",           group: "Sales & Finance" },
-  { key: "expenses",         label: "Expenses",          group: "Sales & Finance" },
-  { key: "reports",          label: "Reports",           group: "Sales & Finance" },
-  { key: "ledger",           label: "Party Ledger",      group: "Sales & Finance" },
-  { key: "employees",        label: "Employees",         group: "Admin" },
-  { key: "warehouses",       label: "Warehouses",        group: "Admin" },
-  { key: "audit_log",        label: "Audit Log",         group: "Admin" },
-];
-
-const BACKEND_LEVELS = [
-  { value: "SUPER_ADMIN",   label: "Super Administrator" },
-  { value: "ADMIN",         label: "Administrator" },
-  { value: "MANAGER",       label: "Manager" },
-  { value: "STORE_KEEPER",  label: "Store Keeper" },
-  { value: "CUTTING_MASTER",label: "Cutting Master" },
-  { value: "TAILOR",        label: "Tailor" },
-  { value: "AUDITOR",       label: "Auditor" },
-];
-
-const PER_PAGE = 20;
-
-const TAB_GROUPS = [...new Set(ALL_TABS.map(t => t.group))];
-
 interface Props {
   roles: CustomRole[]
+  employees: Employee[]
   isSuperAdmin: boolean
   gql: <T>(q: string, v?: Record<string, unknown>) => Promise<T>
   onRefresh: () => void
 }
 
-function RoleBadge({ role }: { role: CustomRole }) {
-  return (
-    <Badge label={role.displayName} color={role.color} bg={role.color + "22"} style={{ border: `1px solid ${role.color}44` }} />
-  );
-}
+/**
+ * How much of the work someone is trusted with.
+ *
+ * This is the backend role underneath the tabs, and it decides what a person
+ * may change, not merely what they can see — a screen is no use if every
+ * button on it is refused. It is written as four sentences about people
+ * because "Backend Permission Level: STORE_KEEPER" means nothing to the person
+ * setting it up.
+ */
+const TRUST = [
+  { value: "AUDITOR", title: "Can only look",
+    says: "Reads anything you show them. Changes nothing." },
+  { value: "STORE_KEEPER", title: "Works the floor",
+    says: "Takes goods in, records cutting and stitching, moves stock." },
+  { value: "MANAGER", title: "Runs the day",
+    says: "Everything on the floor, plus paying, settling and correcting stock." },
+  { value: "ADMIN", title: "Runs the business",
+    says: "Everything, including staff and money. Not the app's own settings." },
+];
+
+const GROUPS = [...new Set(GRANTABLE_TABS.map(t => t.group))];
+
+const COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6", "#64748b"];
 
 function emptyPermissions(): Record<string, boolean> {
-  return Object.fromEntries(ALL_TABS.map(t => [t.key, false]));
+  return Object.fromEntries(GRANTABLE_TABS.map(t => [t.key, false]));
 }
 
-export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
+export default function Roles({ roles, employees, isSuperAdmin, gql, onRefresh }: Props) {
   const [selected, setSelected] = useState<CustomRole | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [page, setPage] = useState(1);
-  const paged = roles.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const [isNew, setIsNew] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showDelete, setShowDelete] = useState<CustomRole | null>(null);
-
   const [form, setForm] = useState({
-    name: "", displayName: "", color: "#6366f1",
+    name: "", displayName: "", color: COLORS[0],
     backendLevel: "STORE_KEEPER",
     tabPermissions: emptyPermissions(),
   });
@@ -98,47 +61,51 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
   if (!isSuperAdmin) {
     return (
       <div style={{ padding: 60, textAlign: "center", color: "var(--muted)" }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>Super Administrators only</div>
-        <div style={{ fontSize: 14, marginTop: 4 }}>Only Super Admins can manage roles and permissions.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--ink)" }}>Only the owner can change this</div>
+        <div style={{ fontSize: 14, marginTop: 6 }}>Deciding who may do what is kept to the super administrator.</div>
       </div>
     );
   }
 
   function openCreate() {
-    setForm({ name: "", displayName: "", color: "#6366f1", backendLevel: "STORE_KEEPER", tabPermissions: emptyPermissions() });
-    setIsNew(true);
-    setShowForm(true);
+    setForm({ name: "", displayName: "", color: COLORS[0], backendLevel: "STORE_KEEPER", tabPermissions: emptyPermissions() });
+    setIsNew(true); setSelected(null); setShowForm(true);
   }
 
   function openEdit(r: CustomRole) {
     const perms = emptyPermissions();
     if (r.tabPermissions) Object.assign(perms, r.tabPermissions);
     setForm({ name: r.name, displayName: r.displayName, color: r.color, backendLevel: r.backendLevel, tabPermissions: perms });
-    setIsNew(false);
-    setShowForm(true);
-    setSelected(r);
+    setIsNew(false); setSelected(r); setShowForm(true);
   }
 
-  function toggleAll(group: string, val: boolean) {
-    const keys = ALL_TABS.filter(t => t.group === group).map(t => t.key);
-    setForm(f => ({ ...f, tabPermissions: { ...f.tabPermissions, ...Object.fromEntries(keys.map(k => [k, val])) } }));
+  function toggleAll(group: string, on: boolean) {
+    const keys = GRANTABLE_TABS.filter(t => t.group === group).map(t => t.key);
+    setForm(f => ({ ...f, tabPermissions: { ...f.tabPermissions, ...Object.fromEntries(keys.map(k => [k, on])) } }));
+  }
+
+  /** A role key nobody has to invent: it follows the name they typed. */
+  function keyFor(displayName: string) {
+    return displayName.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
   }
 
   async function save() {
-    if (!form.displayName.trim()) { showToast("Display name is required.", "error"); return; }
-    if (isNew && !form.name.trim()) { showToast("Role key is required.", "error"); return; }
+    if (!form.displayName.trim()) { showToast("Give the role a name.", "error"); return; }
+    const granted = Object.values(form.tabPermissions).filter(Boolean).length;
+    if (granted === 0) { showToast("Tick at least one screen, or they will sign in to nothing.", "error"); return; }
     setLoading(true);
     try {
       if (isNew) {
         await gql(`mutation C($name:String!,$dn:String!,$color:String,$bl:String,$tp:JSONString!){
           createCustomRole(name:$name,displayName:$dn,color:$color,backendLevel:$bl,tabPermissions:$tp){role{id}}
-        }`, { name: form.name, dn: form.displayName, color: form.color, bl: form.backendLevel, tp: JSON.stringify(form.tabPermissions) });
+        }`, { name: keyFor(form.displayName), dn: form.displayName, color: form.color,
+              bl: form.backendLevel, tp: JSON.stringify(form.tabPermissions) });
         showToast("Role created.", "success");
       } else {
         await gql(`mutation U($id:ID!,$dn:String,$color:String,$bl:String,$tp:JSONString){
           updateCustomRole(id:$id,displayName:$dn,color:$color,backendLevel:$bl,tabPermissions:$tp){role{id}}
-        }`, { id: selected!.id, dn: form.displayName, color: form.color, bl: form.backendLevel, tp: JSON.stringify(form.tabPermissions) });
+        }`, { id: selected!.id, dn: form.displayName, color: form.color,
+              bl: form.backendLevel, tp: JSON.stringify(form.tabPermissions) });
         showToast("Role updated.", "success");
       }
       setShowForm(false);
@@ -159,153 +126,220 @@ export default function Roles({ roles, isSuperAdmin, gql, onRefresh }: Props) {
     finally { setLoading(false); }
   }
 
-  const permCount = (r: CustomRole) => r.tabPermissions ? Object.values(r.tabPermissions).filter(Boolean).length : 0;
+  const holders = (r: CustomRole) => employees.filter(e => e.customRole?.id === r.id);
+  const screens = (r: CustomRole) =>
+    GRANTABLE_TABS.filter(t => r.tabPermissions?.[t.key] === true);
+
+  const grantedCount = Object.values(form.tabPermissions).filter(Boolean).length;
+  const deleteHolders = showDelete ? holders(showDelete) : [];
 
   return (
-    <div style={{ padding: 28, maxWidth: 900 }}>
+    <div style={{ padding: 24 }}>
       <PageHeader
-        title="Roles &amp; Permissions"
-        sub="Create custom roles with fine-grained tab access. Assign them to employees."
+        title="Roles"
+        sub="What each kind of person can open, and how much they may change"
         actions={<Button variant="primary" onClick={openCreate}>+ New Role</Button>}
-        style={{ marginBottom: 24 }}
       />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {roles.length === 0 && (
-          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>
-            No custom roles yet. Click "New Role" to create one.
+      {roles.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "64px 24px" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>No roles of your own yet</div>
+          <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+            Everyone signs in with a built-in role until you make one.<br />
+            A role is worth making when several people need the same handful of screens.
           </div>
-        )}
-        {paged.map(r => (
-          <div key={r.id} style={{
-            background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 12,
-            padding: "16px 20px", display: "flex", alignItems: "center", gap: 16,
-          }}>
-            <div style={{ width: 14, height: 14, borderRadius: "50%", background: r.color, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>{r.displayName}</span>
-                <RoleBadge role={r} />
-                {r.isSystem && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", background: "var(--line)", padding: "2px 7px", borderRadius: 99 }}>
-                    SYSTEM
-                  </span>
-                )}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {roles.map(r => {
+            const people = holders(r);
+            const open = screens(r);
+            const trust = TRUST.find(t => t.value === r.backendLevel);
+            return (
+              <div key={r.id} style={{
+                border: "1px solid var(--line)", borderLeft: `3px solid ${r.color}`,
+                borderRadius: 12, padding: "14px 16px", background: "var(--paper)",
+              }}>
+                <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 200, flex: 1 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3 }}>
+                      {r.displayName}
+                      {r.isSystem && (
+                        <span style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: "var(--muted)", background: "var(--canvas)", padding: "2px 8px", borderRadius: 99 }}>
+                          built in
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+                      {trust ? `${trust.title} — ${trust.says}` : r.backendLevel}
+                    </div>
+                  </div>
+
+                  <div style={{ minWidth: 150 }}>
+                    <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Who has it
+                    </div>
+                    <div style={{ fontSize: 14, marginTop: 3 }}>
+                      {people.length === 0
+                        ? <span style={{ color: "var(--muted)" }}>nobody yet</span>
+                        : people.map(p => p.username).join(", ")}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Button variant="secondary" size="sm" onClick={() => openEdit(r)}>Edit</Button>
+                    {!r.isSystem && (
+                      <Button variant="danger" size="sm" onClick={() => setShowDelete(r)}>Delete</Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* What they actually see when they sign in. */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+                  {open.length === 0 ? (
+                    <span style={{ fontSize: 13, color: "#d32f2f" }}>
+                      No screens ticked — anybody with this role signs in to an empty app.
+                    </span>
+                  ) : open.map(t => (
+                    <span key={t.key} style={{
+                      fontSize: 12.5, padding: "3px 10px", borderRadius: 7,
+                      border: "1px solid var(--line)", background: "var(--canvas)",
+                    }}>
+                      {t.label}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, display: "flex", gap: 14 }}>
-                <span>Backend: {BACKEND_LEVELS.find(b => b.value === r.backendLevel)?.label || r.backendLevel}</span>
-                <span>{permCount(r)} of {ALL_TABS.length} tabs visible</span>
-                <span style={{ fontFamily: "monospace" }}>{r.name}</span>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button variant="secondary" size="sm" onClick={() => openEdit(r)}>Edit</Button>
-              {!r.isSystem && (
-                <Button variant="danger" size="sm" onClick={() => setShowDelete(r)}>Delete</Button>
-              )}
-            </div>
-          </div>
-        ))}
-      <Pagination page={page} total={roles.length} perPage={PER_PAGE} onChange={setPage} />
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {showForm && (
         <Modal
-          title={isNew ? "Create Role" : `Edit — ${form.displayName}`}
-          subtitle="Configure which tabs this role can access"
+          title={isNew ? "New role" : form.displayName}
+          subtitle="Two questions: what can they open, and how much can they change."
           onClose={() => setShowForm(false)}
-          width={620}
+          width={680}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="primary" onClick={save} disabled={loading} style={{ flex: 1 }}>
+                {loading ? "Saving…" : isNew ? "Create role" : "Save"}
+              </Button>
               <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button variant="primary" onClick={save} disabled={loading}>{loading ? "Saving…" : "Save Role"}</Button>
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <FormGrid>
-              <Field label="Display Name" required>
-                <Input value={form.displayName} onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))} placeholder="e.g. Accounts Manager" />
-              </Field>
-              {isNew ? (
-                <Field label="Role Key" required>
-                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. ACCOUNTS_MANAGER" />
-                </Field>
-              ) : (
-                <Field label="Role Key (fixed)">
-                  <Input value={form.name} disabled style={{ opacity: 0.5 }} />
-                </Field>
-              )}
-            </FormGrid>
-
-            <FormGrid>
-              <Field label="Badge Color">
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <input type="color" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
-                    style={{ width: 44, height: 38, borderRadius: 8, border: "1px solid var(--line)", cursor: "pointer", padding: 2 }} />
-                  <span style={{ fontFamily: "monospace", fontSize: 13, color: "var(--muted)" }}>{form.color.toUpperCase()}</span>
-                </div>
-              </Field>
-              <Field label="Backend Permission Level">
-                <Select value={form.backendLevel} onChange={e => setForm(f => ({ ...f, backendLevel: e.target.value }))}>
-                  {BACKEND_LEVELS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                </Select>
-              </Field>
-            </FormGrid>
-
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 12 }}>
-                Tab Permissions
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <Field label="What is this role called?" required style={{ flex: 1, minWidth: 240 }}
+              hint={isNew ? "The name people will see on the employee's card." : undefined}>
+              <Input value={form.displayName} autoFocus placeholder="e.g. Accounts Manager"
+                onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))} />
+            </Field>
+            <Field label="Colour">
+              <div style={{ display: "flex", gap: 6 }}>
+                {COLORS.map(c => (
+                  <button type="button" key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
+                    aria-label={`Colour ${c}`}
+                    style={{
+                      width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer",
+                      border: form.color === c ? "3px solid var(--ink)" : "1px solid rgba(0,0,0,.2)",
+                    }} />
+                ))}
               </div>
-              {TAB_GROUPS.map(group => {
-                const tabs = ALL_TABS.filter(t => t.group === group);
-                const allOn = tabs.every(t => form.tabPermissions[t.key]);
+            </Field>
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>How much can they change?</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 8 }}>
+              {TRUST.map(t => {
+                const on = form.backendLevel === t.value;
                 return (
-                  <div key={group} style={{ marginBottom: 14 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{group}</span>
-                      <Button variant="ghost" size="sm" style={{ border: "none", padding: "2px 8px", fontSize: 11, fontWeight: 600 }} onClick={() => toggleAll(group, !allOn)}>
-                        {allOn ? "Deselect all" : "Select all"}
-                      </Button>
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {tabs.map(t => {
-                        const on = !!form.tabPermissions[t.key];
-                        return (
-                          <button type="button" key={t.key} onClick={() => setForm(f => ({ ...f, tabPermissions: { ...f.tabPermissions, [t.key]: !on } }))}
-                            style={{
-                              padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                              border: `1.5px solid ${on ? "var(--primary)" : "var(--line)"}`,
-                              background: on ? "var(--primary)" : "transparent",
-                              color: on ? "#fff" : "var(--muted)",
-                              transition: "all 0.12s",
-                            }}>
-                            {t.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <button type="button" key={t.value}
+                    onClick={() => setForm(f => ({ ...f, backendLevel: t.value }))}
+                    style={{
+                      textAlign: "left", padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                      border: `1.5px solid ${on ? "var(--primary)" : "var(--line)"}`,
+                      background: on ? "color-mix(in srgb, var(--primary) 10%, transparent)" : "var(--paper)",
+                      color: "var(--ink)",
+                    }}>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{t.title}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3, lineHeight: 1.45 }}>{t.says}</div>
+                  </button>
                 );
               })}
             </div>
+            {!TRUST.some(t => t.value === form.backendLevel) && (
+              <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 8 }}>
+                This role is currently set to <strong>{form.backendLevel}</strong>. Pick one above to change it.
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>What can they open?</span>
+              <span style={{ fontSize: 12.5, color: grantedCount === 0 ? "#d32f2f" : "var(--muted)" }}>
+                {grantedCount === 0 ? "nothing ticked yet" : `${grantedCount} screens`}
+              </span>
+            </div>
+            {GROUPS.map(group => {
+              const tabs = GRANTABLE_TABS.filter(t => t.group === group);
+              const allOn = tabs.every(t => form.tabPermissions[t.key]);
+              return (
+                <div key={group} style={{ marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>{group}</span>
+                    <button type="button" onClick={() => toggleAll(group, !allOn)}
+                      style={{ background: "none", border: "none", color: "var(--primary)", fontWeight: 600, fontSize: 12.5, cursor: "pointer", padding: 0 }}>
+                      {allOn ? "none" : "all"}
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {tabs.map(t => {
+                      const on = !!form.tabPermissions[t.key];
+                      return (
+                        <button type="button" key={t.key}
+                          onClick={() => setForm(f => ({ ...f, tabPermissions: { ...f.tabPermissions, [t.key as Tab]: !on } }))}
+                          style={{
+                            padding: "6px 13px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                            border: `1.5px solid ${on ? "var(--primary)" : "var(--line)"}`,
+                            background: on ? "var(--primary)" : "transparent",
+                            color: on ? "#fff" : "var(--ink)",
+                          }}>
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Modal>
       )}
 
       {showDelete && (
-        <Modal title="Delete Role" onClose={() => setShowDelete(null)} width={400}
+        <Modal title={`Delete ${showDelete.displayName}?`} onClose={() => setShowDelete(null)} width={420}
           footer={
             <div style={{ display: "flex", gap: 10 }}>
-              <Button variant="secondary" onClick={() => setShowDelete(null)}>Cancel</Button>
-              <Button variant="danger" onClick={deleteRole} disabled={loading}>
+              <Button variant="danger" onClick={deleteRole} disabled={loading} style={{ flex: 1 }}>
                 {loading ? "Deleting…" : "Delete"}
               </Button>
+              <Button variant="secondary" onClick={() => setShowDelete(null)}>Keep it</Button>
             </div>
           }>
-          <p style={{ color: "var(--muted)", fontSize: 14 }}>
-            Delete <strong style={{ color: "var(--ink)" }}>{showDelete.displayName}</strong>?
-            Employees using this role will need to be reassigned. This cannot be undone.
+          <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+            {deleteHolders.length > 0 ? (
+              <>
+                <strong style={{ color: "#d32f2f" }}>
+                  {deleteHolders.map(p => p.username).join(", ")}
+                </strong>{" "}
+                {deleteHolders.length === 1 ? "has" : "have"} this role. Give them another one first,
+                or they fall back to whatever their basic role allows.
+              </>
+            ) : "Nobody has this role, so nothing changes for anyone. It cannot be undone."}
           </p>
         </Modal>
       )}

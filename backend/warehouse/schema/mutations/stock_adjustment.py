@@ -3,7 +3,6 @@ from graphql_jwt.decorators import login_required
 
 from warehouse.models import EmployeeProfile
 from warehouse.permissions import require_role
-from warehouse.services.audit import log_action
 from warehouse.services.stock_adjustment import create_stock_adjustment, delete_stock_adjustment
 from warehouse.schema.types import StockAdjustmentType
 
@@ -39,12 +38,6 @@ class CreateStockAdjustment(graphene.Mutation):
             warehouse_id=warehouse_id,
             **kwargs,
         )
-        log_action(
-            entity_type="StockAdjustment", entity_id=adj.pk, action="CREATED",
-            actor=info.context.user,
-            detail={"adjustment_number": adj.adjustment_number, "type": adj.adjustment_type,
-                    "kind": adj.item_kind, "change": str(adj.quantity_change), "reason": reason},
-        )
         return CreateStockAdjustment(adjustment=adj)
 
 
@@ -57,9 +50,5 @@ class DeleteStockAdjustment(graphene.Mutation):
     @login_required
     def mutate(self, info, id):
         require_role(info.context.user, EmployeeProfile.Role.SUPER_ADMIN, EmployeeProfile.Role.ADMIN)
-        log_action(
-            entity_type="StockAdjustment", entity_id=id, action="DELETED",
-            actor=info.context.user, detail={},
-        )
         delete_stock_adjustment(user=info.context.user, adjustment_id=id)
         return DeleteStockAdjustment(ok=True)

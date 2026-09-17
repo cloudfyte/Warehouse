@@ -1,7 +1,6 @@
 import graphene
 from graphql_jwt.decorators import login_required
 
-from warehouse.services.audit import log_action
 from warehouse.services.settlement import (
     create_recurring_settlement, generate_settlements, mark_settlement_paid,
     skip_settlement, update_recurring_settlement,
@@ -71,15 +70,6 @@ class MarkSettlementPaid(graphene.Mutation):
     @login_required
     def mutate(self, info, id, **kwargs):
         settlement = mark_settlement_paid(user=info.context.user, id=id, **kwargs)
-        try:
-            log_action(
-                entity_type="Settlement", entity_id=settlement.pk, action="PAID",
-                actor=info.context.user,
-                detail={"number": settlement.settlement_number,
-                        "name": settlement.name, "amount": str(settlement.amount)},
-            )
-        except Exception:
-            pass
         return MarkSettlementPaid(settlement=settlement)
 
 
