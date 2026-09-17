@@ -382,6 +382,14 @@ class PurchaseBillItem(models.Model):
     # Known at the moment of buying, so it is captured here and carried onto
     # the batch. Asking for it again afterwards is the tedium this avoids.
     design_number = models.CharField(max_length=60, blank=True)
+    # Cloth bought from a mill does not always come here. It is often sent
+    # straight on to a stitching unit and comes back as garments, so the
+    # purchase itself says where it went — rather than a second record
+    # inventing the same cloth and the same cost all over again.
+    deliver_to_karigar = models.ForeignKey(
+        "Karigar", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="purchased_cloth",
+        help_text="Set when this cloth went straight to a stitching unit instead of a godown")
 
     # Readymade fields
     item_type = models.ForeignKey(ItemType, null=True, blank=True, on_delete=models.SET_NULL, related_name="bill_items")
@@ -2057,8 +2065,13 @@ class JobworkOrder(models.Model):
 
     order_number = models.CharField(max_length=40, unique=True, editable=False)
     karigar = models.ForeignKey(Karigar, on_delete=models.PROTECT, related_name="jobwork_orders")
-    # Who the cloth was bought from. It went straight to the unit, so there is
-    # no batch of it here — this records where it came from, not where it is.
+    # The purchase this came out of. Buying the cloth and sending it to a unit
+    # is one chain, not two records that happen to agree — the supplier, the
+    # metres and what was paid all come from the bill rather than being typed
+    # again here and drifting apart from it.
+    purchase_bill_item = models.OneToOneField(
+        "PurchaseBillItem", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="jobwork_order")
     supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.SET_NULL,
                                  related_name="jobwork_orders")
     design_number = models.CharField(max_length=60, blank=True, db_index=True)

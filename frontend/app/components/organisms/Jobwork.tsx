@@ -1,12 +1,11 @@
 "use client";
 import { useState } from "react";
 import { Truck, PackageCheck, X } from "lucide-react";
-import type { JobworkOrder, Karigar, ItemType, WarehouseLocation, Supplier } from "@/app/types";
+import type { JobworkOrder } from "@/app/types";
 import { formatDateShort, formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import Input from "@/app/components/atoms/Input";
-import Select from "@/app/components/atoms/Select";
 import Button from "@/app/components/atoms/Button";
 import Modal from "@/app/components/atoms/Modal";
 import Field from "@/app/components/molecules/Field";
@@ -17,10 +16,6 @@ import CustomerBill from "@/app/components/molecules/CustomerBill";
 
 interface Props {
   orders: JobworkOrder[];
-  karigars: Karigar[];
-  itemTypes: ItemType[];
-  warehouses: WarehouseLocation[];
-  suppliers: Supplier[];
   canManage: boolean;
   onRefresh?: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,13 +29,6 @@ const STATUS: Record<string, { bg: string; fg: string; label: string }> = {
   CANCELLED: { bg: "#f1f5f9", fg: "#64748b", label: "Cancelled" },
 };
 
-const BLANK = {
-  karigarId: "", itemTypeId: "", warehouseId: "", supplierId: "",
-  designNumber: "", clothMeters: "", clothCost: "", rate: "",
-  jobType: "WHOLESALE", bill: "", dueDate: "",
-  sentTransporter: "", sentLrNumber: "", sentVehicleNumber: "", sentPhotos: "",
-};
-
 /**
  * Whole jobs given to an outside handler.
  *
@@ -51,60 +39,25 @@ const BLANK = {
  * order, and pieces that turn up at the end of it.
  */
 export default function Jobwork({
-  orders, karigars, itemTypes, warehouses, suppliers, canManage, onRefresh, onMutate,
+  orders, canManage, onRefresh, onMutate,
 }: Props) {
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ ...BLANK });
-  const [run, setRun] = useState<{ size: string; pieces: string }[]>([{ size: "", pieces: "" }]);
   const [receiving, setReceiving] = useState<JobworkOrder | null>(null);
+  // A job born at the purchase has no size split yet — nobody knew it the day
+  // the cloth was bought. It gets counted here, when the garments turn up.
+  const [adhoc, setAdhoc] = useState<{ size: string; pieces: string }[]>([]);
   const [back, setBack] = useState<Record<string, string>>({});
   const [backPrice, setBackPrice] = useState("");
   const [backLeg, setBackLeg] = useState({ transporter: "", lr: "", vehicle: "", photos: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const runRows = run.filter(r => r.size.trim() && +r.pieces > 0)
-    .map(r => ({ size: r.size.trim(), pieces: +r.pieces }));
-  const runTotal = runRows.reduce((t, r) => t + r.pieces, 0);
-
   const owed = orders.reduce((t, o) => t + (o.amountDue || 0), 0);
   const out = orders.filter(o => o.status === "SENT" || o.status === "PARTIAL")
     .reduce((t, o) => t + (o.piecesExpected - o.piecesReceived), 0);
 
-  async function create() {
-    if (!runRows.length) { setErr("How many pieces of each size are you expecting back?"); return; }
-    setBusy(true); setErr("");
-    try {
-      await onMutate(
-        `mutation C($k:ID!,$it:ID!,$wh:ID!,$sizes:[JobworkSizeInput!]!,$sup:ID,$dn:String,`
-        + `$m:Float,$cost:Float,$rate:Float,$kind:String,$bill:String,$due:Date,`
-        + `$st:String,$slr:String,$sv:String,$sp:String){`
-        + `createJobworkOrder(karigarId:$k,itemTypeId:$it,receiveWarehouseId:$wh,sizes:$sizes,`
-        + `supplierId:$sup,designNumber:$dn,clothMeters:$m,clothCost:$cost,ratePerPiece:$rate,`
-        + `jobType:$kind,customerBillNumber:$bill,dueDate:$due,`
-        + `sentTransporter:$st,sentLrNumber:$slr,sentVehicleNumber:$sv,sentPhotos:$sp)`
-        + `{order{id orderNumber}}}`,
-        {
-          k: form.karigarId, it: form.itemTypeId, wh: form.warehouseId, sizes: runRows,
-          sup: form.supplierId || undefined, dn: form.designNumber || undefined,
-          m: +form.clothMeters || 0, cost: +form.clothCost || 0,
-          rate: form.rate === "" ? undefined : +form.rate,
-          kind: form.jobType, bill: form.jobType === "READYMADE" ? form.bill : undefined,
-          due: form.dueDate || undefined,
-          st: form.sentTransporter || undefined, slr: form.sentLrNumber || undefined,
-          sv: form.sentVehicleNumber || undefined, sp: form.sentPhotos || undefined,
-        },
-      );
-      showToast("Outside job created.", "success");
-      setShowForm(false); setForm({ ...BLANK }); setRun([{ size: "", pieces: "" }]);
-      onRefresh?.();
-    } catch (e: unknown) {
-      const msg = friendlyError(e); setErr(msg); showToast(msg, "error");
-    } finally { setBusy(false); }
-  }
-
   function openReceive(o: JobworkOrder) {
     setBack(Object.fromEntries(o.sizes.map(z => [z.size, String(z.piecesReceived || "")])));
+    setAdhoc(o.sizes.length ? [] : [{ size: "", pieces: "" }]);
     setBackPrice(""); setBackLeg({ transporter: "", lr: "", vehicle: "", photos: "" });
     setErr(""); setReceiving(o);
   }
@@ -119,7 +72,10 @@ export default function Jobwork({
         + `returnLrNumber:$lr,returnVehicleNumber:$v,returnPhotos:$p){order{id status}}}`,
         {
           id: receiving.id,
-          sizes: receiving.sizes.map(z => ({ size: z.size, received: +(back[z.size] || 0) })),
+          sizes: receiving.sizes.length
+            ? receiving.sizes.map(z => ({ size: z.size, received: +(back[z.size] || 0) }))
+            : adhoc.filter(r => r.size.trim() && +r.pieces > 0)
+                   .map(r => ({ size: r.size.trim(), received: +r.pieces })),
           price: backPrice === "" ? undefined : +backPrice,
           t: backLeg.transporter || undefined, lr: backLeg.lr || undefined,
           v: backLeg.vehicle || undefined, p: backLeg.photos || undefined,
@@ -136,36 +92,27 @@ export default function Jobwork({
     <div style={{ padding: 24 }}>
       <PageHeader
         title="Outside Jobs"
-        sub="Cloth sent straight to a unit that cuts and stitches it"
-        actions={canManage && (
-          <Button onClick={() => { setShowForm(true); setErr(""); }}>
-            <Truck size={14} /> New Outside Job
-          </Button>
-        )}
+        sub="Cloth railed straight from the supplier to a unit that cuts and stitches it"
       />
 
       <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 1,
-        background: "var(--line)", border: "1px solid var(--line)", borderRadius: 12,
-        overflow: "hidden", marginBottom: 14,
+        display: "flex", gap: 18, flexWrap: "wrap", alignItems: "baseline",
+        padding: "10px 14px", border: "1px solid var(--line)", borderRadius: 10,
+        marginBottom: 14, fontSize: 13,
       }}>
-        {([
-          ["Open jobs", String(orders.filter(o => o.status === "SENT" || o.status === "PARTIAL").length), undefined],
-          ["Pieces awaited", String(out), undefined],
-          ["Owed to units", formatMoney(owed), owed > 0 ? "#e65100" : undefined],
-        ] as const).map(([label, value, color]) => (
-          <div key={label} style={{ background: "var(--paper)", padding: "12px 16px" }}>
-            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
-            <div style={{ fontSize: 19, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>{value}</div>
-          </div>
-        ))}
+        <span><strong style={{ fontSize: 16 }}>{orders.filter(o => o.status === "SENT" || o.status === "PARTIAL").length}</strong> open</span>
+        <span><strong style={{ fontSize: 16 }}>{out}</strong> pieces awaited</span>
+        {owed > 0 && <span style={{ color: "#e65100" }}><strong style={{ fontSize: 16 }}>{formatMoney(owed)}</strong> owed to units</span>}
+        <span style={{ marginLeft: "auto", color: "var(--muted)", fontSize: 12 }}>
+          <Truck size={12} style={{ verticalAlign: -1 }} /> A job starts on the purchase bill — mark the cloth as going to a unit.
+        </span>
       </div>
 
       <div style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden" }}>
         {orders.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
-            No outside jobs yet. This is for cloth that goes straight from the supplier to a unit
-            that cuts and stitches it — everything else goes through Cutting and Stitching.
+            No outside jobs yet. On a purchase bill, set a cloth line to go to a stitching
+            unit instead of the godown and the job opens itself here.
           </div>
         ) : orders.map(o => {
           const st = STATUS[o.status] ?? STATUS.SENT;
@@ -229,136 +176,6 @@ export default function Jobwork({
         })}
       </div>
 
-      {showForm && (
-        <Modal title="New Outside Job"
-          subtitle="Cloth goes straight to the unit. It never becomes stock here."
-          width={620} onClose={() => setShowForm(false)} onSubmit={create}
-          footer={<div style={{ display: "flex", gap: 10 }}>
-            <Button type="submit" style={{ flex: 1 }}
-              disabled={busy || !form.karigarId || !form.itemTypeId || !form.warehouseId || !runRows.length
-                || (form.jobType === "READYMADE" && !form.bill.trim())}>
-              {busy ? "Creating…" : "Create"}
-            </Button>
-            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
-          </div>}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Unit" required hint="Who cuts and stitches it.">
-              <Select value={form.karigarId} onChange={e => {
-                const k = karigars.find(x => x.id === e.target.value);
-                setForm(p => ({ ...p, karigarId: e.target.value, rate: k ? String(k.ratePerPiece ?? "") : "" }));
-              }}>
-                <option value="">Select…</option>
-                {karigars.filter(k => k.active !== false).map(k => (
-                  <option key={k.id} value={k.id}>{k.name}{k.city ? ` · ${k.city}` : ""}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Garment" required>
-              <Select value={form.itemTypeId} onChange={e => setForm(p => ({ ...p, itemTypeId: e.target.value }))}>
-                <option value="">Select…</option>
-                {itemTypes.filter(t => t.active !== false).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </Select>
-            </Field>
-            <Field label="Cloth supplier" hint="Where the cloth came from. It went straight to the unit.">
-              <Select value={form.supplierId} onChange={e => setForm(p => ({ ...p, supplierId: e.target.value }))}>
-                <option value="">—</option>
-                {suppliers.filter(x => x.active !== false).map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
-              </Select>
-            </Field>
-            <Field label="Design number">
-              <Input value={form.designNumber} placeholder="e.g. 4472"
-                onChange={e => setForm(p => ({ ...p, designNumber: e.target.value }))} />
-            </Field>
-            <Field label="Cloth metres">
-              <Input type="number" min="0" step="0.01" value={form.clothMeters}
-                onChange={e => setForm(p => ({ ...p, clothMeters: e.target.value }))} />
-            </Field>
-            <Field label="Cloth cost" hint="What you paid for it, even though it never came here.">
-              <Input type="number" min="0" step="0.01" value={form.clothCost}
-                onChange={e => setForm(p => ({ ...p, clothCost: e.target.value }))} />
-            </Field>
-            <Field label="Rate per piece" hint="Covers cutting and stitching together.">
-              <Input type="number" min="0" step="0.01" value={form.rate}
-                onChange={e => setForm(p => ({ ...p, rate: e.target.value }))} />
-            </Field>
-            <Field label="Garments land at" required>
-              <Select value={form.warehouseId} onChange={e => setForm(p => ({ ...p, warehouseId: e.target.value }))}>
-                <option value="">Select…</option>
-                {warehouses.filter(w => w.active !== false).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </Select>
-            </Field>
-          </div>
-
-          <Field label="What is this for?" required style={{ marginTop: 10 }}>
-            <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
-              {([["WHOLESALE", "Wholesale"], ["READYMADE", "Readymade"]] as const).map(([key, label]) => (
-                <button key={key} type="button" onClick={() => setForm(p => ({ ...p, jobType: key }))}
-                  style={{
-                    padding: "7px 16px", fontSize: 13, border: "none", cursor: "pointer",
-                    fontWeight: form.jobType === key ? 700 : 500,
-                    background: form.jobType === key ? "var(--primary)" : "transparent",
-                    color: form.jobType === key ? "#fff" : "var(--muted)",
-                  }}>{label}</button>
-              ))}
-            </div>
-          </Field>
-          {form.jobType === "READYMADE" && (
-            <Field label="Customer bill number" required hint="Carried onto the garments when they arrive.">
-              <Input value={form.bill} placeholder="e.g. SW-1042"
-                onChange={e => setForm(p => ({ ...p, bill: e.target.value }))} />
-            </Field>
-          )}
-
-          <div style={{ border: "1px dashed var(--line)", borderRadius: 10, padding: "12px 14px", marginTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
-              Expected back — by size
-            </div>
-            {run.map((r, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <Input placeholder="Size" value={r.size} style={{ flex: 1 }}
-                  onChange={e => setRun(rs => rs.map((x, j) => j === i ? { ...x, size: e.target.value } : x))} />
-                <Input type="number" min="1" placeholder="Pieces" value={r.pieces} style={{ width: 110 }}
-                  onChange={e => setRun(rs => rs.map((x, j) => j === i ? { ...x, pieces: e.target.value } : x))} />
-                <button type="button" aria-label={`Remove size ${i + 1}`}
-                  onClick={() => setRun(rs => rs.filter((_, j) => j !== i))}
-                  style={{ background: "none", border: "none", color: "var(--muted)", padding: 6, cursor: "pointer" }}>
-                  <X size={15} />
-                </button>
-              </div>
-            ))}
-            <Button type="button" variant="secondary" size="sm"
-              onClick={() => setRun(rs => [...rs, { size: "", pieces: "" }])}>+ Add size</Button>
-            {runTotal > 0 && (
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
-                <strong style={{ color: "var(--ink)" }}>{runTotal} pieces</strong> expected
-                {form.rate && <> · making {formatMoney(runTotal * +form.rate)}</>}
-              </div>
-            )}
-          </div>
-
-          <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "12px 14px", marginTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 }}>
-              Cloth going out
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              <Field label="Transporter">
-                <Input value={form.sentTransporter} onChange={e => setForm(p => ({ ...p, sentTransporter: e.target.value }))} />
-              </Field>
-              <Field label="LR number">
-                <Input value={form.sentLrNumber} onChange={e => setForm(p => ({ ...p, sentLrNumber: e.target.value }))} />
-              </Field>
-              <Field label="Vehicle">
-                <Input value={form.sentVehicleNumber} onChange={e => setForm(p => ({ ...p, sentVehicleNumber: e.target.value }))} />
-              </Field>
-            </div>
-            <Field label="LR photo" style={{ marginTop: 10 }}>
-              <PhotoPicker value={form.sentPhotos} onChange={v => setForm(p => ({ ...p, sentPhotos: v }))} max={3} />
-            </Field>
-          </div>
-          {err && <ErrorBanner msg={err} />}
-        </Modal>
-      )}
-
       {receiving && (
         <Modal title={`Receive ${receiving.orderNumber}`}
           subtitle={`${receiving.karigar.name} · ${receiving.itemType.name}`}
@@ -375,7 +192,7 @@ export default function Jobwork({
           </div>
           <div style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden", marginBottom: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px", gap: 8, padding: "8px 12px", background: "var(--canvas)", fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
-              <span>Size</span><span>Sent out</span><span>Came back</span>
+              <span>Size</span><span>{receiving.sizes.length ? "Sent out" : ""}</span><span>Came back</span>
             </div>
             {receiving.sizes.map(z => (
               <div key={z.id} style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px", gap: 8, padding: "7px 12px", alignItems: "center", borderTop: "1px solid var(--line)" }}>
@@ -385,6 +202,25 @@ export default function Jobwork({
                   onChange={e => setBack(b => ({ ...b, [z.size]: e.target.value }))} />
               </div>
             ))}
+            {receiving.sizes.length === 0 && (
+              <div style={{ padding: "8px 12px", borderTop: "1px solid var(--line)" }}>
+                {adhoc.map((r, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <Input placeholder="Size" value={r.size} style={{ flex: 1 }}
+                      onChange={e => setAdhoc(rs => rs.map((x, j) => j === i ? { ...x, size: e.target.value } : x))} />
+                    <Input type="number" min="0" placeholder="Pieces" value={r.pieces} style={{ width: 110 }}
+                      onChange={e => setAdhoc(rs => rs.map((x, j) => j === i ? { ...x, pieces: e.target.value } : x))} />
+                    <button type="button" aria-label={`Remove size ${i + 1}`}
+                      onClick={() => setAdhoc(rs => rs.filter((_, j) => j !== i))}
+                      style={{ background: "none", border: "none", color: "var(--muted)", padding: 6, cursor: "pointer" }}>
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
+                <Button type="button" variant="secondary" size="sm"
+                  onClick={() => setAdhoc(rs => [...rs, { size: "", pieces: "" }])}>+ Add size</Button>
+              </div>
+            )}
           </div>
 
           <Field label="Sale price per piece"

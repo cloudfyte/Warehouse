@@ -122,7 +122,7 @@ def create_purchase_bill(
             else:
                 item_gst_rate = Decimal(str(raw_rate))
 
-            PurchaseBillItem.objects.create(
+            bill_item = PurchaseBillItem.objects.create(
                 bill=bill,
                 item_kind=kind,
                 cloth_category_id=item.get("cloth_category_id"),
@@ -132,6 +132,7 @@ def create_purchase_bill(
                 bin_location=item.get("bin_location", ""),
                 cloth_code=item.get("cloth_code", ""),
                 design_number=item.get("design_number", ""),
+                deliver_to_karigar_id=item.get("deliver_to_karigar_id"),
                 item_type_id=item.get("item_type_id"),
                 age_group=item.get("age_group", ""),
                 size=item.get("size", ""),
@@ -143,7 +144,16 @@ def create_purchase_bill(
             )
 
             # Immediately create stock record
-            if kind == "RAW_CLOTH":
+            if kind == "RAW_CLOTH" and item.get("deliver_to_karigar_id"):
+                # Bought and sent straight on. It never reaches a shelf here,
+                # so booking it into a godown would invent stock that is not in
+                # the building — the job is opened against this purchase line
+                # instead, and what comes back is garments.
+                from warehouse.services.jobwork import open_jobwork_from_purchase
+
+                open_jobwork_from_purchase(
+                    user=user, bill_item=bill_item, item=item, warehouse=warehouse)
+            elif kind == "RAW_CLOTH":
                 receive_cloth_into_stock(
                     design_number=item.get("design_number", ""),
                     warehouse_id=warehouse.id,

@@ -29,6 +29,20 @@ class PurchaseBillItemInput(graphene.InputObjectType):
     unit_price = graphene.Float()
     gst_rate = graphene.Float()
     notes = graphene.String()
+    # Cloth that never comes here: bought and railed straight to a stitching
+    # unit. The job is opened from this line instead of a godown entry.
+    deliver_to_karigar_id = graphene.ID()
+    job_type = graphene.String()
+    rate_per_piece = graphene.Float()
+    due_date = graphene.Date()
+    customer_bill_number = graphene.String()
+    customer_name = graphene.String()
+    customer_phone = graphene.String()
+    bill_photos = graphene.String()
+    sent_transporter = graphene.String()
+    sent_lr_number = graphene.String()
+    sent_vehicle_number = graphene.String()
+    sent_photos = graphene.String()
 
 
 class CreatePurchaseBill(graphene.Mutation):

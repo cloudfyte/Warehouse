@@ -20,12 +20,14 @@ import { showToast } from "@/app/lib/toast";
 import { printDoc, fmtMoney, fmtDate } from "@/app/lib/print";
 import Pagination from "@/app/components/atoms/Pagination";
 import Modal from "@/app/components/atoms/Modal";
+import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
 interface Supplier { id: string; name: string; active?: boolean }
 interface Warehouse { id: string; name: string }
 interface ClothCategory { id: string; name: string }
+interface Karigar { id: string; name: string; city?: string; ratePerPiece: number; active: boolean }
 interface ClothColor { id: string; name: string; hexCode?: string }
 interface ItemType { id: string; name: string }
 
@@ -98,6 +100,13 @@ interface DraftItem {
   unitPrice: string
   gstRate: string
   notes: string
+  // Cloth that goes straight from the supplier to a stitching unit. Blank is
+  // the ordinary case: it comes to our godown.
+  deliverToKarigarId: string
+  jobType: "WHOLESALE" | "READYMADE"
+  customerBillNumber: string
+  sentLrNumber: string
+  sentPhotos: string
 }
 
 interface Props {
@@ -107,6 +116,7 @@ interface Props {
   clothCategories: ClothCategory[]
   clothColors: ClothColor[]
   itemTypes: ItemType[]
+  karigars: Karigar[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean; isStoreKeeper: boolean
   systemSettings?: { gstOnPurchases?: boolean; currencySymbol?: string; gstin?: string; companyName?: string }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,6 +139,7 @@ function blankItem(): DraftItem {
     itemKind: "RAW_CLOTH", clothCategoryId: "", clothColorId: "",
     totalMeters: "", costPerMeter: "", binLocation: "", clothCode: "", designNumber: "",
     itemTypeId: "", ageGroup: "", size: "", quantity: "", unitPrice: "", gstRate: "", notes: "",
+    deliverToKarigarId: "", jobType: "WHOLESALE", customerBillNumber: "", sentLrNumber: "", sentPhotos: "",
   };
 }
 
@@ -151,7 +162,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }
 // ─── main component ────────────────────────────────────────────────────────────
 
 export default function PurchaseBills({
-  bills, suppliers, warehouses, clothCategories, clothColors, itemTypes,
+  bills, suppliers, warehouses, clothCategories, clothColors, itemTypes, karigars,
   isAdmin, isSuperAdmin, isManager, isStoreKeeper, systemSettings, onMutate,
 }: Props) {
   const canCreate = isSuperAdmin || isAdmin || isManager || isStoreKeeper;
@@ -345,6 +356,9 @@ export default function PurchaseBills({
         if (!it.clothCategoryId) return setErr(`Item ${i + 1}: cloth category is required.`);
         if (!it.clothColorId) return setErr(`Item ${i + 1}: cloth color is required.`);
         if (!it.totalMeters || parseFloat(it.totalMeters) <= 0) return setErr(`Item ${i + 1}: total meters must be > 0.`);
+        if (it.deliverToKarigarId && !it.itemTypeId) return setErr(`Item ${i + 1}: tell the unit what garment to make.`);
+        if (it.deliverToKarigarId && it.jobType === "READYMADE" && !it.customerBillNumber.trim())
+          return setErr(`Item ${i + 1}: readymade work needs the customer's bill number.`);
       } else {
         if (!it.itemTypeId) return setErr(`Item ${i + 1}: item type is required.`);
         if (!it.quantity || parseInt(it.quantity) <= 0) return setErr(`Item ${i + 1}: quantity must be > 0.`);
@@ -391,6 +405,11 @@ export default function PurchaseBills({
             unitPrice: it.unitPrice ? parseFloat(it.unitPrice) : null,
             gstRate: it.gstRate ? parseFloat(it.gstRate) : null,
             notes: it.notes,
+            deliverToKarigarId: it.deliverToKarigarId || null,
+            jobType: it.deliverToKarigarId ? it.jobType : null,
+            customerBillNumber: it.customerBillNumber || null,
+            sentLrNumber: it.sentLrNumber || null,
+            sentPhotos: it.sentPhotos || null,
           })),
         }
       );
@@ -974,6 +993,7 @@ export default function PurchaseBills({
                     <ItemEditor
                       key={idx} item={item} idx={idx}
                       clothCategories={clothCategories} clothColors={clothColors} itemTypes={itemTypes}
+                      karigars={karigars}
                       gstEnabled={gstEnabled}
                       onChange={patch => updateItem(idx, patch)}
                       onSplit={(sizes, qtyEach) => splitIntoSizes(idx, sizes, qtyEach)}
@@ -1071,11 +1091,20 @@ export default function PurchaseBills({
 
 // ─── item editor row ──────────────────────────────────────────────────────────
 
+function destBtn(on: boolean): React.CSSProperties {
+  return {
+    padding: "7px 14px", borderRadius: 20, border: `1px solid ${on ? "var(--primary)" : "var(--line)"}`,
+    cursor: "pointer", fontSize: 13, fontWeight: 600,
+    background: on ? "var(--primary)" : "var(--canvas)", color: on ? "#fff" : "var(--ink)",
+  };
+}
+
 function ItemEditor({
-  item, idx, clothCategories, clothColors, itemTypes, gstEnabled, onChange, onSplit, onRemove,
+  item, idx, clothCategories, clothColors, itemTypes, karigars, gstEnabled, onChange, onSplit, onRemove,
 }: {
   item: DraftItem; idx: number
   clothCategories: ClothCategory[]; clothColors: ClothColor[]; itemTypes: ItemType[]
+  karigars: Karigar[]
   gstEnabled?: boolean
   onChange: (patch: Partial<DraftItem>) => void
   onSplit: (sizes: string[], qtyEach: number) => void
@@ -1117,6 +1146,7 @@ function ItemEditor({
       </div>
 
       {item.itemKind === "RAW_CLOTH" ? (
+        <>
         <FormGrid gap={10}>
           <Field label="Category" required>
             <Select value={item.clothCategoryId} onChange={e => onChange({ clothCategoryId: e.target.value })}>
@@ -1163,7 +1193,60 @@ function ItemEditor({
               invents one from the price if this cloth came without a code.
             </div>
           </Field>
-        </FormGrid>
+          </FormGrid>
+
+          {/* Where the cloth actually goes. Most of the time it comes here;
+              sometimes it is railed from the supplier straight to a unit in
+              another city that cuts and stitches it. */}
+          <div style={{ marginTop: 12, borderTop: "1px dashed var(--line)", paddingTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 8 }}>
+              WHERE DOES THIS CLOTH GO?
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: item.deliverToKarigarId ? 12 : 0 }}>
+              <button type="button" onClick={() => onChange({ deliverToKarigarId: "" })}
+                style={destBtn(!item.deliverToKarigarId)}>Our godown</button>
+              {karigars.filter(k => k.active).map(k => (
+                <button type="button" key={k.id} onClick={() => onChange({ deliverToKarigarId: k.id })}
+                  style={destBtn(item.deliverToKarigarId === k.id)}>
+                  {k.name}{k.city ? ` · ${k.city}` : ""}
+                </button>
+              ))}
+            </div>
+
+            {item.deliverToKarigarId && (
+              <FormGrid gap={10}>
+                <Field label="What are they making?" required
+                  hint="The garment that comes back — the cloth never reaches a shelf here.">
+                  <Select value={item.itemTypeId} onChange={e => onChange({ itemTypeId: e.target.value })}>
+                    <option value="">Select…</option>
+                    {itemTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </Select>
+                </Field>
+                <Field label="LR number" hint="The transport receipt for the cloth going out.">
+                  <Input value={item.sentLrNumber} onChange={e => onChange({ sentLrNumber: e.target.value })}
+                    placeholder="e.g. LR-77120" />
+                </Field>
+                <Field label="Wholesale or a customer's order?">
+                  <Select value={item.jobType}
+                    onChange={e => onChange({ jobType: e.target.value as DraftItem["jobType"] })}>
+                    <option value="WHOLESALE">Wholesale</option>
+                    <option value="READYMADE">Against a customer bill</option>
+                  </Select>
+                </Field>
+                {item.jobType === "READYMADE" && (
+                  <Field label="Customer bill number" required>
+                    <Input value={item.customerBillNumber}
+                      onChange={e => onChange({ customerBillNumber: e.target.value })}
+                      placeholder="e.g. SW-5001" />
+                  </Field>
+                )}
+                <Field label="LR photo">
+                  <PhotoPicker value={item.sentPhotos} onChange={v => onChange({ sentPhotos: v })} max={3} />
+                </Field>
+              </FormGrid>
+            )}
+          </div>
+        </>
       ) : (
         <FormGrid gap={10}>
           <Field label="Item Type" required>

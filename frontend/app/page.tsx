@@ -731,6 +731,7 @@ export default function Home() {
               clothCategories={data?.clothCategories || []}
               clothColors={data?.clothColors || []}
               itemTypes={data?.itemTypes || []}
+              karigars={data?.karigars || []}
               isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager} isStoreKeeper={isStoreKeeper}
               systemSettings={data?.systemSettings}
               onMutate={mutate}
@@ -913,10 +914,6 @@ export default function Home() {
         {currentTab === "jobwork" && (
           <Jobwork
             orders={data?.jobworkOrders || []}
-            karigars={data?.karigars || []}
-            itemTypes={data?.itemTypes || []}
-            warehouses={data?.warehouseLocations || []}
-            suppliers={data?.suppliers || []}
             canManage={isAdmin || isSuperAdmin || isManager || isStoreKeeper}
             onRefresh={() => token && loadData(token)}
             onMutate={mutate}

@@ -102,6 +102,76 @@ def create_jobwork_order(*, user, karigar_id, item_type_id, receive_warehouse_id
     return order
 
 
+def open_jobwork_from_purchase(*, user, bill_item, item, warehouse):
+    """Open the outside job that this purchase line already is.
+
+    The cloth was bought and railed straight on to the unit; the supplier, the
+    metres and what they cost are on the bill line and are not asked for
+    again. Sizes are usually not known yet — they come back with the garments.
+    """
+    if not item.get("item_type_id"):
+        raise GraphQLError(
+            "Cloth going straight to a stitching unit — what garment are they making?")
+    try:
+        karigar = Karigar.objects.get(pk=item["deliver_to_karigar_id"], active=True)
+    except Karigar.DoesNotExist as exc:
+        raise GraphQLError("Karigar not found or inactive.") from exc
+
+    job_type = (item.get("job_type") or JobworkOrder.JobType.WHOLESALE).upper()
+    if job_type not in JobworkOrder.JobType.values:
+        raise GraphQLError("An outside job is either wholesale or readymade.")
+    customer_order = None
+    bill_number = (item.get("customer_bill_number") or "").strip()
+    if job_type == JobworkOrder.JobType.READYMADE:
+        if not bill_number:
+            raise GraphQLError(
+                "Readymade work is made against a customer's bill — give the bill number.")
+        from warehouse.services.customer_order import claim_customer_order
+
+        customer_order = claim_customer_order(
+            user=user, bill_number=bill_number,
+            customer_name=item.get("customer_name", ""),
+            customer_phone=item.get("customer_phone", ""),
+            bill_photos=item.get("bill_photos", ""))
+    else:
+        bill_number = ""
+
+    rate = item.get("rate_per_piece")
+    rate = Decimal(str(rate if rate not in (None, "") else karigar.rate_per_piece))
+    if rate < 0:
+        raise GraphQLError("A rate cannot be negative.")
+
+    order = JobworkOrder.objects.create(
+        karigar=karigar,
+        purchase_bill_item=bill_item,
+        supplier=bill_item.bill.supplier,
+        item_type_id=item["item_type_id"],
+        receive_warehouse=warehouse,
+        design_number=(item.get("design_number") or "").strip(),
+        cloth_meters=Decimal(str(item.get("total_meters") or 0)),
+        cloth_cost=bill_item.total_price or Decimal("0.00"),
+        job_type=job_type,
+        customer_bill_number=bill_number,
+        customer_order=customer_order,
+        rate_per_piece=rate,
+        due_date=item.get("due_date"),
+        notes=(item.get("notes") or "").strip(),
+        created_by=user,
+        sent_transporter=(item.get("sent_transporter") or "").strip(),
+        sent_lr_number=(item.get("sent_lr_number") or "").strip(),
+        sent_vehicle_number=(item.get("sent_vehicle_number") or "").strip(),
+        sent_photos=save_data_urls_csv(item.get("sent_photos") or "", "jobwork"),
+    )
+    rows = _size_rows(item.get("sizes"))
+    if rows:
+        JobworkSize.objects.bulk_create([
+            JobworkSize(order=order, size=r["size"].strip(),
+                        pieces_expected=int(r["pieces"]), sort_order=i)
+            for i, r in enumerate(rows)
+        ])
+    return order
+
+
 def receive_jobwork(*, user, id, sizes, received_date=None, sale_price=None, **transit):
     """
     Book the garments that came back.
@@ -123,7 +193,13 @@ def receive_jobwork(*, user, id, sizes, received_date=None, sale_price=None, **t
         by_size = {s.size.lower(): s for s in order.sizes.all()}
         for row in _size_rows(sizes, field="received"):
             found = by_size.get(row["size"].strip().lower())
-            if not found:
+            if not found and not by_size:
+                # Opened from a purchase, where nobody knew the size split yet.
+                found = JobworkSize.objects.create(
+                    order=order, size=row["size"].strip(),
+                    pieces_expected=int(row.get("received") or 0),
+                    sort_order=order.sizes.count())
+            elif not found:
                 raise GraphQLError(f"Size {row['size']} was not on this order.")
             received = int(row.get("received") or 0)
             if received > found.pieces_expected:

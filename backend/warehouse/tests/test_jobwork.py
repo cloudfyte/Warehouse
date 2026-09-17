@@ -353,3 +353,65 @@ class WhereIsMyOrder(JobworkFixture):
 
         stages = [r["stage"] for r in get_customer_bills(self.admin)]
         self.assertLess(stages.index("STITCHING"), stages.index("READY"))
+
+
+class TheJobStartsAtThePurchase(JobworkFixture):
+    """Buying the cloth and sending it on is one act, not two records.
+
+    "i have purcahse from banaras textiles then with LR it went to mumbai
+    karikargs the strcthing job done then it cam to our warehouse."
+    """
+
+    def _bill_line(self, **kw):
+        from warehouse.models import ClothCategory, ClothColor
+        from warehouse.services.purchase_bill import create_purchase_bill
+
+        line = {
+            "item_kind": "RAW_CLOTH",
+            "cloth_category_id": ClothCategory.objects.create(name="Silk").id,
+            "cloth_color_id": ClothColor.objects.create(name="Maroon").id,
+            "total_meters": 200,
+            "cost_per_meter": 100,
+            "design_number": "BN-8891",
+            "item_type_id": self.item_type.id,
+            "deliver_to_karigar_id": self.unit.id,
+            "sent_lr_number": "LR-77120",
+        }
+        line.update(kw)
+        return create_purchase_bill(
+            user=self.admin, supplier_id=self.supplier.id,
+            warehouse_id=self.warehouse.id, items=[line])
+
+    def test_cloth_sent_straight_on_never_becomes_godown_stock(self):
+        self._bill_line()
+        self.assertFalse(RawClothBatch.objects.filter(design_number="BN-8891").exists())
+
+    def test_the_purchase_opens_one_job_carrying_the_bill_s_own_numbers(self):
+        bill = self._bill_line()
+        order = JobworkOrder.objects.get(purchase_bill_item__bill=bill)
+        self.assertEqual(order.karigar, self.unit)
+        self.assertEqual(order.supplier, self.supplier)
+        self.assertEqual(order.design_number, "BN-8891")
+        self.assertEqual(order.cloth_meters, Decimal("200.00"))
+        self.assertEqual(order.cloth_cost, Decimal("20000.00"))
+        self.assertEqual(order.sent_lr_number, "LR-77120")
+        self.assertEqual(order.rate_per_piece, Decimal("200.00"))
+
+    def test_cloth_for_our_own_godown_still_lands_in_stock(self):
+        self._bill_line(deliver_to_karigar_id=None, design_number="BN-8892")
+        self.assertTrue(RawClothBatch.objects.filter(design_number="BN-8892").exists())
+        self.assertFalse(JobworkOrder.objects.exists())
+
+    def test_the_unit_must_be_told_what_to_make(self):
+        with self.assertRaises(GraphQLError):
+            self._bill_line(item_type_id=None)
+
+    def test_sizes_are_counted_when_the_garments_arrive(self):
+        """Nobody knows the size split on the day the cloth is bought."""
+        bill = self._bill_line()
+        order = JobworkOrder.objects.get(purchase_bill_item__bill=bill)
+        receive_jobwork(user=self.admin, id=order.id, sale_price=3000,
+                        sizes=[{"size": "40", "received": 6}])
+        order.refresh_from_db()
+        self.assertEqual(order.pieces_received, 6)
+        self.assertEqual(order.status, JobworkOrder.Status.RECEIVED)
