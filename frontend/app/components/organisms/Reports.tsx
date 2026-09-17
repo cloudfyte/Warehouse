@@ -68,7 +68,7 @@ export default function Reports({ gql }: Props) {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Reports" />
+      <PageHeader title="Reports" sub="What the year made, and who has not paid yet" />
 
       {/* Section tabs */}
       <div className="flex gap-2">
