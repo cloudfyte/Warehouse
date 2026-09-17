@@ -11,11 +11,12 @@ import Textarea from "@/app/components/atoms/Textarea";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import TotalsBar from "@/app/components/molecules/TotalsBar";
+import Cell from "@/app/components/molecules/Cell";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
-import { formatMoney, productName } from "@/app/lib/formatters";
+import { formatMoney, formatDateShort, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 
 interface Props {
@@ -266,59 +267,83 @@ export default function Quotations({ quotations, buyers, warehouses, finishedPro
         ]}
       />
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
-                {["#", "Buyer", "Warehouse", "Items", "Total", "Valid Till", "Status", ""].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-medium" style={{ color: "var(--text-secondary)" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visible.length === 0 ? (
-                <tr>
-                  <td colSpan={8}>
-                    <div style={{ textAlign: "center", padding: "60px 24px" }}>
-                      <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>📄</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
-                        {filter === "ALL" ? "No quotations yet" : `No ${filter.toLowerCase()} quotations`}
-                      </div>
-                      <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                        {filter === "ALL" ? "Click + New Quotation to create your first price proposal" : "Try selecting a different status tab"}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ) : paged.map(q => (
-                <tr key={q.id} className="hover:bg-[var(--surface-2)] cursor-pointer transition-colors"
-                  style={{ borderBottom: "1px solid var(--border)" }}
-                  onClick={() => setSelected(q)}>
-                  <td className="px-4 py-3 font-mono text-xs font-medium">{q.quotationNumber}</td>
-                  <td className="px-4 py-3">{q.buyer.name}</td>
-                  <td className="px-4 py-3">{q.warehouse.name}</td>
-                  <td className="px-4 py-3">{q.items.length}</td>
-                  <td className="px-4 py-3 font-medium">{fmt(q.totalAmount)}</td>
-                  <td className="px-4 py-3 text-xs">{q.validityDate ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded text-xs font-medium text-white"
-                      style={{ background: STATUS_BADGE_COLORS[q.status] ?? "#555" }}>
+      {visible.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "64px 24px" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
+            {filter === "ALL" ? "No quotations yet" : `No ${(QUOTATION_STATUS_LABELS[filter] ?? filter).toLowerCase()} quotations`}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--muted)" }}>
+            {filter === "ALL" ? "A quotation is a price you offered a buyer before they ordered." : "Try another status."}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {paged.map(q => {
+            const tone = STATUS_BADGE_COLORS[q.status] ?? "#94a3b8";
+            const expired = q.validityDate ? new Date(q.validityDate) < new Date() : false;
+            return (
+              <div key={q.id} role="button" tabIndex={0}
+                onClick={() => setSelected(q)}
+                onKeyDown={e => { if (e.key === "Enter") setSelected(q); }}
+                style={{
+                  display: "grid",
+                  // ~820px of minimums — fits a 1280 laptop with the sidebar open.
+                  gridTemplateColumns: "minmax(170px,1.5fr) minmax(110px,0.9fr) minmax(100px,0.8fr) minmax(130px,1fr) 170px",
+                  gap: 16, alignItems: "center", cursor: "pointer", textAlign: "left",
+                  border: "1px solid var(--line)", borderLeft: `3px solid ${tone}`,
+                  borderRadius: 12, padding: "14px 16px", background: "var(--paper)",
+                }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {q.buyer.name}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+                    {q.quotationNumber} · {q.items.length} item{q.items.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+
+                <Cell label="Warehouse" value={q.warehouse.name} />
+                <Cell label="Valid till"
+                  value={q.validityDate
+                    ? <span style={{ color: expired && q.status !== "ACCEPTED" ? "#d32f2f" : undefined }}>
+                        {formatDateShort(q.validityDate)}
+                      </span>
+                    : null} />
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Where it stands
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <span style={{
+                      padding: "3px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                      background: tone + "22", color: tone,
+                    }}>
                       {QUOTATION_STATUS_LABELS[q.status] ?? q.status}
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {q.convertedTo && (
-                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>→ {q.convertedTo.orderNumber}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  {q.convertedTo && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+                      became {q.convertedTo.orderNumber}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: -0.5, lineHeight: 1.1 }}>
+                    {fmt(q.totalAmount)}
+                  </div>
+                  {q.discount > 0 && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+                      after {fmt(q.discount)} off
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
       <Pagination page={page} total={visible.length} perPage={PER_PAGE} onChange={setPage} />
 
       {/* Detail panel */}

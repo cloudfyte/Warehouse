@@ -24,6 +24,7 @@ import SizeRunSplit from "@/app/components/molecules/SizeRunSplit";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import TotalsBar from "@/app/components/molecules/TotalsBar";
+import Cell from "@/app/components/molecules/Cell";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
 import Modal from "@/app/components/atoms/Modal";
@@ -887,33 +888,67 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         </Modal>
       )}
 
-      <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--border)", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "var(--bg)", fontSize: 12, color: "var(--muted)", textAlign: "left" }}>
-              {["PO Number", "Supplier", "Type", "Date", "Total", "Status", ""].map(h => (
-                <th key={h} style={{ padding: "10px 16px", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {paged.map(o => (
-              <tr key={o.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                <td style={{ padding: "12px 16px", fontWeight: 600 }}>{o.poNumber}</td>
-                <td style={{ padding: "12px 16px" }}>{o.supplier.name}</td>
-                <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--muted)" }}>{o.orderType.replace("_", " ")}</td>
-                <td style={{ padding: "12px 16px", fontSize: 13 }}>{formatDateShort(o.orderDate)}</td>
-                <td style={{ padding: "12px 16px", fontWeight: 600 }}>{formatMoney(o.totalAmount)}</td>
-                <td style={{ padding: "12px 16px" }}><Badge s={o.status} /></td>
-                <td style={{ padding: "12px 16px" }}>
-                  <Button variant="secondary" size="sm" onClick={() => { setDetail(o); setError(""); }}>View</Button>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No purchase orders. Click &quot;New Order&quot; to create one.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      {filtered.length === 0 ? (
+        <div style={{ padding: "64px 0", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>
+          No purchase orders yet.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {paged.map(o => {
+            const tone = STATUS_BADGE_COLORS[o.status] || "#94a3b8";
+            const received = o.receipts?.length ? o.receipts[o.receipts.length - 1] : null;
+            return (
+              <div key={o.id} style={{
+                display: "grid",
+                // ~860px of minimums — fits a 1280 laptop with the sidebar open.
+                gridTemplateColumns: "minmax(170px,1.5fr) minmax(110px,0.9fr) minmax(110px,0.9fr) minmax(150px,1.1fr) 150px 84px",
+                gap: 16, alignItems: "center",
+                border: "1px solid var(--line)", borderLeft: `3px solid ${tone}`,
+                borderRadius: 12, padding: "14px 16px", background: "var(--paper)",
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {o.supplier.name}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+                    {o.poNumber} · {o.items?.length ?? 0} line{(o.items?.length ?? 0) === 1 ? "" : "s"}
+                  </div>
+                </div>
+
+                <Cell label="Buying" value={o.orderType.replace(/_/g, " ").toLowerCase()} />
+                <Cell label="Ordered" value={formatDateShort(o.orderDate)} />
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Where it is
+                  </div>
+                  <div style={{ marginTop: 4 }}><Badge s={o.status} /></div>
+                  {/* Who signed for it, which is the question asked after the fact. */}
+                  {received && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+                      taken in by {received.receivedBy?.username ?? "—"} · {formatDateShort(received.receivedAt)}
+                    </div>
+                  )}
+                  {!received && o.expectedDelivery && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+                      due {formatDateShort(o.expectedDelivery)}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: -0.5, lineHeight: 1.1 }}>
+                    {formatMoney(o.totalAmount)}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>{o.warehouse?.name}</div>
+                </div>
+
+                <Button variant="secondary" size="sm" onClick={() => { setDetail(o); setError(""); }}>View</Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
 
       {confirmCancel !== null && (

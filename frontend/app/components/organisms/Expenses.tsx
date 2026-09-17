@@ -16,6 +16,7 @@ import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import Cell from "@/app/components/molecules/Cell";
 import { downloadCsv } from "@/app/lib/csv";
 
 interface Props {
@@ -293,71 +294,68 @@ export default function Expenses({ expenses, warehouses, isAdmin, isSuperAdmin, 
       )}
 
       {/* Table */}
-      <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--line)", overflowX: "auto", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "var(--th-bg)", textAlign: "left" }}>
-              {["Expense #", "Date", "Category", "Description", "Payment", "Warehouse", "Amount", ""].map(h => (
-                <th key={h} style={{ padding: "11px 16px", fontWeight: 700, fontSize: 10, color: "var(--muted)", letterSpacing: 0.5, textTransform: "uppercase", borderBottom: "1px solid var(--line)" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {paged.map(e => (
-              <tr key={e.id} style={{ borderBottom: "1px solid var(--panel-border)" }}>
-                <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 12, color: "var(--muted)" }}>{e.expenseNumber}</td>
-                <td style={{ padding: "12px 16px", fontSize: 13 }}>{e.expenseDate?.slice(0, 10)}</td>
-                <td style={{ padding: "12px 16px" }}><Badge label={CATEGORIES[e.category] || e.category} color={CAT_COLORS[e.category] || "#666"} /></td>
-                <td style={{ padding: "12px 16px", fontSize: 13, maxWidth: 240 }}>
-                  <div style={{ fontWeight: 500 }}>{e.description}</div>
-                  {e.reference && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Ref: {e.reference}</div>}
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "64px 24px" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
+            {filterCat === "ALL" ? "Nothing spent in this period" : `No ${CATEGORIES[filterCat]} expenses`}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--muted)" }}>Rent, wages, freight and the rest go here.</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {paged.map(e => {
+            const tone = CAT_COLORS[e.category] || "#666";
+            return (
+              <div key={e.id} style={{
+                display: "grid",
+                // ~800px of minimums — fits a 1280 laptop with the sidebar open.
+                gridTemplateColumns: "minmax(190px,1.7fr) minmax(110px,0.9fr) minmax(110px,0.9fr) 160px 120px",
+                gap: 16, alignItems: "center",
+                border: "1px solid var(--line)", borderLeft: `3px solid ${tone}`,
+                borderRadius: 12, padding: "14px 16px", background: "var(--paper)",
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.25 }}>{e.description}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+                    {e.expenseNumber}{e.reference ? ` · ref ${e.reference}` : ""}
+                  </div>
                   {e.proofImage && (
                     <button type="button" onClick={() => window.open(e.proofImage, "_blank")}
-                      style={{ fontSize: 11, color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 4 }}>
-                      📎 View proof
+                      style={{ fontSize: 12.5, color: "var(--primary)", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 4 }}>
+                      See the receipt
                     </button>
                   )}
-                </td>
-                <td style={{ padding: "12px 16px", fontSize: 12, color: "var(--muted)" }}>{e.paymentMethod || "—"}</td>
-                <td style={{ padding: "12px 16px", fontSize: 12, color: "var(--muted)" }}>{e.warehouse?.name}</td>
-                <td style={{ padding: "12px 16px", fontSize: 15, fontWeight: 700 }}>{formatMoney(e.amount)}</td>
-                <td style={{ padding: "12px 16px" }}>
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    What for
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <Badge label={CATEGORIES[e.category] || e.category} color={tone} />
+                  </div>
+                </div>
+
+                <Cell label="Spent on" value={e.expenseDate?.slice(0, 10)} />
+                <Cell label="Paid by / where"
+                  value={[e.paymentMethod, e.warehouse?.name].filter(Boolean).join(" · ")} />
+
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: -0.5, lineHeight: 1.1 }}>
+                    {formatMoney(e.amount)}
+                  </div>
                   {canEdit && (
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 7 }}>
                       <Button variant="secondary" size="sm" onClick={() => openEdit(e)}>Edit</Button>
-                      <Button variant="danger" size="sm" onClick={() => setConfirmDelete(e.id)}>Del</Button>
+                      <Button variant="danger" size="sm" onClick={() => setConfirmDelete(e.id)}>Delete</Button>
                     </div>
                   )}
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={7}>
-                  <div style={{ textAlign: "center", padding: "60px 24px" }}>
-                    <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>💸</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
-                      {filterCat === "ALL" ? "No expenses recorded yet" : `No ${CATEGORIES[filterCat]} expenses`}
-                    </div>
-                    <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                      {filterCat === "ALL" ? "Click + Add Expense to record your first operational expense" : "Try switching to a different category"}
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-          {filtered.length > 0 && (
-            <tfoot>
-              <tr style={{ background: "var(--canvas)", borderTop: "2px solid var(--line)" }}>
-                <td colSpan={5} style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, textAlign: "right" }}>Total</td>
-                <td style={{ padding: "12px 16px", fontSize: 16, fontWeight: 700, color: "var(--primary)" }}>{formatMoney(totalFiltered)}</td>
-                <td />
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );

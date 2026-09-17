@@ -14,6 +14,7 @@ import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import TotalsBar from "@/app/components/molecules/TotalsBar";
+import Cell from "@/app/components/molecules/Cell";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
@@ -188,42 +189,91 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
         </Modal>
       )}
 
-      <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--line)", overflowX: "auto", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "var(--th-bg)", textAlign: "left" }}>
-              {["Buyer", "Order", "Total", "Paid", "Due", "Due Date", "Status", ""].map(h => (
-                <th key={h} style={{ padding: "11px 16px", fontWeight: 700, fontSize: 10, color: "var(--muted)", letterSpacing: 0.5, textTransform: "uppercase", borderBottom: "1px solid var(--line)" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {paged.map(c => (
-              <tr key={c.id} style={{ borderBottom: "1px solid var(--panel-border)" }}>
-                <td style={{ padding: "13px 16px", fontWeight: 700, fontSize: 13 }}>{c.buyer.name}</td>
-                <td style={{ padding: "13px 16px", fontSize: 13, color: "var(--muted)" }}>{c.salesOrder.orderNumber}</td>
-                <td style={{ padding: "13px 16px", fontSize: 13 }}>{formatMoney(c.totalAmount)}</td>
-                <td style={{ padding: "13px 16px", fontSize: 13, color: "#347050", fontWeight: 600 }}>{formatMoney(c.amountPaid)}</td>
-                <td style={{ padding: "13px 16px", fontSize: 13, fontWeight: 800, color: c.amountDue > 0 ? "#b95c56" : "var(--muted)" }}>{formatMoney(c.amountDue)}</td>
-                <td style={{ padding: "13px 16px", fontSize: 12, color: "var(--muted)" }}>{c.dueDate ? formatDateShort(c.dueDate) : "—"}</td>
-                <td style={{ padding: "13px 16px" }}>
-                  <Badge
-                    label={CREDIT_STATUS_LABELS[c.status] || c.status}
-                    color={STATUS_BADGE_COLORS[c.status] || "#888"}
-                    style={{ border: `1px solid ${(STATUS_BADGE_COLORS[c.status] || "#888")}33` }}
-                  />
-                </td>
-                <td style={{ padding: "13px 16px" }}>
-                  <Button variant="secondary" size="sm" onClick={() => { setDetail(c); setError(""); setPayForm({ amount: "", method: "CASH", reference: "", notes: "" }); }}>
-                    {canEdit && c.status !== "SETTLED" ? "Pay" : "View"}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && <tr><td colSpan={8} style={{ padding: "56px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>No credit transactions</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      {filtered.length === 0 ? (
+        <div style={{ padding: "64px 0", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>
+          Nobody is on credit right now.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {paged.map(c => {
+            const tone = STATUS_BADGE_COLORS[c.status] || "#94a3b8";
+            const paidPct = c.totalAmount > 0
+              ? Math.max(0, Math.min(100, (c.amountPaid / c.totalAmount) * 100)) : 0;
+            const overdue = c.status !== "SETTLED" && c.dueDate
+              ? new Date(c.dueDate) < new Date() : false;
+            return (
+              <div key={c.id} style={{
+                display: "grid",
+                // ~800px of minimums — fits a 1280 laptop with the sidebar open.
+                gridTemplateColumns: "minmax(170px,1.5fr) minmax(110px,0.9fr) minmax(130px,1fr) 190px 84px",
+                gap: 16, alignItems: "center",
+                border: "1px solid var(--line)", borderLeft: `3px solid ${tone}`,
+                borderRadius: 12, padding: "14px 16px", background: "var(--paper)",
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.buyer.name}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+                    against {c.salesOrder.orderNumber}
+                  </div>
+                </div>
+
+                <Cell label="Due date"
+                  value={c.dueDate
+                    ? <span style={{ color: overdue ? "#d32f2f" : undefined, fontWeight: overdue ? 700 : undefined }}>
+                        {formatDateShort(c.dueDate)}{overdue ? " · late" : ""}
+                      </span>
+                    : null} />
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Where it stands
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <Badge
+                      label={CREDIT_STATUS_LABELS[c.status] || c.status}
+                      color={STATUS_BADGE_COLORS[c.status] || "#888"}
+                      style={{ border: `1px solid ${(STATUS_BADGE_COLORS[c.status] || "#888")}33` }}
+                    />
+                  </div>
+                  {c.payments?.length > 0 && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+                      {c.payments.length} payment{c.payments.length === 1 ? "" : "s"} so far
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: "flex-end" }}>
+                    <span style={{
+                      fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                      letterSpacing: -0.5, lineHeight: 1.1,
+                      color: c.amountDue > 0 ? "#b95c56" : "#2e7d32",
+                    }}>
+                      {formatMoney(c.amountDue)}
+                    </span>
+                    <span style={{ fontSize: 13, color: "var(--muted)" }}>
+                      {c.amountDue > 0 ? "still owed" : "clear"}
+                    </span>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 99, background: "var(--line)", marginTop: 7, overflow: "hidden" }}>
+                    <div style={{ width: `${paidPct}%`, height: "100%", borderRadius: 99, background: paidPct === 100 ? "#2e7d32" : "var(--primary)" }} />
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 5, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    {formatMoney(c.amountPaid)} paid of {formatMoney(c.totalAmount)}
+                  </div>
+                </div>
+
+                <Button variant="secondary" size="sm"
+                  onClick={() => { setDetail(c); setError(""); setPayForm({ amount: "", method: "CASH", reference: "", notes: "" }); }}>
+                  {canEdit && c.status !== "SETTLED" ? "Pay" : "View"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
     </div>
   );

@@ -19,6 +19,7 @@ import PageHeader from "@/app/components/molecules/PageHeader";
 import TotalsBar from "@/app/components/molecules/TotalsBar";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
+import Cell from "@/app/components/molecules/Cell";
 import Drawer from "@/app/components/atoms/Drawer";
 import Modal from "@/app/components/atoms/Modal";
 import PhotoPicker from "@/app/components/molecules/PhotoPicker";
@@ -559,38 +560,67 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
         </Drawer>
       )}
 
-      {/* ── Table ── */}
-      <div style={{ background: "var(--paper)", borderRadius: 12, border: "1px solid var(--line)", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "var(--canvas)", fontSize: 12, color: "var(--muted)", textAlign: "left" }}>
-              {["Order", "Buyer", "Date", "Total", "Paid", "Due", "Payment", "Status", ""].map(h => (
-                <th key={h} style={{ padding: "10px 14px", fontWeight: 600, borderBottom: "1px solid var(--line)" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {paged.map(o => (
-              <tr key={o.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                <td style={{ padding: "12px 14px", fontWeight: 600 }}>{o.orderNumber}</td>
-                <td style={{ padding: "12px 14px" }}>{o.buyer.name}</td>
-                <td style={{ padding: "12px 14px", fontSize: 13 }}>{formatDateShort(o.orderDate)}</td>
-                <td style={{ padding: "12px 14px", fontWeight: 600 }}>{formatMoney(o.totalAmount)}</td>
-                <td style={{ padding: "12px 14px", fontSize: 13, color: "#16a34a" }}>{formatMoney(o.amountPaid)}</td>
-                <td style={{ padding: "12px 14px", fontSize: 13, color: o.amountDue > 0 ? "#f44336" : "var(--muted)" }}>{formatMoney(o.amountDue)}</td>
-                <td style={{ padding: "12px 14px" }}><Badge s={o.paymentMode} label={PAYMENT_MODE_LABELS[o.paymentMode]} /></td>
-                <td style={{ padding: "12px 14px" }}><Badge s={o.status} /></td>
-                <td style={{ padding: "12px 14px" }}>
-                  <Button variant="secondary" size="sm" onClick={() => { setDetail(o); setError(""); }}>View</Button>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No sales orders</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {filtered.length === 0 ? (
+        <div style={{ padding: "64px 0", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>No sales orders</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {paged.map(o => {
+            const paidPct = o.totalAmount > 0
+              ? Math.max(0, Math.min(100, (o.amountPaid / o.totalAmount) * 100)) : 0;
+            const tone = STATUS_BADGE_COLORS[o.status] || "#94a3b8";
+            return (
+              <div key={o.id} style={{
+                display: "grid",
+                // ~880px of minimums — fits a 1280 laptop with the sidebar open.
+                gridTemplateColumns: "minmax(170px,1.5fr) minmax(110px,0.9fr) minmax(110px,0.9fr) minmax(120px,1fr) 190px 84px",
+                gap: 16, alignItems: "center",
+                border: "1px solid var(--line)", borderLeft: `3px solid ${tone}`,
+                borderRadius: 12, padding: "14px 16px", background: "var(--paper)",
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {o.buyer.name}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+                    {o.orderNumber} · {o.items?.length ?? 0} item{(o.items?.length ?? 0) === 1 ? "" : "s"}
+                  </div>
+                </div>
+
+                <Cell label="Ordered" value={formatDateShort(o.orderDate)} />
+                <Cell label="Paying by" value={PAYMENT_MODE_LABELS[o.paymentMode] || o.paymentMode} />
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Where it is
+                  </div>
+                  <div style={{ marginTop: 4 }}><Badge s={o.status} /></div>
+                  {o.lrNumber && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>out on {o.lrNumber}</div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: "flex-end" }}>
+                    <span style={{ fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: -0.5, lineHeight: 1.1 }}>
+                      {formatMoney(o.totalAmount)}
+                    </span>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 99, background: "var(--line)", marginTop: 7, overflow: "hidden" }}>
+                    <div style={{ width: `${paidPct}%`, height: "100%", borderRadius: 99, background: paidPct === 100 ? "#2e7d32" : "var(--primary)" }} />
+                  </div>
+                  <div style={{ fontSize: 12, marginTop: 5, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    {o.amountDue > 0
+                      ? <><span style={{ color: "var(--muted)" }}>{formatMoney(o.amountPaid)} paid · </span><span style={{ color: "#d32f2f" }}>{formatMoney(o.amountDue)} due</span></>
+                      : <span style={{ color: "#2e7d32" }}>paid in full</span>}
+                  </div>
+                </div>
+
+                <Button variant="secondary" size="sm" onClick={() => { setDetail(o); setError(""); }}>View</Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
 
       {/* Dispatch — shipment details recorded as the goods leave */}

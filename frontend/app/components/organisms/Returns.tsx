@@ -153,8 +153,8 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
       {/* Customer Returns */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>Customer Returns</span>
-          <span style={{ fontSize: 11, color: "var(--muted)" }}>Buyers → Us</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Customer Returns</span>
+          <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Buyers → Us</span>
           {buyerReturns.length > 0 && <Badge label={String(buyerReturns.length)} />}
           {canEdit && (
             <Button size="sm" onClick={() => { setShowBuyer(true); setBuyerErr(""); }} style={{ marginLeft: "auto" }}>
@@ -207,8 +207,8 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
       {/* Supplier Returns */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>Supplier Returns</span>
-          <span style={{ fontSize: 11, color: "var(--muted)" }}>Us → Suppliers</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>Supplier Returns</span>
+          <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Us → Suppliers</span>
           {supplierReturns.length > 0 && <Badge label={String(supplierReturns.length)} />}
           {canEdit && (
             <Button size="sm" onClick={() => { setShowSupplier(true); setSupplierErr(""); }} style={{ marginLeft: "auto" }}>
