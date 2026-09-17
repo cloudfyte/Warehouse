@@ -17,6 +17,9 @@ import FilterBar from "@/app/components/molecules/FilterBar";
 import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 import CustomerBill from "@/app/components/molecules/CustomerBill";
 import Pagination from "@/app/components/atoms/Pagination";
+import Cell from "@/app/components/molecules/Cell";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
+import { nameToColorHex } from "@/app/lib/colorUtils";
 
 interface Props {
   jobs: StitchingJob[]; assignments: CuttingAssignment[]
@@ -42,64 +45,6 @@ const STITCHING_STEPS = [
 const STEP_COLORS: Record<string, string> = {
   RECEIVED: "#94a3b8", PROCESSING: "#f59e0b", QC_CHECK: "#6366f1", READY: "#10b981", REJECTED: "#ef4444", MOVED: "#10b981",
 };
-
-function StepTrail({ status }: { status: string }) {
-  const isRejected = status === "REJECTED";
-  const currentIdx = isRejected ? -1 : STITCHING_STEPS.findIndex(s => s.key === status);
-
-  return (
-    <div>
-      {isRejected && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#ef4444", letterSpacing: 0.2 }}>Rejected / Rework</span>
-        </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-        {STITCHING_STEPS.map((step, i) => {
-          const done = currentIdx > i;
-          const active = currentIdx === i;
-          const color = isRejected
-            ? "#ef444444"
-            : done || active ? STEP_COLORS[step.key] : "var(--line)";
-          const textColor = isRejected ? "var(--muted)" : done || active ? STEP_COLORS[step.key] : "var(--muted)";
-          return (
-            <div key={step.key} style={{ display: "flex", alignItems: "center", flex: i < STITCHING_STEPS.length - 1 ? 1 : undefined }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <div style={{
-                  width: active ? 14 : 10, height: active ? 14 : 10,
-                  borderRadius: "50%",
-                  background: done || active ? (isRejected ? "#ef444422" : color) : "var(--canvas)",
-                  border: `2px solid ${color}`,
-                  boxShadow: active && !isRejected ? `0 0 0 3px ${color}28` : "none",
-                  transition: "all .2s",
-                  flexShrink: 0,
-                }} />
-                <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, color: textColor, whiteSpace: "nowrap", letterSpacing: 0.2 }}>
-                  {step.label}
-                </span>
-              </div>
-              {i < STITCHING_STEPS.length - 1 && (
-                <div style={{ flex: 1, height: 2, background: done && !isRejected ? STEP_COLORS[STITCHING_STEPS[i + 1].key] : "var(--line)", margin: "0 2px", marginBottom: 14, transition: "background .3s" }} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ProgressBar({ value, max, rejected = 0 }: { value: number; max: number; rejected?: number }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
-  const rejPct = max > 0 ? Math.min(100 - pct, (rejected / max) * 100) : 0;
-  return (
-    <div style={{ position: "relative", height: 8, background: "var(--line)", borderRadius: 99, overflow: "hidden" }}>
-      <div style={{ position: "absolute", left: 0, top: 0, width: `${pct}%`, height: "100%", borderRadius: 99, background: pct === 100 ? "#10b981" : pct > 60 ? "#6366f1" : pct > 30 ? "#f59e0b" : "var(--primary)", transition: "width .4s ease" }} />
-      {rejected > 0 && <div style={{ position: "absolute", left: `${pct}%`, top: 0, width: `${rejPct}%`, height: "100%", background: "#ef4444cc" }} />}
-    </div>
-  );
-}
 
 export default function Stitching({ jobs, assignments, karigars, warehouses, isAdmin, isSuperAdmin, isManager, isTailor, onMutate }: Props) {
   const [selected, setSelected] = useState<StitchingJob | null>(null);
@@ -189,6 +134,14 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
     (!q || j.tailor.username.toLowerCase().includes(q) || j.cuttingAssignment.itemType.name.toLowerCase().includes(q))
   );
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  // Follows the filter. The one number a stitching desk is asked for daily is
+  // how much is owed to the people who did the work.
+  const totals = filtered.reduce((t, j) => ({
+    done: t.done + (Number(j.piecesCompleted) || 0),
+    assigned: t.assigned + (Number(j.piecesAssigned) || 0),
+    rejected: t.rejected + (Number(j.piecesRejected) || 0),
+    due: t.due + (Number(j.amountDue) || 0),
+  }), { done: 0, assigned: 0, rejected: 0, due: 0 });
   const readyAssignments = assignments.filter(a => a.piecesCompleted > 0 && a.status !== "PENDING");
 
   // A lorry took the cut pieces out and another brought garments back. The LR
@@ -304,9 +257,20 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
   return (
     <div style={{ padding: 24 }}>
       <PageHeader
-        title="Stitching Jobs"
-        sub={`${jobs.length} total · ${jobs.filter(j => j.status === "PROCESSING" || j.status === "QC_CHECK").length} active`}
+        title="Stitching"
+        sub="Who is stitching what, how far it has got, and what they are owed"
         actions={canAssign && <Button onClick={() => { setShowForm(true); setError(""); }}>+ New Job</Button>}
+      />
+
+      <TotalsBar
+        narrowed={filtered.length !== jobs.length}
+        note="Totals are for what you have filtered, not every job."
+        totals={[
+          { label: "Jobs", value: String(filtered.length) },
+          { label: "Pieces stitched", value: `${totals.done} of ${totals.assigned}`, color: "var(--primary)" },
+          { label: "Rejected", value: String(totals.rejected), color: totals.rejected > 0 ? "#d32f2f" : undefined },
+          { label: "Owed to stitchers", value: formatMoney(totals.due), color: totals.due > 0 ? "#e65100" : undefined },
+        ]}
       />
 
       <FilterBar style={{ marginBottom: 20 }}>
@@ -597,123 +561,146 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
         </Modal>
       )}
 
-      {/* ── Card grid ── */}
       {filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "72px 24px" }}>
-          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>🧵</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>No stitching jobs found</div>
-          <div style={{ fontSize: 13, color: "var(--muted)" }}>Jobs are created from Finished Goods after cutting assignments are complete</div>
+          <div style={{ fontSize: 13, color: "var(--muted)" }}>A job is handed out from a cutting docket once its pieces are cut.</div>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {paged.map(j => {
-            const pct = j.piecesAssigned > 0 ? Math.min(100, (j.piecesCompleted / j.piecesAssigned) * 100) : 0;
-            const isRejected = j.status === "REJECTED";
-            const borderColor = STEP_COLORS[j.status] || "#94a3b8";
+            const batch = j.cuttingAssignment.rawClothBatch;
+            const swatch = nameToColorHex(batch?.clothColor?.name || "");
+            const done = Number(j.piecesCompleted) || 0;
+            const assigned = Number(j.piecesAssigned) || 0;
+            const pct = assigned > 0 ? Math.max(0, Math.min(100, (done / assigned) * 100)) : 0;
+            const st = STEP_COLORS[j.status] || "#94a3b8";
+            const rejected = Number(j.piecesRejected) || 0;
             return (
               <div key={j.id} style={{
-                background: "var(--paper)", borderRadius: 14, border: "1px solid var(--line)",
-                padding: 18, boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-                borderLeft: `3px solid ${borderColor}`,
+                display: "grid",
+                // ~930px of minimums — fits a 1280 laptop with the sidebar open.
+                gridTemplateColumns: "minmax(150px,1.2fr) minmax(120px,1fr) minmax(130px,1.1fr) minmax(140px,1.1fr) 150px minmax(120px,0.9fr) 108px",
+                gap: 16, alignItems: "center",
+                border: "1px solid var(--line)", borderLeft: `3px solid ${st}`,
+                borderRadius: 12, padding: "14px 16px", background: "var(--paper)",
               }}>
-                {/* Card header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-                      <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: 0.3 }}>{j.jobNumber}</span>
-                      {j.jobType === "READYMADE" && (
-                        <CustomerBill order={j.customerOrder} billNumber={j.customerBillNumber} compact />
-                      )}
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1 }}>{j.cuttingAssignment.itemType.name}</div>
-                    {canAssign && (
-                    <div style={{ fontSize: 11, marginTop: 3 }}>
-                      <button type="button"
-                        onClick={e => { e.stopPropagation(); openTransit(j); }}
-                        style={{ background: "none", border: "none", color: "var(--primary)", fontWeight: 700, fontSize: 11, cursor: "pointer", padding: 0 }}>
-                        🚚 Transit
-                      </button>
-                      {j.issueLrNumber && (
-                        <span style={{ color: "var(--muted)" }}> · out on {j.issueLrNumber}</span>
-                      )}
-                      {j.returnLrNumber && (
-                        <span style={{ color: "var(--muted)" }}> · back on {j.returnLrNumber}</span>
-                      )}
-                      {j.returnWarehouse && (
-                        <span style={{ color: "var(--muted)" }}> → {j.returnWarehouse.name}</span>
-                      )}
-                    </div>
-                  )}
-                  {(j.amountEarned ?? 0) > 0 && (
-                    <div style={{ fontSize: 11, marginTop: 3 }}>
-                      <span style={{ color: "var(--muted)" }}>Earned </span>
-                      <strong>{formatMoney(j.amountEarned!)}</strong>
-                      {(j.amountDue ?? 0) > 0
-                        ? <span style={{ color: "#e65100" }}> · {formatMoney(j.amountDue!)} to pay</span>
-                        : <span style={{ color: "#2e7d32" }}> · settled</span>}
-                      {canAssign && (j.amountDue ?? 0) > 0 && (
-                        <button type="button"
-                          onClick={e => { e.stopPropagation(); setPaying(j); setPayAmount(String(j.amountDue ?? "")); }}
-                          style={{ marginLeft: 8, background: "none", border: "none", color: "var(--primary)", fontWeight: 700, fontSize: 11, cursor: "pointer", padding: 0 }}>
-                          Pay
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                      🧵 {j.karigar?.name ?? j.tailor?.username ?? "—"}
-                      {j.karigar?.city ? ` · ${j.karigar.city}` : ""}
-                      &nbsp;·&nbsp; from {j.cuttingAssignment.assignmentNumber}
-                      {(j.ratePerPiece ?? 0) > 0 && (
-                        <> &nbsp;·&nbsp; {formatMoney(j.ratePerPiece!)}/pc</>
-                      )}
-                    </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.2 }}>
+                    {batch?.designNumber || batch?.batchNumber || j.jobNumber}
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                    <span style={{ fontSize: 11, color: "var(--muted)" }}>{formatDateShort(j.assignedDate)}</span>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {canUpdate && j.status !== "MOVED" && (
-                        <Button size="sm" variant="secondary"
-                          onClick={() => { setSelected(j); setUpd({ status: j.status, piecesCompleted: Number(j.piecesCompleted) || 0, piecesRejected: Number(j.piecesRejected) || 0 }); setError(""); }}
-                          style={{ background: "var(--canvas)", color: "var(--primary)" }}>
-                          Update
-                        </Button>
-                      )}
-                      {j.status === "READY" && canAssign && (j.piecesCompleted || 0) > (j.piecesRejected || 0) && (
-                        <Button size="sm" onClick={() => openFG(j)} style={{ background: "#10b981", border: "none" }}>
-                          → Finished Goods
-                        </Button>
-                      )}
-                      {j.status === "MOVED" && (
-                        <span style={{ padding: "4px 10px", borderRadius: 7, background: "color-mix(in srgb, #10b981 15%, transparent)", color: "#10b981", fontSize: 11, fontWeight: 700 }}>
-                          ✓ Moved to Finished Goods
-                        </span>
-                      )}
+                  {batch?.clothColor && (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6,
+                      padding: "3px 11px 3px 4px", borderRadius: 99,
+                      background: "var(--canvas)", border: "1px solid var(--line)", fontSize: 13,
+                    }}>
+                      <span style={{
+                        width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                        background: swatch ?? "transparent", border: "1px solid rgba(0,0,0,.18)",
+                      }} />
+                      {batch.clothColor.name}
+                    </span>
+                  )}
+                  {j.jobType === "READYMADE" && (
+                    <div style={{ marginTop: 6 }}>
+                      <CustomerBill order={j.customerOrder} billNumber={j.customerBillNumber} compact />
                     </div>
+                  )}
+                </div>
+
+                <Cell label="Making" value={j.cuttingAssignment.itemType.name} />
+
+                <div style={{ minWidth: 0 }}>
+                  <Cell label="Stitcher"
+                    value={`${j.karigar?.name ?? j.tailor?.username ?? "—"}${j.karigar?.city ? ` · ${j.karigar.city}` : ""}`} />
+                  {(j.ratePerPiece ?? 0) > 0 && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>
+                      {formatMoney(j.ratePerPiece!)}/pc
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Sizes
+                  </div>
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 4 }}>
+                    {(j.sizes?.length ?? 0) > 0 ? j.sizes!.map(z => (
+                      <span key={z.id} style={{
+                        fontSize: 12.5, padding: "2px 8px", borderRadius: 7,
+                        border: "1px solid var(--line)", background: "var(--canvas)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                        <strong>{z.size}</strong> {z.piecesCompleted}/{z.piecesAssigned}
+                      </span>
+                    )) : <span style={{ fontSize: 14 }}>—</span>}
                   </div>
                 </div>
 
-                {/* Step trail */}
-                <StepTrail status={j.status} />
-
-                {/* Pieces progress */}
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.3 }}>Pieces stitched</span>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <span style={{ fontSize: 12, fontWeight: 700 }}>
-                        <span style={{ color: pct === 100 ? "#10b981" : isRejected ? "#ef4444" : "var(--ink)" }}>{j.piecesCompleted}</span>
-                        <span style={{ color: "var(--muted)", fontWeight: 400 }}> / {j.piecesAssigned}</span>
-                        <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}> ({Math.round(pct)}%)</span>
-                      </span>
-                      {j.piecesRejected > 0 && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "#ef4444", background: "#ef444415", padding: "2px 8px", borderRadius: 99 }}>
-                          ✗ {j.piecesRejected} rejected
-                        </span>
-                      )}
-                    </div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: "flex-end" }}>
+                    <span style={{
+                      fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                      color: pct === 100 ? "#2e7d32" : j.status === "REJECTED" ? "#d32f2f" : "var(--ink)",
+                      letterSpacing: -0.5, lineHeight: 1.1,
+                    }}>{done}</span>
+                    <span style={{ fontSize: 13, color: "var(--muted)" }}>of {assigned} done</span>
                   </div>
-                  <ProgressBar value={j.piecesCompleted} max={j.piecesAssigned} rejected={j.piecesRejected} />
+                  <div style={{ height: 5, borderRadius: 99, background: "var(--line)", marginTop: 7, overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: pct === 100 ? "#2e7d32" : "var(--primary)" }} />
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 5, textAlign: "right" }}>
+                    {j.status === "MOVED" ? "In finished goods" : (STITCHING_STEPS.find(x => x.key === j.status)?.label ?? j.status)}
+                    {rejected > 0 && <span style={{ color: "#d32f2f" }}> · {rejected} rejected</span>}
+                    {" · "}{formatDateShort(j.assignedDate)}
+                  </div>
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  {(j.amountEarned ?? 0) > 0 ? (
+                    <>
+                      <Cell label="Earned" value={formatMoney(j.amountEarned!)} />
+                      <div style={{ fontSize: 12, marginTop: 3 }}>
+                        {(j.amountDue ?? 0) > 0 ? (
+                          <>
+                            <span style={{ color: "#e65100" }}>{formatMoney(j.amountDue!)} to pay</span>
+                            {canAssign && (
+                              <button type="button"
+                                onClick={() => { setPaying(j); setPayAmount(String(j.amountDue ?? "")); }}
+                                style={{ marginLeft: 8, background: "none", border: "none", color: "var(--primary)", fontWeight: 700, fontSize: 12, cursor: "pointer", padding: 0 }}>
+                                Pay
+                              </button>
+                            )}
+                          </>
+                        ) : <span style={{ color: "#2e7d32" }}>settled</span>}
+                      </div>
+                    </>
+                  ) : <Cell label="Earned" value={null} />}
+                  {canAssign && (j.issueLrNumber || j.returnLrNumber) && (
+                    <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>
+                      {j.issueLrNumber ? `out ${j.issueLrNumber}` : ""}
+                      {j.returnLrNumber ? `${j.issueLrNumber ? " · " : ""}back ${j.returnLrNumber}` : ""}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {canUpdate && j.status !== "MOVED" && (
+                    <Button size="sm" variant="secondary"
+                      onClick={() => { setSelected(j); setUpd({ status: j.status, piecesCompleted: Number(j.piecesCompleted) || 0, piecesRejected: Number(j.piecesRejected) || 0 }); setError(""); }}>
+                      Update
+                    </Button>
+                  )}
+                  {j.status === "READY" && canAssign && done > rejected && (
+                    <Button size="sm" onClick={() => openFG(j)}>→ Stock</Button>
+                  )}
+                  {canAssign && j.status !== "MOVED" && (
+                    <button type="button" onClick={() => openTransit(j)}
+                      style={{ background: "none", border: "none", color: "var(--primary)", fontWeight: 600, fontSize: 12, cursor: "pointer", padding: 0 }}>
+                      Transit
+                    </button>
+                  )}
                 </div>
               </div>
             );

@@ -18,6 +18,9 @@ import PageHeader from "@/app/components/molecules/PageHeader";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 import Pagination from "@/app/components/atoms/Pagination";
+import Cell from "@/app/components/molecules/Cell";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
+import { nameToColorHex } from "@/app/lib/colorUtils";
 
 interface Props {
   assignments: CuttingAssignment[]; batches: RawClothBatch[]
@@ -31,63 +34,10 @@ interface Props {
 
 const PER_PAGE = 20;
 
-const CUTTING_STEPS = [
-  { key: "PENDING",     label: "Pending" },
-  { key: "IN_PROGRESS", label: "In Progress" },
-  { key: "PARTIAL",     label: "Partial" },
-  { key: "COMPLETED",   label: "Completed" },
-];
 
 const STEP_COLORS: Record<string, string> = {
   PENDING: "#94a3b8", IN_PROGRESS: "#f59e0b", PARTIAL: "#6366f1", COMPLETED: "#10b981",
 };
-
-function StepTrail({ status }: { status: string }) {
-  const currentIdx = CUTTING_STEPS.findIndex(s => s.key === status);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 10 }}>
-      {CUTTING_STEPS.map((step, i) => {
-        const done = i < currentIdx;
-        const active = i === currentIdx;
-        const color = done || active ? STEP_COLORS[step.key] : "var(--line)";
-        return (
-          <div key={step.key} style={{ display: "flex", alignItems: "center", flex: i < CUTTING_STEPS.length - 1 ? 1 : undefined }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <div style={{
-                width: active ? 14 : 10, height: active ? 14 : 10,
-                borderRadius: "50%",
-                background: done || active ? color : "var(--canvas)",
-                border: `2px solid ${color}`,
-                boxShadow: active ? `0 0 0 3px ${color}28` : "none",
-                transition: "all .2s",
-                flexShrink: 0,
-              }} />
-              <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, color: done || active ? color : "var(--muted)", whiteSpace: "nowrap", letterSpacing: 0.2 }}>
-                {step.label}
-              </span>
-            </div>
-            {i < CUTTING_STEPS.length - 1 && (
-              <div style={{ flex: 1, height: 2, background: done ? STEP_COLORS[CUTTING_STEPS[i + 1]?.key] || "var(--primary)" : "var(--line)", margin: "0 2px", marginBottom: 14, transition: "background .3s" }} />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ProgressBar({ value, max, color = "var(--primary)" }: { value: number; max: number; color?: string }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
-  return (
-    <div style={{ position: "relative", height: 8, background: "var(--line)", borderRadius: 99, overflow: "hidden" }}>
-      <div style={{
-        width: `${pct}%`, height: "100%", borderRadius: 99,
-        background: pct === 100 ? "#10b981" : pct > 60 ? "#6366f1" : pct > 30 ? "#f59e0b" : color,
-        transition: "width .4s ease",
-      }} />
-    </div>
-  );
-}
 
 export default function Cutting({ assignments, batches, cuttingMasters, itemTypes, isAdmin, isSuperAdmin, isManager, isCuttingMaster, onMutate }: Props) {
   const [selected, setSelected] = useState<CuttingAssignment | null>(null);
@@ -179,6 +129,14 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       a.itemType.name.toLowerCase().includes(q))
   );
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  // The numbers follow the filter — a total for a screen you are not looking
+  // at answers nobody's question.
+  const totals = filtered.reduce((t, a) => ({
+    cut: t.cut + (Number(a.piecesCompleted) || 0),
+    target: t.target + (Number(a.targetPieces) || 0),
+    cloth: t.cloth + (Number(a.clothUsed) || 0),
+    waste: t.waste + (Number(a.clothWasted) || 0),
+  }), { cut: 0, target: 0, cloth: 0, waste: 0 });
 
   async function createAssignment() {
     setLoading(true); setError("");
@@ -258,9 +216,20 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
   return (
     <div style={{ padding: 24 }}>
       <PageHeader
-        title="Cutting Assignments"
-        sub={`${assignments.length} total · ${assignments.filter(a => a.status === "IN_PROGRESS" || a.status === "PARTIAL").length} active`}
+        title="Cutting"
+        sub="What each master has on the table, and how far it has got"
         actions={canAssign && <Button onClick={() => { setShowForm(true); setError(""); }}>+ New Assignment</Button>}
+      />
+
+      <TotalsBar
+        narrowed={filtered.length !== assignments.length}
+        note="Totals are for what you have filtered, not every docket."
+        totals={[
+          { label: "Dockets", value: String(filtered.length) },
+          { label: "Pieces cut", value: `${totals.cut} of ${totals.target}`, color: "var(--primary)" },
+          { label: "Cloth issued", value: `${totals.cloth.toFixed(1)}m` },
+          { label: "Waste", value: `${totals.waste.toFixed(1)}m`, color: totals.waste > 0 ? "#e65100" : undefined },
+        ]}
       />
 
       <FilterBar style={{ marginBottom: 20 }}>
@@ -509,83 +478,94 @@ export default function Cutting({ assignments, batches, cuttingMasters, itemType
       {filtered.length === 0 ? (
         <div style={{ padding: "64px 0", textAlign: "center", color: "var(--muted)", fontSize: 14 }}>No assignments found</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {paged.map(a => {
-            const piecePct = a.targetPieces > 0 ? Math.min(100, (a.piecesCompleted / a.targetPieces) * 100) : 0;
-            const meterPct = a.metersAssigned > 0 ? Math.min(100, (a.clothUsed / a.metersAssigned) * 100) : 0;
-            const statusColor = STEP_COLORS[a.status] || "#94a3b8";
+            const swatch = nameToColorHex(a.rawClothBatch.clothColor?.name || "");
+            const target = Number(a.targetPieces) || 0;
+            const done = Number(a.piecesCompleted) || 0;
+            const pct = target > 0 ? Math.max(0, Math.min(100, (done / target) * 100)) : 0;
+            const st = STEP_COLORS[a.status] || "#94a3b8";
             return (
               <div key={a.id} style={{
-                background: "var(--paper)", borderRadius: 14, border: "1px solid var(--line)",
-                padding: 18, boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-                borderLeft: `3px solid ${statusColor}`,
+                display: "grid",
+                // Minimums sum to ~900 with the gaps — a 1280 laptop with the
+                // sidebar open still shows every column without scrolling.
+                gridTemplateColumns: "minmax(150px,1.3fr) minmax(110px,1fr) minmax(110px,1fr) minmax(150px,1.2fr) 150px 130px 92px",
+                gap: 16, alignItems: "center",
+                border: "1px solid var(--line)", borderLeft: `3px solid ${st}`,
+                borderRadius: 12, padding: "14px 16px", background: "var(--paper)",
               }}>
-                {/* Card header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 14, letterSpacing: 0.3 }}>{a.assignmentNumber}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 1 }}>{a.itemType.name}</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-                      ✂ {a.cuttingMaster.username} &nbsp;·&nbsp; {a.rawClothBatch.batchNumber} {a.rawClothBatch.clothColor.name}
-                      {a.ageGroup && <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 10, background: "var(--canvas)", fontWeight: 700 }}>{a.ageGroup}</span>}
-                      {a.size && <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 10, background: "var(--canvas)", fontWeight: 700 }}>Size: {a.size}</span>}
-                    </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.2 }}>
+                    {a.rawClothBatch.designNumber || a.rawClothBatch.batchNumber}
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                    <span style={{ fontSize: 11, color: "var(--muted)" }}>{formatDateShort(a.assignedDate)}</span>
-                    {(a.sizes?.length ?? 0) > 0 && (
-                      <span style={{ fontSize: 11, color: "var(--muted)", textAlign: "right" }}>
-                        {a.sizes!.map(z => `${z.size}\u00d7${z.targetPieces}`).join("  ")}
-                      </span>
-                    )}
-                    {canUpdate && (
-                      <Button size="sm" variant="secondary"
-                        onClick={() => { setSelected(a); setUpdate({ piecesCompleted: Number(a.piecesCompleted) || 0, clothUsed: Number(a.clothUsed) || 0, clothWasted: Number(a.clothWasted) || 0, status: a.status }); setError(""); }}
-                        style={{ background: "var(--canvas)", color: "var(--primary)" }}>
-                        Update
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Step trail */}
-                <StepTrail status={a.status} />
-
-                {/* Pieces progress */}
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.3 }}>Pieces</span>
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>
-                      <span style={{ color: piecePct === 100 ? "#10b981" : "var(--ink)" }}>{a.piecesCompleted}</span>
-                      <span style={{ color: "var(--muted)", fontWeight: 400 }}> / {a.targetPieces}</span>
-                      <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}> ({Math.round(piecePct)}%)</span>
+                  {a.rawClothBatch.clothColor && (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6,
+                      padding: "3px 11px 3px 4px", borderRadius: 99,
+                      background: "var(--canvas)", border: "1px solid var(--line)", fontSize: 13,
+                    }}>
+                      <span style={{
+                        width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                        background: swatch ?? "transparent", border: "1px solid rgba(0,0,0,.18)",
+                      }} />
+                      {a.rawClothBatch.clothColor.name}
                     </span>
-                  </div>
-                  <ProgressBar value={a.piecesCompleted} max={a.targetPieces} />
+                  )}
                 </div>
 
-                {/* Cloth usage */}
-                {(a.clothUsed > 0 || a.metersAssigned > 0) && (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.3 }}>Cloth used</span>
-                      <span style={{ fontSize: 12 }}>
-                        <span style={{ fontWeight: 700 }}>{a.clothUsed}m</span>
-                        <span style={{ color: "var(--muted)" }}> / {a.metersAssigned}m</span>
-                        {a.clothWasted > 0 && <span style={{ color: "#f59e0b", marginLeft: 6, fontSize: 11 }}>· {a.clothWasted}m waste</span>}
-                      </span>
-                    </div>
-                    <ProgressBar value={a.clothUsed} max={a.metersAssigned} color="#6366f1" />
-                  </div>
-                )}
+                <Cell label="Making" value={a.itemType.name} />
+                <Cell label="Cutting master" value={a.cuttingMaster.username} />
 
-                {/* Cost per piece */}
-                {a.costPerPiece != null && a.piecesCompleted > 0 && (
-                  <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--canvas)", borderRadius: 8, display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>COST / PIECE</span>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>₹{a.costPerPiece}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Sizes
                   </div>
-                )}
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 4 }}>
+                    {(a.sizes?.length ?? 0) > 0 ? a.sizes!.map(z => (
+                      <span key={z.id} style={{
+                        fontSize: 12.5, padding: "2px 8px", borderRadius: 7,
+                        border: "1px solid var(--line)", background: "var(--canvas)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                        <strong>{z.size}</strong> {z.piecesCompleted}/{z.targetPieces}
+                      </span>
+                    )) : <span style={{ fontSize: 14 }}>{a.size || a.ageGroup || "—"}</span>}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: "flex-end" }}>
+                    <span style={{
+                      fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                      color: pct === 100 ? "#2e7d32" : "var(--ink)", letterSpacing: -0.5, lineHeight: 1.1,
+                    }}>{done}</span>
+                    <span style={{ fontSize: 13, color: "var(--muted)" }}>of {target} cut</span>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 99, background: "var(--line)", marginTop: 7, overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: pct === 100 ? "#2e7d32" : "var(--primary)" }} />
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 5, textAlign: "right" }}>
+                    {CUTTING_STATUS_LABELS[a.status] || a.status} · {formatDateShort(a.assignedDate)}
+                  </div>
+                </div>
+
+                <div>
+                  <Cell label="Cloth" align="right"
+                    value={`${a.clothUsed || 0}m of ${a.metersAssigned}m`} />
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3, textAlign: "right" }}>
+                    {a.clothWasted > 0 ? `${a.clothWasted}m waste` : ""}
+                    {a.costPerPiece != null && done > 0 ? `${a.clothWasted > 0 ? " · " : ""}₹${a.costPerPiece}/pc` : ""}
+                    {a.jobType === "READYMADE" && a.customerBillNumber ? ` · bill ${a.customerBillNumber}` : ""}
+                  </div>
+                </div>
+
+                {canUpdate ? (
+                  <Button size="sm" variant="secondary"
+                    onClick={() => { setSelected(a); setUpdate({ piecesCompleted: Number(a.piecesCompleted) || 0, clothUsed: Number(a.clothUsed) || 0, clothWasted: Number(a.clothWasted) || 0, status: a.status }); setError(""); }}>
+                    Update
+                  </Button>
+                ) : <span />}
               </div>
             );
           })}
