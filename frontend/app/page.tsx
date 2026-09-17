@@ -10,7 +10,6 @@ import { TAB_TITLES } from "@/app/lib/constants";
 import {
   LayoutDashboard, Truck, UserCheck, ShoppingCart, Package, Boxes,
   Scissors, Shirt, Tag, Receipt, Landmark, RefreshCcw,
-  PackageCheck,
   Users, Warehouse, Bell, Settings2, ChevronLeft, ChevronRight,
   Sun, Moon, LogOut, BarChart2, Menu, X, User, ClipboardList,
   ArrowLeftRight, AlertCircle, FileText, TrendingUp, BookOpen, List, ShieldCheck, Store,
@@ -25,10 +24,8 @@ import PurchaseOrders from "@/app/components/organisms/PurchaseOrders";
 import PurchaseBills from "@/app/components/organisms/PurchaseBills";
 import Cutting from "@/app/components/organisms/Cutting";
 import Stitching from "@/app/components/organisms/Stitching";
-import Karigars from "@/app/components/organisms/Karigars";
-import KarigarWork from "@/app/components/organisms/KarigarWork";
+import KarigarsTab from "@/app/components/organisms/KarigarsTab";
 import Jobwork from "@/app/components/organisms/Jobwork";
-import AwaitingCollection from "@/app/components/organisms/AwaitingCollection";
 import CustomerBills from "@/app/components/organisms/CustomerBills";
 import FinishedProducts from "@/app/components/organisms/FinishedProducts";
 import Settlements from "@/app/components/organisms/Settlements";
@@ -72,7 +69,7 @@ const ALL_TABS: Tab[] = [
   "finished_products", "product_sets", "sales_orders", "credit", "returns", "expenses", "settlements",
   "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches",
   "quotations", "reports", "ledger",
-  "karigars", "karigar_work", "jobwork", "awaiting_collection", "customer_bills",
+  "karigars", "jobwork", "customer_bills",
   "item_types", "employees", "warehouses", "roles", "notifications", "audit_log", "settings", "profile",
 ];
 
@@ -102,7 +99,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
   { label: "Purchasing", tabs: ["suppliers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches"] },
-  { label: "Production", tabs: ["cutting", "stitching", "jobwork", "karigars", "karigar_work", "customer_bills", "awaiting_collection", "finished_products", "product_sets"] },
+  { label: "Production", tabs: ["cutting", "stitching", "jobwork", "karigars", "customer_bills", "finished_products", "product_sets"] },
   { label: "Sales", tabs: ["buyers", "quotations", "sales_orders", "credit", "returns"] },
   { label: "Finance", tabs: ["expenses", "settlements", "reports", "ledger"] },
   { label: "Admin", tabs: ["item_types", "employees", "warehouses", "roles"] },
@@ -130,9 +127,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   stock_adjustments: <Package size={16} />,
   stock_transfers: <ArrowLeftRight size={16} />,
   karigars: <Scissors size={16} />,
-  karigar_work: <Users size={16} />,
   jobwork: <Truck size={16} />,
-  awaiting_collection: <PackageCheck size={16} />,
   customer_bills: <FileText size={16} />,
   retail_dispatches: <Store size={16} />,
   reorder_points: <AlertCircle size={16} />,
@@ -922,29 +917,15 @@ export default function Home() {
         {currentTab === "customer_bills" && (
           <CustomerBills
             bills={data?.customerBills || []}
+            ready={data?.awaitingCollection || []}
             canManage={isAdmin || isSuperAdmin || isManager || isStoreKeeper}
-            onRefresh={() => token && loadData(token)}
-            onMutate={mutate}
-          />
-        )}
-        {currentTab === "awaiting_collection" && (
-          <AwaitingCollection
-            products={data?.awaitingCollection || []}
-            canManage={isAdmin || isSuperAdmin || isManager || isStoreKeeper}
-            onRefresh={() => token && loadData(token)}
-            onMutate={mutate}
-          />
-        )}
-        {currentTab === "karigar_work" && (
-          <KarigarWork
-            workload={data?.karigarWorkload || []}
-            canManage={isAdmin || isSuperAdmin || isManager}
             onRefresh={() => token && loadData(token)}
             onMutate={mutate}
           />
         )}
         {currentTab === "karigars" && (
-          <Karigars
+          <KarigarsTab
+            workload={data?.karigarWorkload || []}
             karigars={data?.karigars || []}
             canManage={isAdmin || isSuperAdmin || isManager}
             onRefresh={() => token && loadData(token)}

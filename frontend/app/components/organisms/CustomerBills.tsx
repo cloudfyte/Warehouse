@@ -1,8 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { ChevronRight, Pencil } from "lucide-react";
-import type { CustomerBillStatus } from "@/app/types";
-import { formatDateShort } from "@/app/lib/formatters";
+import type { CustomerBillStatus, FinishedProduct } from "@/app/types";
+import { formatDateShort, formatMoney, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import Input from "@/app/components/atoms/Input";
@@ -17,6 +17,8 @@ import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 
 interface Props {
   bills: CustomerBillStatus[];
+  /** Made, tagged, and waiting for the person whose bill it is. */
+  ready: FinishedProduct[];
   canManage: boolean;
   onRefresh?: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,7 +42,11 @@ const ORDER = ["NOT_STARTED", "CUTTING", "STITCHING", "READY", "COLLECTED"];
  * to mean going through cutting, then stitching, then finished goods — so this
  * is that walk, done once, with the answer at the front.
  */
-export default function CustomerBills({ bills, canManage, onRefresh, onMutate }: Props) {
+export default function CustomerBills({ bills, ready, canManage, onRefresh, onMutate }: Props) {
+  // Handing the garment over is the last step of this bill, not a screen of
+  // its own — the customer is standing here asking about this bill.
+  const [handing, setHanding] = useState<FinishedProduct | null>(null);
+  const [hand, setHand] = useState({ to: "", quantity: "" });
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -48,6 +54,32 @@ export default function CustomerBills({ bills, canManage, onRefresh, onMutate }:
   const [form, setForm] = useState({ name: "", phone: "", photos: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  const readyByBill = useMemo(() => {
+    const map = new Map<string, FinishedProduct[]>();
+    for (const p of ready) {
+      const key = (p.customerBillNumber || p.customerOrder?.billNumber || "").trim().toLowerCase();
+      if (!key) continue;
+      map.set(key, [...(map.get(key) || []), p]);
+    }
+    return map;
+  }, [ready]);
+
+  async function handOver() {
+    if (!handing) return;
+    setBusy(true); setErr("");
+    try {
+      await onMutate(
+        `mutation H($id:ID!,$to:String,$qty:Int){handOverReadymade(id:$id,handedOverTo:$to,quantity:$qty){finishedProduct{id}}}`,
+        { id: handing.id, to: hand.to || undefined, qty: hand.quantity === "" ? undefined : +hand.quantity },
+      );
+      showToast("Handed over.", "success");
+      setHanding(null); setHand({ to: "", quantity: "" });
+      onRefresh?.();
+    } catch (e: unknown) {
+      const msg = friendlyError(e); setErr(msg); showToast(msg, "error");
+    } finally { setBusy(false); }
+  }
 
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -179,6 +211,24 @@ export default function CustomerBills({ bills, canManage, onRefresh, onMutate }:
                     </div>
                   ))}
 
+                  {(readyByBill.get(b.order.billNumber.trim().toLowerCase()) || []).map(p => (
+                    <div key={p.id} style={{
+                      border: "1px solid #c8e6c9", background: "#f1f8f2", borderRadius: 9,
+                      padding: "10px 12px", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
+                    }}>
+                      <strong style={{ fontSize: 14 }}>{productName(p)}</strong>
+                      <span style={{ fontSize: 13, color: "var(--muted)" }}>
+                        {p.size ? `size ${p.size} · ` : ""}{p.quantity} ready · {formatMoney(p.salePrice)}
+                      </span>
+                      {canManage && (
+                        <Button size="sm" style={{ marginLeft: "auto" }}
+                          onClick={() => { setHand({ to: b.order.customerName || "", quantity: String(p.quantity) }); setErr(""); setHanding(p); }}>
+                          Hand over
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+
                   {b.order.notes && (
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>{b.order.notes}</div>
                   )}
@@ -233,6 +283,23 @@ export default function CustomerBills({ bills, canManage, onRefresh, onMutate }:
           <Field label="Notes">
             <Textarea value={form.notes} rows={2}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </Field>
+          {err && <ErrorBanner msg={err} />}
+        </Modal>
+      )}
+    {handing && (
+        <Modal title="Hand over" subtitle={productName(handing)}
+          width={420} onClose={() => setHanding(null)} onSubmit={handOver}
+          footer={<div style={{ display: "flex", gap: 10 }}>
+            <Button type="submit" disabled={busy} style={{ flex: 1 }}>{busy ? "Saving…" : "Handed over"}</Button>
+            <Button variant="secondary" onClick={() => setHanding(null)}>Cancel</Button>
+          </div>}>
+          <Field label="Given to" hint="Who actually collected it.">
+            <Input value={hand.to} onChange={e => setHand(h => ({ ...h, to: e.target.value }))} />
+          </Field>
+          <Field label="How many pieces" style={{ marginTop: 10 }}>
+            <Input type="number" min="1" max={handing.quantity} value={hand.quantity}
+              onChange={e => setHand(h => ({ ...h, quantity: e.target.value }))} />
           </Field>
           {err && <ErrorBanner msg={err} />}
         </Modal>

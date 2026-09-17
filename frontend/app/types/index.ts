@@ -425,7 +425,7 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points" | "retail_dispatches"
-  | "karigars" | "karigar_work" | "jobwork" | "awaiting_collection" | "customer_bills"
+  | "karigars" | "jobwork" | "customer_bills"
   | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"
