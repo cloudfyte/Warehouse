@@ -10,6 +10,7 @@ import Field from "@/app/components/molecules/Field";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
 
 interface Props {
   workload: KarigarWorkload[];
@@ -64,22 +65,15 @@ export default function KarigarWork({ workload, canManage = false, onRefresh, on
     <div style={{ padding: 24 }}>
       <PageHeader title="Karigar Work" sub="What each one is holding, and what is owed on it" />
 
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 1,
-        background: "var(--line)", border: "1px solid var(--line)", borderRadius: 12,
-        overflow: "hidden", marginBottom: 14,
-      }}>
-        {([
-          ["Karigars with work", String(shown.filter(w => w.openPieces > 0).length), undefined],
-          ["Pieces out", String(totals.open), undefined],
-          ["Owed", formatMoney(totals.due), totals.due > 0 ? "#e65100" : undefined],
-        ] as const).map(([label, value, color]) => (
-          <div key={label} style={{ background: "var(--paper)", padding: "12px 16px" }}>
-            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
-            <div style={{ fontSize: 19, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>{value}</div>
-          </div>
-        ))}
-      </div>
+      <TotalsBar
+        narrowed={shown.length !== workload.length}
+        note="Totals are for what you have searched, not every karigar."
+        totals={[
+          { label: "Karigars with work", value: String(shown.filter(w => w.openPieces > 0).length) },
+          { label: "Pieces out", value: String(totals.open), color: "var(--primary)" },
+          { label: "Owed", value: formatMoney(totals.due), color: totals.due > 0 ? "#e65100" : undefined },
+        ]}
+      />
 
       <Input placeholder="Search karigar or city…" value={search}
         onChange={e => setSearch(e.target.value)} style={{ marginBottom: 14 }} />
@@ -102,30 +96,30 @@ export default function KarigarWork({ workload, canManage = false, onRefresh, on
                 })}
                 style={{
                   display: "grid", width: "100%",
-                  gridTemplateColumns: "minmax(150px,1.6fr) 110px 110px 120px 22px",
+                  gridTemplateColumns: "minmax(180px,1.6fr) 120px 120px 140px 22px",
                   gap: 12, alignItems: "center", padding: "12px 16px",
                   background: isOpen ? "var(--canvas)" : "transparent",
                   border: "none", textAlign: "left", color: "var(--ink)", cursor: "pointer",
                 }}
               >
                 <span style={{ minWidth: 0 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{w.karigar.name}</span>
-                  {w.karigar.city && <span style={{ color: "var(--muted)", fontSize: 12 }}> · {w.karigar.city}</span>}
+                  <span style={{ fontWeight: 700, fontSize: 16 }}>{w.karigar.name}</span>
+                  {w.karigar.city && <span style={{ color: "var(--muted)", fontSize: 13 }}> · {w.karigar.city}</span>}
                   <span style={{
-                    marginLeft: 7, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99,
+                    marginLeft: 7, fontSize: 11.5, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
                     background: w.karigar.kind === "IN_HOUSE" ? "#e8f5e9" : "#ede9fe",
                     color: w.karigar.kind === "IN_HOUSE" ? "#2e7d32" : "#6d28d9",
                   }}>
                     {w.karigar.kind === "IN_HOUSE" ? "In-house" : "Outside"}
                   </span>
                 </span>
-                <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-                  <strong>{w.openPieces}</strong> <span style={{ color: "var(--muted)" }}>out</span>
+                <span style={{ fontSize: 14, fontVariantNumeric: "tabular-nums" }}>
+                  <strong style={{ fontSize: 18 }}>{w.openPieces}</strong> <span style={{ color: "var(--muted)" }}>out</span>
                 </span>
-                <span style={{ fontSize: 13, color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ fontSize: 14, color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}>
                   {w.finishedPieces} done
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 700, textAlign: "right", fontVariantNumeric: "tabular-nums", color: w.amountDue > 0 ? "#e65100" : "var(--muted)" }}>
+                <span style={{ fontSize: 15, fontWeight: 700, textAlign: "right", fontVariantNumeric: "tabular-nums", color: w.amountDue > 0 ? "#e65100" : "var(--muted)" }}>
                   {w.amountDue > 0 ? formatMoney(w.amountDue) : "—"}
                   {canManage && onMutate && w.amountDue > 0 && (
                     <span
@@ -133,7 +127,7 @@ export default function KarigarWork({ workload, canManage = false, onRefresh, on
                       tabIndex={0}
                       onClick={e => { e.stopPropagation(); setSettling(w); setAmount(String(w.amountDue)); }}
                       onKeyDown={e => { if (e.key === "Enter") { e.stopPropagation(); setSettling(w); setAmount(String(w.amountDue)); } }}
-                      style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--primary)", cursor: "pointer" }}
+                      style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "var(--primary)", cursor: "pointer" }}
                     >
                       Settle
                     </span>

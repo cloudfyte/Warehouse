@@ -23,6 +23,7 @@ import PhotoPicker from "@/app/components/molecules/PhotoPicker";
 import SizeRunSplit from "@/app/components/molecules/SizeRunSplit";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
 import Modal from "@/app/components/atoms/Modal";
@@ -393,7 +394,7 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     <div style={{ padding: 24 }}>
       <PageHeader
         title="Purchase Orders"
-        sub={`${orders.length} orders`}
+        sub="What you have ordered in, and what it came to"
         actions={<>
           <Button variant="secondary" onClick={exportCsv}>⬇ Export CSV</Button>
           {canEdit && <Button onClick={() => { setShowNew(true); resetForm(); }}>+ New Order</Button>}
@@ -420,6 +421,17 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
           )}
         </div>
       </FilterBar>
+
+      <TotalsBar
+        narrowed={filtered.length !== orders.length}
+        note="Totals are for what you have filtered, not every order."
+        totals={[
+          { label: "Orders", value: String(filtered.length) },
+          { label: "Ordered value", value: formatMoney(filtered.reduce((t, o) => t + (o.totalAmount || 0), 0)) },
+          { label: "Still open", value: String(filtered.filter(o => o.status !== "RECEIVED" && o.status !== "CANCELLED").length), color: "var(--primary)" },
+          { label: "Received", value: String(filtered.filter(o => o.status === "RECEIVED").length) },
+        ]}
+      />
 
       {/* ── New PO modal ── */}
       {showNew && (

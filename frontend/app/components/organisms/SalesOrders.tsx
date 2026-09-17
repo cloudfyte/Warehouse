@@ -16,6 +16,7 @@ import Textarea from "@/app/components/atoms/Textarea";
 import Field from "@/app/components/molecules/Field";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
 import Drawer from "@/app/components/atoms/Drawer";
@@ -264,9 +265,10 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
 
   return (
     <div style={{ padding: 24 }}>
+      {/* The three numbers a sales desk is asked for, following the filter. */}
       <PageHeader
         title="Sales Orders"
-        sub={`${orders.length} orders`}
+        sub="What has been sold, what is dispatched, and what is still to come in"
         actions={<>
           <Button variant="secondary" onClick={exportCsv}><Download size={14} /> Export CSV</Button>
           {canEdit && (
@@ -298,6 +300,21 @@ export default function SalesOrders({ orders, buyers, warehouses, finishedProduc
           )}
         </div>
       </FilterBar>
+
+      <TotalsBar
+        narrowed={filtered.length !== orders.length}
+        note="Totals are for what you have filtered, not every order."
+        totals={[
+          { label: "Orders", value: String(filtered.length) },
+          { label: "Value", value: formatMoney(filtered.reduce((t, o) => t + (o.totalAmount || 0), 0)) },
+          { label: "Received", value: formatMoney(filtered.reduce((t, o) => t + (o.amountPaid || 0), 0)) },
+          {
+            label: "Still to come",
+            value: formatMoney(filtered.reduce((t, o) => t + (o.amountDue || 0), 0)),
+            color: filtered.some(o => (o.amountDue || 0) > 0) ? "#e65100" : undefined,
+          },
+        ]}
+      />
 
       {/* ── Create Sales Order drawer ── */}
       {showNew && (

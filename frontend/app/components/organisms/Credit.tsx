@@ -13,6 +13,7 @@ import Badge from "@/app/components/atoms/Badge";
 import Field from "@/app/components/molecules/Field";
 import FormGrid from "@/app/components/molecules/FormGrid";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
@@ -49,7 +50,6 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
     return true;
   });
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-  const totalOutstanding = credits.filter(c => c.status !== "SETTLED").reduce((s, c) => s + c.amountDue, 0);
 
   async function recordPayment() {
     if (!detail) return;
@@ -69,15 +69,10 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
   return (
     <div style={{ padding: 24 }}>
       <PageHeader
-        title="Credit Tracking"
-        sub={`${credits.length} credit transactions`}
+        title="Credit"
+        sub="Who owes what, and since when"
         actions={
           <>
-            {totalOutstanding > 0 && (
-              <div style={{ background: "#b95c5618", border: "1px solid #b95c5633", color: "#8d3e39", padding: "8px 16px", borderRadius: 9, fontWeight: 700, fontSize: 14 }}>
-                {formatMoney(totalOutstanding)} outstanding
-              </div>
-            )}
             <Button variant="secondary" onClick={() => downloadCsv(`credit_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(c => ({
               "Order #": c.salesOrder.orderNumber, "Buyer": c.buyer.name,
               "Total (₹)": c.totalAmount, "Paid (₹)": c.amountPaid, "Due (₹)": c.amountDue,
@@ -103,6 +98,21 @@ export default function Credit({ credits, isAdmin, isSuperAdmin, isManager, onMu
           <Button variant="secondary" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>Clear</Button>
         )}
       </FilterBar>
+
+      <TotalsBar
+        narrowed={filtered.length !== credits.length}
+        note="Totals are for what you have filtered, not every account."
+        totals={[
+          { label: "Accounts", value: String(filtered.length) },
+          { label: "Billed", value: formatMoney(filtered.reduce((t, c) => t + (c.totalAmount || 0), 0)) },
+          { label: "Collected", value: formatMoney(filtered.reduce((t, c) => t + (c.amountPaid || 0), 0)) },
+          {
+            label: "Outstanding",
+            value: formatMoney(filtered.reduce((t, c) => t + (c.amountDue || 0), 0)),
+            color: filtered.some(c => (c.amountDue || 0) > 0) ? "#d32f2f" : undefined,
+          },
+        ]}
+      />
 
       {detail && (
         <Modal

@@ -11,6 +11,7 @@ import Button from "@/app/components/atoms/Button";
 import { showToast } from "@/app/lib/toast";
 import Badge from "@/app/components/atoms/Badge";
 import PageHeader from "@/app/components/molecules/PageHeader";
+import TotalsBar from "@/app/components/molecules/TotalsBar";
 import FilterBar from "@/app/components/molecules/FilterBar";
 import Pagination from "@/app/components/atoms/Pagination";
 import BluetoothPrintButton from "@/app/components/molecules/BluetoothPrintButton";
@@ -189,7 +190,7 @@ export default function FinishedProducts({ products, itemTypes = [], colors = []
 
       <PageHeader
         title="Finished Goods"
-        sub={`${products.length} SKUs`}
+        sub="What is on the shelf, ready to go out"
         actions={
           <>
             <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", marginRight: 4 }}>
@@ -231,6 +232,19 @@ export default function FinishedProducts({ products, itemTypes = [], colors = []
           </>
         }
       />
+
+      {view === "list" && (
+        <TotalsBar
+          narrowed={filtered.length !== products.length}
+          note="Totals are for what you have filtered, not the whole godown."
+          totals={[
+            { label: "Products", value: String(filtered.length) },
+            { label: "Pieces", value: String(filtered.reduce((t, p) => t + (p.quantity || 0), 0)), color: "var(--primary)" },
+            { label: "Stock value", value: formatMoney(filtered.reduce((t, p) => t + (p.quantity || 0) * (p.costPrice || 0), 0)) },
+            { label: "Retail value", value: formatMoney(filtered.reduce((t, p) => t + (p.quantity || 0) * (p.salePrice || 0), 0)) },
+          ]}
+        />
+      )}
 
       {view === "tags" ? (
         <BarcodeGenerator products={products} colors={colors} systemSettings={systemSettings} onMutate={onMutate} />

@@ -165,7 +165,7 @@ button:hover:not(:disabled) { filter: brightness(0.9); transition: filter 0.15s;
   position: sticky; top: 0; z-index: 4; backdrop-filter: blur(12px);
   transition: background .25s;
 }
-.eyebrow { margin: 0 0 4px; text-transform: uppercase; letter-spacing: 1.7px; font-size: 9px; font-weight: 800; color: var(--primary-3); }
+.eyebrow { margin: 0 0 4px; text-transform: uppercase; letter-spacing: 1.7px; font-size: 11px; font-weight: 800; color: var(--primary-3); }
 .topbar h1 { margin: 0; font-family: Georgia, serif; font-weight: 500; font-size: 22px; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 
@@ -174,7 +174,7 @@ button:hover:not(:disabled) { filter: brightness(0.9); transition: filter 0.15s;
   border: 1px solid var(--line); background: var(--input-bg);
   border-radius: 8px; display: flex; align-items: center; gap: 8px; color: var(--muted);
 }
-.search-box input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; font-size: 12px; color: var(--ink); }
+.search-box input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; font-size: 13.5px; color: var(--ink); }
 
 .primary-button, .secondary-button, .wide-button {
   border-radius: 8px; padding: 10px 15px; border: 1px solid transparent; font-size: 12px; font-weight: 700;
@@ -219,7 +219,7 @@ button:hover:not(:disabled) { filter: brightness(0.9); transition: filter 0.15s;
 .stat-card > div { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
 .stat-card > div b { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 7px; }
 .stat-card > strong { display: block; margin-top: 15px; font-family: Georgia, serif; font-size: 27px; font-weight: 500; }
-.stat-card p { margin: 6px 0 0; color: var(--muted); font-size: 10px; }
+.stat-card p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
 .stat-card.sage > div b { background: #dcebe1; color: #397151; }
 .stat-card.blue > div b { background: #e0ebef; color: #4f7887; }
 .stat-card.amber > div b { background: #f7ead4; color: #a66d18; }
@@ -239,7 +239,7 @@ button:hover:not(:disabled) { filter: brightness(0.9); transition: filter 0.15s;
   border-bottom: 1px solid var(--panel-border);
 }
 .panel-head h3 { margin: 0 0 4px; font-family: Georgia, serif; font-size: 16px; font-weight: 600; }
-.panel-head p { margin: 0; color: var(--muted); font-size: 10px; }
+.panel-head p { margin: 0; color: var(--muted); font-size: 12.5px; }
 .text-button { border: 0; color: var(--primary-3); background: none; font-size: 11px; font-weight: 700; }
 .count-chip { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #fae9d0; color: #9d681b; font-size: 11px; font-weight: 800; }
 
@@ -254,7 +254,7 @@ button:hover:not(:disabled) { filter: brightness(0.9); transition: filter 0.15s;
 .movement-item > div:nth-child(2), .attention-item > div:nth-child(2) { flex: 1; min-width: 0; }
 .movement-item strong, .movement-item span, .attention-item strong, .attention-item span { display: block; }
 .movement-item strong, .attention-item strong { font-size: 11px; }
-.movement-item span, .attention-item span { margin-top: 3px; color: var(--muted); font-size: 9px; text-transform: lowercase; }
+.movement-item span, .attention-item span { margin-top: 3px; color: var(--muted); font-size: 12px; text-transform: lowercase; }
 .positive { color: #347050 !important; font-weight: 700; }
 .negative { color: #aa5049 !important; font-weight: 700; }
 .product-icon { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 8px; background: var(--pale-green); font-family: Georgia, serif; color: var(--primary-2); }
@@ -272,16 +272,18 @@ button:hover:not(:disabled) { filter: brightness(0.9); transition: filter 0.15s;
 .quick-actions button > span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; background: var(--pale-green); color: var(--primary); font-size: 17px; font-weight: 700; }
 .quick-actions strong, .quick-actions small { display: block; }
 .quick-actions strong { font-size: 11px; }
-.quick-actions small { color: var(--muted); font-size: 9px; margin-top: 3px; }
+.quick-actions small { color: var(--muted); font-size: 12px; margin-top: 3px; }
 
 /* ─── Tables ──────────────────────────────────────────────────────────────── */
 .table-panel { overflow: hidden; }
 .table-wrap { overflow-x: auto; background: var(--paper); }
-table { border-collapse: collapse; width: 100%; font-size: 11px; }
+/* 11px was a spreadsheet read at arm's length, not a screen read across a
+   counter. Every table page inherits this, so the size lives here once. */
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 th {
   padding: 11px 16px;
   background: var(--th-bg);              /* was: #f7f9f7 */
-  color: var(--muted); font-size: 9px; letter-spacing: .5px;
+  color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .5px;
   text-transform: uppercase; text-align: left; white-space: nowrap;
 }
 td {
@@ -292,11 +294,11 @@ td {
   font-variant-numeric: tabular-nums;
 }
 td strong, td small { display: block; }
-td strong { color: var(--ink); font-size: 11px; }
-td small { color: var(--muted); margin-top: 4px; font-size: 9px; }
+td strong { color: var(--ink); font-size: 14px; }
+td small { color: var(--muted); margin-top: 4px; font-size: 11.5px; }
 tbody tr:hover { background: var(--hover-bg); }  /* was: #fafcfb */
 
-.status { display: inline-block; border-radius: 20px; padding: 5px 8px; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+.status { display: inline-block; border-radius: 20px; padding: 5px 10px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
 .status.success { background: #e4efe7; color: #397153; }
 .status.warning { background: #faead3; color: #996313; }
 .status.neutral { background: #eaf0ed; color: #52665c; }
