@@ -791,3 +791,39 @@ class NothingGoesToTheShopUnpriced(RetailFixture):
 
         dispatch.refresh_from_db()
         self.assertEqual(dispatch.status, RetailDispatch.Status.ACKNOWLEDGED)
+
+
+class TheConsignmentSaysWhoDidWhat(RetailFixture):
+    """A foreign key to a user is not exposed on its own, so a consignment that
+    records three hands can still show none of them."""
+
+    def test_every_hand_is_readable_on_the_consignment(self):
+        from warehouse.schema.types import RetailDispatchType
+
+        for field in ("created_by", "packed_by", "sent_by"):
+            self.assertIn(field, RetailDispatchType._meta.fields, field)
+            self.assertTrue(hasattr(RetailDispatchType, f"resolve_{field}"), field)
+
+    def test_the_names_come_back_through_the_schema(self):
+        from config.schema import schema
+
+        product = self._product(quantity=10)
+        dispatch = self._dispatch(product, quantity=2)
+        self._scan(dispatch, product, 2)
+        pack_dispatch(user=self.admin, id=dispatch.id)
+        send_dispatch(user=self.admin, id=dispatch.id,
+                      _transport=lambda c, q, v: {"recordStockReceipt": {"receipt": {"id": 7}}})
+
+        class Ctx:
+            pass
+        ctx = Ctx()
+        ctx.user = self.admin
+        result = schema.execute(
+            "{ retailDispatches { dispatchNumber packedBy { username } sentBy { username } } }",
+            context=ctx)
+
+        self.assertIsNone(result.errors)
+        row = next(r for r in result.data["retailDispatches"]
+                   if r["dispatchNumber"] == dispatch.dispatch_number)
+        self.assertEqual(row["packedBy"]["username"], self.admin.username)
+        self.assertEqual(row["sentBy"]["username"], self.admin.username)

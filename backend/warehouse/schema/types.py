@@ -528,8 +528,23 @@ class RetailDispatchItemType(DjangoObjectType):
         return float(self.unit_cost or 0)
 
 
+def _profile_for(user_id):
+    """The employee record behind a user id, or nothing."""
+    if not user_id:
+        return None
+    try:
+        return EmployeeProfile.objects.get(user_id=user_id)
+    except EmployeeProfile.DoesNotExist:
+        return None
+
+
 class RetailDispatchType(DjangoObjectType):
+    # Three hands, often: one writes the consignment, another closes the carton,
+    # a third presses send. A foreign key to a user is not exposed on its own,
+    # so each one is declared or the consignment cannot say who did what.
     created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+    packed_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+    sent_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
     total_pieces = graphene.Int()
 
     class Meta:
@@ -543,6 +558,12 @@ class RetailDispatchType(DjangoObjectType):
             return EmployeeProfile.objects.get(user_id=self.created_by_id)
         except EmployeeProfile.DoesNotExist:
             return None
+
+    def resolve_packed_by(self, info):
+        return _profile_for(self.packed_by_id)
+
+    def resolve_sent_by(self, info):
+        return _profile_for(self.sent_by_id)
 
     def resolve_total_pieces(self, info):
         return sum(i.quantity for i in self.items.all())

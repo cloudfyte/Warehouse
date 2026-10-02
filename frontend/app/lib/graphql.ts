@@ -319,6 +319,8 @@ export const DASHBOARD_QUERY = `
     retailDispatches(limit: 100) {
       id dispatchNumber status receiptId lastError attempts dispatchDate notes
       transporterName lrNumber vehicleNumber driverPhone
+      packedAt sentAt acknowledgedAt
+      createdBy { id username } packedBy { id username } sentBy { id username }
       store { id buildingId name active }
       fromWarehouse { id name code }
       items { id quantity packedQuantity unitCost

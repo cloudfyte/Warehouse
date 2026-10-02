@@ -20,10 +20,15 @@ interface DispatchItem {
   id: string; quantity: number; packedQuantity: number; unitCost: number;
   finishedProduct: FinishedProduct;
 }
+interface Hand { id: string; username: string }
+
 interface Dispatch {
   id: string; dispatchNumber: string; status: string; receiptId?: number | null;
   lastError?: string; attempts: number; dispatchDate?: string | null; notes?: string;
   transporterName?: string; lrNumber?: string; vehicleNumber?: string;
+  /** Three hands, often: one writes it, one closes the carton, one sends it. */
+  packedAt?: string | null; sentAt?: string | null; acknowledgedAt?: string | null;
+  createdBy?: Hand | null; packedBy?: Hand | null; sentBy?: Hand | null;
   store: Store; fromWarehouse: WarehouseLocation; items: DispatchItem[];
 }
 
@@ -69,6 +74,12 @@ const DISPATCH_FIELDS =
  * once: the carton is scanned shut, stock leaves at that moment, and the shop
  * is told exactly once.
  */
+function when(iso?: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-IN",
+    { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function RetailDispatches({
   channel, stores, dispatches, products, unlinked, warehouses, canManage, onRefresh, onMutate,
 }: Props) {
@@ -405,11 +416,21 @@ export default function RetailDispatches({
               <div style={{ fontWeight: 600, fontSize: 13 }}>
                 {d.dispatchNumber} → {d.store.name}
               </div>
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
                 {d.items.length} line{d.items.length === 1 ? "" : "s"}
                 {" · "}{d.items.reduce((n, i) => n + i.quantity, 0)} pcs
                 {d.lrNumber ? ` · LR ${d.lrNumber}` : ""}
                 {d.receiptId ? ` · their receipt #${d.receiptId}` : ""}
+              </div>
+              {/* Whose hands it passed through, in the order they touched it. */}
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
+                {[
+                  d.createdBy?.username ? `written by ${d.createdBy.username}` : "",
+                  d.packedBy?.username ? `packed by ${d.packedBy.username}` : "",
+                  d.sentBy?.username
+                    ? `sent by ${d.sentBy.username}${d.sentAt ? ` on ${when(d.sentAt)}` : ""}`
+                    : "",
+                ].filter(Boolean).join(" · ")}
               </div>
             </div>
             <span style={{
