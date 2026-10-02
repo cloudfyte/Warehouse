@@ -7,6 +7,7 @@ is why they are their own register rather than a role on an employee.
 from decimal import Decimal
 
 from django.db import transaction
+from django.utils import timezone
 from graphql import GraphQLError
 
 from warehouse.models import EmployeeProfile, Karigar, StitchingJob
@@ -72,6 +73,41 @@ def update_karigar(*, user, id, **changes):
     return karigar
 
 
+def _book_as_expense(*, user, karigar, amount, reference, warehouse, description):
+    """Money out is money out.
+
+    Paying a karigar used to move one number on the job and nothing else, so the
+    wages of everybody who actually makes the garments were missing from the
+    expenses, from the month's figures and from the profit and loss. The payment
+    is the same event in both places, so it is written in both.
+    """
+    from warehouse.models import Expense
+
+    if warehouse is None:
+        return None
+    return Expense.objects.create(
+        category=Expense.Category.LABOR,
+        amount=amount,
+        expense_date=timezone.now().date(),
+        description=description,
+        reference=reference,
+        payment_method=Expense.PaymentMethod.CASH,
+        warehouse=warehouse,
+        created_by=user,
+    )
+
+
+def _warehouse_for(job):
+    """Where the work belongs, for the books."""
+    if job.return_warehouse_id:
+        return job.return_warehouse
+    if job.cutting_assignment_id:
+        return job.cutting_assignment.raw_cloth_batch.warehouse
+    if job.purchase_bill_item_id:
+        return job.purchase_bill_item.bill.warehouse
+    return None
+
+
 def pay_karigar(*, user, stitching_job_id, amount):
     """
     Record money paid against one job.
@@ -99,6 +135,11 @@ def pay_karigar(*, user, stitching_job_id, amount):
             )
         job.amount_paid = (job.amount_paid or Decimal("0.00")) + amount
         job.save(update_fields=["amount_paid", "updated_at"])
+        who = job.karigar.name if job.karigar_id else "tailor"
+        _book_as_expense(
+            user=user, karigar=job.karigar, amount=amount,
+            reference=job.job_number, warehouse=_warehouse_for(job),
+            description=f"Stitching paid to {who} for {job.job_number}")
     return job
 
 
@@ -150,4 +191,12 @@ def settle_karigar(*, user, karigar_id, amount):
             job.save(update_fields=["amount_paid", "updated_at"])
             settled.append(job)
             left -= part
+        paid = amount - left
+        if paid > 0 and settled:
+            _book_as_expense(
+                user=user, karigar=karigar, amount=paid,
+                reference=", ".join(j.job_number for j in settled[:5]),
+                warehouse=_warehouse_for(settled[0]),
+                description=f"Stitching settled with {karigar.name} "
+                            f"across {len(settled)} job(s)")
     return settled, left

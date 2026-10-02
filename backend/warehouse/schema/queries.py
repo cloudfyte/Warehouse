@@ -7,7 +7,7 @@ from .types import (
     AgingReport, AnalyticsStats, AuditLogType, BuyerReturnType, BuyerType, ClothCategoryType,
     ClothColorType, CreditTransactionType, CustomRoleType, CustomerBillStatusType,
     CustomerOrderType, CuttingAssignmentType, DashboardStats, EmployeeProfileType, ExpenseType,
-    FinishedProductType, ItemTypeType, JobworkOrderType, KarigarType, KarigarWorkloadType,
+    FinishedProductType, ItemTypeType, KarigarType, KarigarWorkloadType,
     NotificationType, PLReport, ParcelInspectionType, ProductSetType, PublicSettingsType,
     PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType, ReadymadeStockType,
     ReconciliationRowType, RecurringSettlementType, ReorderPointType, RetailChannelType,
@@ -88,7 +88,6 @@ class Query(graphene.ObjectType):
     stock_transfers = graphene.List(StockTransferType, status=graphene.String(), limit=graphene.Int())
     karigars = graphene.List(KarigarType, include_inactive=graphene.Boolean())
     karigar_workload = graphene.List(KarigarWorkloadType)
-    jobwork_orders = graphene.List(JobworkOrderType, limit=graphene.Int())
     awaiting_collection = graphene.List(FinishedProductType)
     customer_orders = graphene.List(CustomerOrderType, limit=graphene.Int())
     customer_bills = graphene.List(CustomerBillStatusType, limit=graphene.Int())
@@ -322,10 +321,6 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_awaiting_collection(self, info):
         return selectors.get_awaiting_collection(info.context.user)
-
-    @login_required
-    def resolve_jobwork_orders(self, info, limit=100):
-        return selectors.get_jobwork_orders(info.context.user, limit=limit)
 
     @login_required
     def resolve_retail_channel(self, info):

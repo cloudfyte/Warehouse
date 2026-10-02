@@ -150,10 +150,13 @@ export default function KarigarWork({ workload, canManage = false, onRefresh, on
                       <div key={j.id} style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "10px 12px" }}>
                         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
                           <span style={{ fontWeight: 700, fontSize: 13 }}>{j.jobNumber}</span>
-                          <span style={{ fontSize: 12 }}>{j.cuttingAssignment?.itemType?.name}</span>
-                          {j.cuttingAssignment?.rawClothBatch?.designNumber && (
+                          <span style={{ fontSize: 13 }}>{j.garmentName ?? j.cuttingAssignment?.itemType?.name}</span>
+                          {j.isOutside && (
+                            <span style={{ fontSize: 11.5, fontWeight: 700, color: "#6d28d9" }}>outside</span>
+                          )}
+                          {j.clothDesignNumber && (
                             <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: "var(--canvas)", color: "var(--ink)" }}>
-                              Design {j.cuttingAssignment.rawClothBatch.designNumber}
+                              Design {j.clothDesignNumber}
                             </span>
                           )}
                           <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto" }}>

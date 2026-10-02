@@ -50,7 +50,7 @@ interface BillItem {
   notes: string
   /** Set when this cloth was railed straight to a stitching unit. */
   deliverToKarigar?: { id: string; name: string; city?: string } | null
-  jobworkOrder?: { id: string; orderNumber: string; status: string } | null
+  stitchingJob?: { id: string; jobNumber: string; status: string } | null
 }
 
 interface SupplierPayment {
@@ -725,7 +725,7 @@ export default function PurchaseBills({
                                   <div style={{ fontSize: 12, color: "#6d28d9", marginTop: 3 }}>
                                     → {item.deliverToKarigar.name}
                                     {item.deliverToKarigar.city ? ` · ${item.deliverToKarigar.city}` : ""}
-                                    {item.jobworkOrder ? ` · job ${item.jobworkOrder.orderNumber}` : ""}
+                                    {item.stitchingJob ? ` · job ${item.stitchingJob.jobNumber}` : ""}
                                   </div>
                                 )}
                               </td>

@@ -198,16 +198,10 @@ export default function CustomerBills({ bills, ready, canManage, onRefresh, onMu
                   ))}
                   {b.stitchingJobs.map(j => (
                     <div key={j.id} style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "9px 12px", fontSize: 12 }}>
-                      <strong>Stitching {j.jobNumber}</strong>
+                      <strong>{j.isOutside ? "Outside job" : "Stitching"} {j.jobNumber}</strong>
+                      {j.garmentName ? ` · ${j.garmentName}` : ""}
                       {j.karigar ? ` · ${j.karigar.name}${j.karigar.city ? ` (${j.karigar.city})` : ""}` : ""}
                       {" · "}{j.piecesCompleted}/{j.piecesAssigned} pieces
-                    </div>
-                  ))}
-                  {b.jobworkOrders.map(o => (
-                    <div key={o.id} style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "9px 12px", fontSize: 12 }}>
-                      <strong>Outside job {o.orderNumber}</strong> · {o.itemType.name} · {o.karigar.name}
-                      {o.karigar.city ? ` (${o.karigar.city})` : ""}
-                      {" · "}{o.piecesReceived}/{o.piecesExpected} back
                     </div>
                   ))}
 

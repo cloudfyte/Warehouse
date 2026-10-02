@@ -164,7 +164,7 @@ export const DASHBOARD_QUERY = `
         ageGroup size quantity unitPrice gstRate totalPrice notes
         clothCategory { id name } clothColor { id name hexCode } itemType { id name }
         deliverToKarigar { id name city }
-        jobworkOrder { id orderNumber status }
+        stitchingJob { id jobNumber status }
       }
       supplierPayments { id paymentNumber amount paymentDate paymentMode reference notes createdAt }
       sourcePo { id poNumber }
@@ -200,25 +200,10 @@ export const DASHBOARD_QUERY = `
       order { id billNumber customerName customerPhone billPhotos notes createdAt }
       cuttingAssignments { id assignmentNumber status targetPieces piecesCompleted
         itemType { name } cuttingMaster { id username } }
-      stitchingJobs { id jobNumber status piecesAssigned piecesCompleted
-        karigar { id name city } }
-      jobworkOrders { id orderNumber status piecesExpected piecesReceived
-        karigar { id name city } itemType { name } }
+      stitchingJobs { id jobNumber status piecesAssigned piecesCompleted isOutside
+        garmentName karigar { id name city } }
     }
     karigars { id name kind phone whatsapp city address ratePerPiece active }
-    jobworkOrders(limit: 100) {
-      id orderNumber status designNumber clothMeters clothCost
-      jobType customerBillNumber ratePerPiece amountPaid amountEarned amountDue
-      customerOrder { id billNumber customerName customerPhone billPhotos notes }
-      piecesExpected piecesReceived sentDate dueDate receivedDate notes
-      sentTransporter sentLrNumber sentVehicleNumber sentPhotos
-      returnTransporter returnLrNumber returnVehicleNumber returnPhotos
-      sizes { id size piecesExpected piecesReceived }
-      karigar { id name city kind }
-      supplier { id name }
-      itemType { id name }
-      receiveWarehouse { id name }
-    }
     awaitingCollection {
       id sku name size quantity salePrice customerBillNumber
       customerOrder { id billNumber customerName customerPhone billPhotos notes }
@@ -230,6 +215,7 @@ export const DASHBOARD_QUERY = `
       jobs {
         id jobNumber piecesAssigned piecesCompleted status assignedDate dueDate
         sizes { id size piecesAssigned piecesCompleted }
+        isOutside garmentName clothDesignNumber
         cuttingAssignment { assignmentNumber itemType { name } rawClothBatch { designNumber } }
       }
     }
@@ -242,9 +228,11 @@ export const DASHBOARD_QUERY = `
       issueTransporter issueLrNumber issueVehicleNumber issueDate issuePhotos
       returnTransporter returnLrNumber returnVehicleNumber returnDate returnPhotos
       returnWarehouse { id name }
+      isOutside garmentName clothDesignNumber clothCost costPerPiece supplierName
       karigar { id name kind city ratePerPiece }
       cuttingAssignment { id assignmentNumber size costPerPiece itemType { name }
         rawClothBatch { designNumber warehouse { id name } } }
+      purchaseBillItem { id bill { id billNumber } }
       tailor { id username role }
     }
     finishedProducts {

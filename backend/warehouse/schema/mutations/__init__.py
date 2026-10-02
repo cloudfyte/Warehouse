@@ -32,7 +32,6 @@ from .settlement import (
 )
 from .purchase_bill import CreatePurchaseBill, GenerateBillFromPO, UpdatePurchaseBillGst
 from .purchase_order import CreatePurchaseOrder, ReceivePurchaseOrder, UpdatePurchaseOrderStatus
-from .jobwork import CreateJobworkOrder, PayJobwork, ReceiveJobwork
 from .customer_order import UpdateCustomerOrder
 from .karigar import CreateKarigar, PayKarigar, SettleKarigar, UpdateKarigar
 from .stock import CreateRawClothBatch, CreateReadymadeStock, UpdateRawClothBatch
@@ -93,9 +92,6 @@ class Mutation(graphene.ObjectType):
     update_purchase_bill_gst = UpdatePurchaseBillGst.Field()
 
     # Direct stock entry
-    create_jobwork_order = CreateJobworkOrder.Field()
-    receive_jobwork = ReceiveJobwork.Field()
-    pay_jobwork = PayJobwork.Field()
     update_customer_order = UpdateCustomerOrder.Field()
     create_karigar = CreateKarigar.Field()
     update_karigar = UpdateKarigar.Field()

@@ -25,7 +25,6 @@ import PurchaseBills from "@/app/components/organisms/PurchaseBills";
 import Cutting from "@/app/components/organisms/Cutting";
 import Stitching from "@/app/components/organisms/Stitching";
 import KarigarsTab from "@/app/components/organisms/KarigarsTab";
-import Jobwork from "@/app/components/organisms/Jobwork";
 import CustomerBills from "@/app/components/organisms/CustomerBills";
 import FinishedProducts from "@/app/components/organisms/FinishedProducts";
 import Settlements from "@/app/components/organisms/Settlements";
@@ -70,7 +69,7 @@ const ALL_TABS: Tab[] = [
   "finished_products", "product_sets", "sales_orders", "credit", "returns", "expenses", "settlements",
   "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches",
   "quotations", "reports", "ledger",
-  "karigars", "jobwork", "customer_bills",
+  "karigars", "customer_bills",
   "item_types", "employees", "warehouses", "roles", "notifications", "audit_log", "settings", "profile",
 ];
 
@@ -113,7 +112,6 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   stock_adjustments: <Package size={16} />,
   stock_transfers: <ArrowLeftRight size={16} />,
   karigars: <Scissors size={16} />,
-  jobwork: <Truck size={16} />,
   customer_bills: <FileText size={16} />,
   retail_dispatches: <Store size={16} />,
   reorder_points: <AlertCircle size={16} />,
@@ -890,14 +888,6 @@ export default function Home() {
             salesOrders={data?.salesOrders || []}
             creditTransactions={data?.creditTransactions || []}
             purchaseBills={data?.purchaseBills || []}
-          />
-        )}
-        {currentTab === "jobwork" && (
-          <Jobwork
-            orders={data?.jobworkOrders || []}
-            canManage={isAdmin || isSuperAdmin || isManager || isStoreKeeper}
-            onRefresh={() => token && loadData(token)}
-            onMutate={mutate}
           />
         )}
         {currentTab === "customer_bills" && (

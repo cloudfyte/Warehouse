@@ -63,9 +63,14 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
   function openFG(j: StitchingJob) {
     const net = (j.piecesCompleted || 0) - (j.piecesRejected || 0);
     const ca = j.cuttingAssignment;
-    const defaultWh = ca?.rawClothBatch?.warehouse?.id || (warehouses[0]?.id ?? "");
+    const defaultWh = j.returnWarehouse?.id || ca?.rawClothBatch?.warehouse?.id || (warehouses[0]?.id ?? "");
     setFgJob(j);
-    setFgForm({ qty: String(Math.max(0, net)), warehouseId: defaultWh, costPrice: String(ca?.costPerPiece || ""), salePrice: "" });
+    setFgForm({
+      qty: String(Math.max(0, net)), warehouseId: defaultWh,
+      // Cloth plus making, over what actually came back.
+      costPrice: String(j.costPerPiece || ca?.costPerPiece || ""),
+      salePrice: "",
+    });
     setFgError("");
   }
 
@@ -131,7 +136,9 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
   const q = search.toLowerCase();
   const filtered = jobs.filter(j =>
     (!statusFilter || j.status === statusFilter) &&
-    (!q || j.tailor.username.toLowerCase().includes(q) || j.cuttingAssignment.itemType.name.toLowerCase().includes(q))
+    (!q || (j.karigar?.name ?? j.tailor?.username ?? "").toLowerCase().includes(q)
+      || (j.garmentName ?? "").toLowerCase().includes(q)
+      || (j.clothDesignNumber ?? "").toLowerCase().includes(q))
   );
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   // Follows the filter. The one number a stitching desk is asked for daily is
@@ -480,7 +487,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
         const isReady = selected.status === "READY";
         return (
           <Modal title={`Update: ${selected.jobNumber}`}
-            subtitle={`${selected.cuttingAssignment.itemType.name} · ${selected.piecesAssigned} pieces → ${selected.tailor.username}`}
+            subtitle={`${selected.garmentName ?? ""} · ${selected.piecesAssigned} pieces → ${selected.karigar?.name ?? selected.tailor?.username ?? ""}`}
             onClose={() => { setSelected(null); setError(""); }} width={440}
             footer={<div style={{ display: "flex", gap: 10 }}>
               {isReady ? (
@@ -527,7 +534,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
       {/* Move to Finished Goods modal */}
       {fgJob && (
         <Modal title="Move to Finished Goods"
-          subtitle={`${fgJob.cuttingAssignment.itemType.name} · ${fgJob.jobNumber}`}
+          subtitle={`${fgJob.garmentName ?? ""} · ${fgJob.jobNumber}`}
           onClose={() => setFgJob(null)} width={420}
           footer={<div style={{ display: "flex", gap: 10 }}>
             <Button onClick={saveToFinishedGoods} disabled={fgLoading} style={{ flex: 1 }}>{fgLoading ? "Moving…" : "Add to Finished Goods"}</Button>
@@ -564,12 +571,15 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
       {filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "72px 24px" }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>No stitching jobs found</div>
-          <div style={{ fontSize: 13, color: "var(--muted)" }}>A job is handed out from a cutting docket once its pieces are cut.</div>
+          <div style={{ fontSize: 13, color: "var(--muted)" }}>
+            A job is handed out from a cutting docket once its pieces are cut — or opens itself
+            when a purchase sends cloth straight to an outside unit.
+          </div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {paged.map(j => {
-            const batch = j.cuttingAssignment.rawClothBatch;
+            const batch = j.cuttingAssignment?.rawClothBatch;
             const swatch = nameToColorHex(batch?.clothColor?.name || "");
             const done = Number(j.piecesCompleted) || 0;
             const assigned = Number(j.piecesAssigned) || 0;
@@ -587,8 +597,13 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
               }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.2 }}>
-                    {batch?.designNumber || batch?.batchNumber || j.jobNumber}
+                    {j.clothDesignNumber || batch?.batchNumber || j.jobNumber}
                   </div>
+                  {j.isOutside && (
+                    <div style={{ fontSize: 12, color: "#6d28d9", fontWeight: 600, marginTop: 3 }}>
+                      cut and stitched outside{j.supplierName ? ` · cloth from ${j.supplierName}` : ""}
+                    </div>
+                  )}
                   {batch?.clothColor && (
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6,
@@ -609,7 +624,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
                   )}
                 </div>
 
-                <Cell label="Making" value={j.cuttingAssignment.itemType.name} />
+                <Cell label="Making" value={j.garmentName} />
 
                 <div style={{ minWidth: 0 }}>
                   <Cell label="Stitcher"

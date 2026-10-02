@@ -939,16 +939,6 @@ def get_karigar_workload(user):
     return rows
 
 
-def get_jobwork_orders(user, limit=100):
-    from warehouse.models import JobworkOrder
-    from warehouse.permissions import accessible_warehouses
-
-    return (JobworkOrder.objects
-            .filter(receive_warehouse__in=accessible_warehouses(user))
-            .select_related("karigar", "supplier", "item_type", "receive_warehouse")
-            .prefetch_related("sizes")[:limit])
-
-
 def get_awaiting_collection(user):
     """Readymade garments made for a customer who has not collected them yet."""
     from warehouse.models import FinishedProduct
@@ -979,7 +969,7 @@ def get_customer_bills(user, limit=200):
     and half stitched is still waiting on the cutting.
     """
     from warehouse.models import (
-        CustomerOrder, CuttingAssignment, FinishedProduct, JobworkOrder, StitchingJob,
+        CustomerOrder, CuttingAssignment, FinishedProduct, StitchingJob,
     )
 
     orders = list(CustomerOrder.objects.all()[:limit])
@@ -987,16 +977,15 @@ def get_customer_bills(user, limit=200):
         return []
     ids = [o.id for o in orders]
 
-    cuts, jobs, outside, made = {}, {}, {}, {}
+    cuts, jobs, made = {}, {}, {}
     for row in (CuttingAssignment.objects.filter(customer_order_id__in=ids)
                 .select_related("item_type", "cutting_master__user")):
         cuts.setdefault(row.customer_order_id, []).append(row)
+    # Outside units are on this list too: a job with no docket in front of it
+    # is still a stitching job.
     for row in (StitchingJob.objects.filter(customer_order_id__in=ids)
-                .select_related("karigar", "cutting_assignment__item_type")):
+                .select_related("karigar", "item_type", "cutting_assignment__item_type")):
         jobs.setdefault(row.customer_order_id, []).append(row)
-    for row in (JobworkOrder.objects.filter(customer_order_id__in=ids)
-                .select_related("karigar", "item_type")):
-        outside.setdefault(row.customer_order_id, []).append(row)
     for row in (FinishedProduct.objects.filter(customer_order_id__in=ids)
                 .select_related("item_type")):
         made.setdefault(row.customer_order_id, []).append(row)
@@ -1005,7 +994,6 @@ def get_customer_bills(user, limit=200):
     for order in orders:
         my_cuts = cuts.get(order.id, [])
         my_jobs = jobs.get(order.id, [])
-        my_outside = outside.get(order.id, [])
         my_made = made.get(order.id, [])
 
         ready = sum(p.quantity for p in my_made if not p.handed_over_at)
@@ -1015,15 +1003,11 @@ def get_customer_bills(user, limit=200):
         stitching_open = any(
             j.status not in (StitchingJob.Status.READY, StitchingJob.Status.MOVED)
             for j in my_jobs)
-        outside_open = any(
-            o.status in (JobworkOrder.Status.SENT, JobworkOrder.Status.PARTIAL)
-            for o in my_outside)
-
-        if not (my_cuts or my_jobs or my_outside or my_made):
+        if not (my_cuts or my_jobs or my_made):
             stage = "NOT_STARTED"
         elif cutting_open:
             stage = "CUTTING"
-        elif stitching_open or outside_open:
+        elif stitching_open:
             stage = "STITCHING"
         elif ready > 0:
             stage = "READY"
@@ -1037,7 +1021,6 @@ def get_customer_bills(user, limit=200):
             "stage": stage,
             "cutting_assignments": my_cuts,
             "stitching_jobs": my_jobs,
-            "jobwork_orders": my_outside,
             "pieces_ready": ready,
             "pieces_collected": collected,
         })

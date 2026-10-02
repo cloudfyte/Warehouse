@@ -355,6 +355,77 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
     return job
 
 
+def open_outside_job_from_purchase(*, user, bill_item, item, warehouse):
+    """The stitching job that this purchase line already is.
+
+    Cloth bought and railed straight to a unit that cuts and stitches it. It is
+    the same handing-out as any other job, so it is the same record — the
+    supplier, the metres and what they cost are read off the bill line and not
+    asked for again, and no stock is booked because the cloth never reaches a
+    shelf here. Sizes come back with the garments; nobody knows the split on the
+    day the cloth is bought.
+    """
+    from warehouse.models import Karigar
+    from warehouse.services.uploads import save_data_urls_csv
+
+    if not item.get("item_type_id"):
+        raise GraphQLError(
+            "Cloth going straight to a stitching unit — what garment are they making?")
+    try:
+        karigar = Karigar.objects.get(pk=item["deliver_to_karigar_id"], active=True)
+    except Karigar.DoesNotExist as exc:
+        raise GraphQLError("Karigar not found or inactive.") from exc
+
+    kind = (item.get("job_type") or StitchingJob.JobType.WHOLESALE).upper()
+    if kind not in StitchingJob.JobType.values:
+        raise GraphQLError("Stitching work is either wholesale or readymade.")
+    bill_number = (item.get("customer_bill_number") or "").strip()
+    customer_order = None
+    if kind == StitchingJob.JobType.READYMADE:
+        if not bill_number:
+            raise GraphQLError(
+                "Readymade work is made against a customer's bill — give the bill number.")
+        from warehouse.services.customer_order import claim_customer_order
+
+        customer_order = claim_customer_order(
+            user=user, bill_number=bill_number,
+            customer_name=item.get("customer_name", ""),
+            customer_phone=item.get("customer_phone", ""),
+            bill_photos=item.get("bill_photos", ""))
+    else:
+        bill_number = ""
+
+    rate = item.get("rate_per_piece")
+    rate = Decimal(str(rate if rate not in (None, "") else karigar.rate_per_piece))
+    if rate < 0:
+        raise GraphQLError("A rate cannot be negative.")
+
+    return StitchingJob.objects.create(
+        cutting_assignment=None,
+        purchase_bill_item=bill_item,
+        item_type_id=item["item_type_id"],
+        design_number=(item.get("design_number") or "").strip(),
+        karigar=karigar,
+        tailor=karigar.employee,
+        rate_per_piece=rate,
+        pieces_assigned=0,
+        status=StitchingJob.Status.PROCESSING,
+        job_type=kind,
+        customer_bill_number=bill_number,
+        customer_order=customer_order,
+        assigned_date=timezone.now().date(),
+        due_date=item.get("due_date"),
+        notes=(item.get("notes") or "").strip(),
+        return_warehouse=warehouse,
+        issue_transporter=(item.get("sent_transporter") or "").strip(),
+        issue_lr_number=(item.get("sent_lr_number") or "").strip(),
+        issue_vehicle_number=(item.get("sent_vehicle_number") or "").strip(),
+        issue_date=timezone.now().date(),
+        issue_photos=save_data_urls_csv(item.get("sent_photos") or "", "stitching"),
+        assigned_by=user,
+    )
+
+
 _TRANSIT_FIELDS = (
     "issue_transporter", "issue_lr_number", "issue_vehicle_number", "issue_date",
     "return_transporter", "return_lr_number", "return_vehicle_number", "return_date",
@@ -481,11 +552,20 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             # cutting, carried through stitching, landing on the garment.
             customer_bill_number = sj.customer_bill_number or ""
             customer_order = sj.customer_order
-            item_type_id = sj.cutting_assignment.item_type_id
-            cloth_category_id = sj.cutting_assignment.raw_cloth_batch.cloth_category_id
-            cloth_color_id = sj.cutting_assignment.raw_cloth_batch.cloth_color_id
-            age_group = sj.cutting_assignment.age_group
-            size = sj.cutting_assignment.size
+            # A job sent outside has no docket in front of it, so what it is
+            # and what cloth it came off are read off the job itself.
+            if sj.cutting_assignment_id:
+                ca = sj.cutting_assignment
+                item_type_id = ca.item_type_id
+                cloth_category_id = ca.raw_cloth_batch.cloth_category_id
+                cloth_color_id = ca.raw_cloth_batch.cloth_color_id
+                age_group = ca.age_group
+                size = ca.size
+            else:
+                item_type_id = sj.item_type_id
+                line = sj.purchase_bill_item
+                cloth_category_id = line.cloth_category_id if line else None
+                cloth_color_id = line.cloth_color_id if line else None
 
         if readymade_stock_id:
             rs = get_scoped(user, ReadymadeStock, readymade_stock_id, lock=True)

@@ -361,7 +361,7 @@ class PicturesComeBackAsAddressesNotPaths(ClothFixture):
 
     def test_every_photo_field_is_resolved_to_a_url(self):
         from warehouse.schema.types import (
-            CustomerOrderType, JobworkOrderType, RawClothBatchType, StitchingJobType,
+            CustomerOrderType, RawClothBatchType, StitchingJobType,
         )
 
         # A picture that is not resolved is a broken image on somebody's screen,
@@ -370,7 +370,6 @@ class PicturesComeBackAsAddressesNotPaths(ClothFixture):
         expected = {
             RawClothBatchType: ["resolve_photos"],
             StitchingJobType: ["resolve_photos", "resolve_issue_photos", "resolve_return_photos"],
-            JobworkOrderType: ["resolve_sent_photos", "resolve_return_photos"],
             CustomerOrderType: ["resolve_bill_photos"],
         }
         missing = [

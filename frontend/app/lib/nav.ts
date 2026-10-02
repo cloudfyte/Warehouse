@@ -15,7 +15,7 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
   { label: "Overview", tabs: ["dashboard", "analytics"] },
   { label: "Purchasing", tabs: ["suppliers", "purchase_orders", "purchase_bills"] },
   { label: "Inventory", tabs: ["raw_cloth", "readymade_stock", "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches"] },
-  { label: "Production", tabs: ["cutting", "stitching", "jobwork", "karigars", "customer_bills", "finished_products", "product_sets"] },
+  { label: "Production", tabs: ["cutting", "stitching", "karigars", "customer_bills", "finished_products", "product_sets"] },
   { label: "Sales", tabs: ["buyers", "quotations", "sales_orders", "credit", "returns"] },
   { label: "Finance", tabs: ["expenses", "settlements", "reports", "ledger"] },
   { label: "Admin", tabs: ["item_types", "employees", "warehouses", "roles"] },

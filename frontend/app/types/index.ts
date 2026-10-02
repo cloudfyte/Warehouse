@@ -126,10 +126,8 @@ export interface CustomerBillStatus {
     itemType: { name: string }; cuttingMaster?: { id: string; username: string } | null }[]
   stitchingJobs: { id: string; jobNumber: string; status: string
     piecesAssigned: number; piecesCompleted: number
+    isOutside?: boolean; garmentName?: string
     karigar?: { id: string; name: string; city?: string } | null }[]
-  jobworkOrders: { id: string; orderNumber: string; status: string
-    piecesExpected: number; piecesReceived: number
-    karigar: { id: string; name: string; city?: string }; itemType: { name: string } }[]
 }
 
 /** A written bill for a garment made to somebody's measure. */
@@ -159,8 +157,14 @@ export interface Karigar {
 }
 
 export interface StitchingJob {
-  id: string; jobNumber: string; cuttingAssignment: CuttingAssignment
-  tailor: Employee; piecesAssigned: number; status: string
+  id: string; jobNumber: string
+  /** Absent when the cloth never came here to be cut — the unit did both. */
+  cuttingAssignment?: CuttingAssignment | null
+  purchaseBillItem?: { id: string; bill: { id: string; billNumber: string } } | null
+  /** Resolved by the backend, so no screen has to know where to look. */
+  isOutside?: boolean; garmentName?: string; clothDesignNumber?: string
+  clothCost?: number; costPerPiece?: number; supplierName?: string
+  tailor?: Employee | null; piecesAssigned: number; status: string
   assignedDate: string; dueDate?: string; piecesCompleted: number
   piecesRejected: number; completedDate?: string; notes: string
   /** Wholesale work goes to stock; readymade is stitched against one customer's bill. */
@@ -176,24 +180,6 @@ export interface StitchingJob {
   returnTransporter?: string; returnLrNumber?: string; returnVehicleNumber?: string
   returnDate?: string; returnPhotos?: string
   returnWarehouse?: { id: string; name: string } | null
-}
-
-/** A whole job — cutting and stitching — given to an outside handler. */
-export interface JobworkOrder {
-  id: string; orderNumber: string; status: string
-  designNumber?: string; clothMeters: number; clothCost: number
-  jobType: string; customerBillNumber?: string
-  customerOrder?: CustomerOrder | null
-  ratePerPiece: number; amountPaid: number; amountEarned: number; amountDue: number
-  piecesExpected: number; piecesReceived: number
-  sentDate: string; dueDate?: string; receivedDate?: string; notes?: string
-  sentTransporter?: string; sentLrNumber?: string; sentVehicleNumber?: string; sentPhotos?: string
-  returnTransporter?: string; returnLrNumber?: string; returnVehicleNumber?: string; returnPhotos?: string
-  sizes: { id: string; size: string; piecesExpected: number; piecesReceived: number }[]
-  karigar: Karigar
-  supplier?: { id: string; name: string } | null
-  itemType: ItemType
-  receiveWarehouse: WarehouseLocation
 }
 
 /** One karigar and everything of theirs — the other axis of the stitching screen. */
@@ -425,7 +411,7 @@ export type Tab =
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
   | "stock_adjustments" | "stock_transfers" | "reorder_points" | "retail_dispatches"
-  | "karigars" | "jobwork" | "customer_bills"
+  | "karigars" | "customer_bills"
   | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"

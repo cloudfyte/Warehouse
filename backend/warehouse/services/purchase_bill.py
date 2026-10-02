@@ -149,9 +149,9 @@ def create_purchase_bill(
                 # so booking it into a godown would invent stock that is not in
                 # the building — the job is opened against this purchase line
                 # instead, and what comes back is garments.
-                from warehouse.services.jobwork import open_jobwork_from_purchase
+                from warehouse.services.production import open_outside_job_from_purchase
 
-                open_jobwork_from_purchase(
+                open_outside_job_from_purchase(
                     user=user, bill_item=bill_item, item=item, warehouse=warehouse)
             elif kind == "RAW_CLOTH":
                 receive_cloth_into_stock(
