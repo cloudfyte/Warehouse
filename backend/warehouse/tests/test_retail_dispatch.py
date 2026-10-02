@@ -171,18 +171,125 @@ class TheCartonIsScannedShut(RetailFixture):
         self.assertEqual(item.packed_quantity, 1)
 
 
-class NothingGoesWithoutACatalogueEntry(RetailFixture):
-    def test_an_unlinked_product_blocks_the_consignment(self):
+class TheShopGainsTheGarmentWhenItIsSent(RetailFixture):
+    """The warehouse and the shop are one business, so a garment leaving here
+    arrives there under the barcode already printed on its tag."""
+
+    def _shop(self, catalogue=None, created=None):
+        """A stand-in shop that records what it was asked to do."""
+        calls = {"created": [], "receipts": []}
+
+        def transport(channel, query, variables):
+            if "listProducts" in query:
+                return {"listProducts": catalogue or []}
+            if "createProduct" in query:
+                calls["created"].append(variables)
+                return {"createProduct": {
+                    "success": True, "message": "Product created",
+                    "product": {"id": created or 9001,
+                                "name": variables["name"],
+                                "barcode": variables["barcode"]}}}
+            calls["receipts"].append(variables)
+            return {"recordStockReceipt": {"receipt": {"id": 777}}}
+
+        return transport, calls
+
+    def _packed_unlinked(self):
         product = self._product(link=False)
         dispatch = self._dispatch(product, quantity=1)
         self._scan(dispatch, product, 1)
+        return product, pack_dispatch(user=self.admin, id=dispatch.id)
 
-        with self.assertRaises(GraphQLError) as caught:
-            pack_dispatch(user=self.admin, id=dispatch.id)
+    def test_a_garment_the_shop_has_never_seen_is_created_there(self):
+        product, dispatch = self._packed_unlinked()
+        transport, calls = self._shop()
 
-        self.assertIn(product.sku, str(caught.exception))
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        self.assertEqual(len(calls["created"]), 1)
+        self.assertEqual(calls["created"][0]["barcode"], product.barcode)
+        self.assertEqual(calls["created"][0]["hms"], 7)
+        self.assertEqual(calls["created"][0]["price"], float(product.sale_price))
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.ACKNOWLEDGED)
+
+    def test_the_barcode_survives_the_crossing(self):
+        """The code is on the tag hanging off the piece. A second one minted
+        over there means a scan at their counter finds nothing."""
+        product, dispatch = self._packed_unlinked()
+        transport, calls = self._shop()
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        link = RetailProductLink.objects.get(finished_product=product)
+        self.assertEqual(link.product_id, 9001)
+        self.assertEqual(calls["created"][0]["barcode"], product.barcode)
+        self.assertEqual(calls["receipts"][0]["items"][0]["productId"], 9001)
+
+    def test_a_garment_already_on_their_shelf_is_matched_not_duplicated(self):
+        product, dispatch = self._packed_unlinked()
+        transport, calls = self._shop(catalogue=[{
+            "id": 55, "name": "Kurta", "barcode": product.barcode,
+            "isActive": True, "hasVariants": False, "variants": [],
+        }])
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        self.assertEqual(calls["created"], [])
+        link = RetailProductLink.objects.get(finished_product=product)
+        self.assertEqual((link.product_id, link.variant_id), (55, None))
+
+    def test_a_variant_barcode_matches_the_variant(self):
+        product, dispatch = self._packed_unlinked()
+        transport, calls = self._shop(catalogue=[{
+            "id": 55, "name": "Kurta", "barcode": "", "isActive": True,
+            "hasVariants": True,
+            "variants": [{"id": 88, "sku": "K-40", "barcode": product.barcode,
+                          "price": 900, "isActive": True, "label": "40",
+                          "options": [], "storeStocks": []}],
+        }])
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        self.assertEqual(calls["created"], [])
+        self.assertEqual(calls["receipts"][0]["items"][0]["variantId"], 88)
+
+    def test_sending_twice_does_not_create_it_twice(self):
+        product, dispatch = self._packed_unlinked()
+        transport, calls = self._shop()
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+        with self.assertRaises(GraphQLError):
+            send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        self.assertEqual(len(calls["created"]), 1)
+
+    def test_a_shop_that_refuses_the_garment_parks_the_consignment(self):
+        product, dispatch = self._packed_unlinked()
+
+        def transport(channel, query, variables):
+            if "listProducts" in query:
+                return {"listProducts": []}
+            if "createProduct" in query:
+                return {"createProduct": {"success": False,
+                                          "message": "No such subsite.",
+                                          "product": None}}
+            raise AssertionError("nothing should be sent after a refusal")
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.FAILED)
+        self.assertIn("No such subsite.", dispatch.last_error)
+        self.assertFalse(RetailProductLink.objects.filter(finished_product=product).exists())
+
+    def test_packing_does_not_wait_on_the_shop(self):
+        """Closing the carton is a thing that happens in the godown."""
+        product, dispatch = self._packed_unlinked()
+
+        self.assertEqual(dispatch.status, RetailDispatch.Status.PACKED)
         product.refresh_from_db()
-        self.assertEqual(product.quantity, 10)
+        self.assertEqual(product.quantity, 9)
 
     def test_linking_is_one_row_per_product(self):
         product = self._product(link=False)
@@ -547,3 +654,140 @@ class DriftIsMadeVisible(RetailFixture):
 
         self.assertIsNone(rows[0]["shop_has"])
         self.assertIsNone(rows[0]["difference"])
+
+
+class EveryMovementIsOnOneRegister(RetailFixture):
+    """"we need to have complete record which product we moved on which date
+    and quantity and whom did that" — one list, read off the records that
+    already exist rather than a second copy that can disagree with the stock."""
+
+    def _sent(self, quantity=3):
+        product = self._product(quantity=10)
+        dispatch = self._dispatch(product, quantity=quantity)
+        self._scan(dispatch, product, quantity)
+        pack_dispatch(user=self.admin, id=dispatch.id)
+        send_dispatch(user=self.admin, id=dispatch.id,
+                      _transport=lambda c, q, v: {"recordStockReceipt": {"receipt": {"id": 42}}})
+        return product, dispatch
+
+    def test_a_consignment_shows_what_went_when_and_who_sent_it(self):
+        from warehouse.selectors import get_stock_movements
+
+        product, dispatch = self._sent(quantity=3)
+
+        row = next(r for r in get_stock_movements(self.admin)
+                   if r["reference"] == dispatch.dispatch_number)
+        self.assertEqual(row["kind"], "TO_SHOP")
+        self.assertEqual(row["product"].id, product.id)
+        self.assertEqual(row["quantity"], 3)
+        self.assertEqual(row["person"], self.admin.username)
+        self.assertEqual(row["to_name"], self.store.name)
+        self.assertEqual(row["from_name"], self.warehouse.name)
+        self.assertIsNotNone(row["when"])
+
+    def test_it_names_the_hand_that_sent_it_not_the_one_that_wrote_it(self):
+        from warehouse.models import EmployeeProfile
+        from django.contrib.auth.models import User
+        from warehouse.selectors import get_stock_movements
+
+        packer = User.objects.create_user("packer", password="x")
+        profile = EmployeeProfile.objects.create(
+            user=packer, role=EmployeeProfile.Role.STORE_KEEPER, active=True)
+        profile.locations.add(self.warehouse)
+
+        product = self._product(quantity=10)
+        dispatch = self._dispatch(product, quantity=2)
+        self._scan(dispatch, product, 2)
+        pack_dispatch(user=packer, id=dispatch.id)
+        send_dispatch(user=packer, id=dispatch.id,
+                      _transport=lambda c, q, v: {"recordStockReceipt": {"receipt": {"id": 43}}})
+
+        row = next(r for r in get_stock_movements(self.admin)
+                   if r["reference"] == dispatch.dispatch_number)
+        self.assertEqual(row["person"], "packer")
+
+    def test_goods_coming_back_are_on_the_same_register(self):
+        from warehouse.selectors import get_stock_movements
+        from warehouse.services.retail import create_return
+
+        product, _ = self._sent(quantity=3)
+        returned = create_return(
+            user=self.admin, store_id=self.store.id, warehouse_id=self.warehouse.id,
+            lines=[{"finished_product_id": product.id, "quantity": 2}], reason="UNSOLD")
+
+        row = next(r for r in get_stock_movements(self.admin)
+                   if r["reference"] == returned.return_number)
+        self.assertEqual(row["kind"], "BACK_FROM_SHOP")
+        self.assertEqual(row["quantity"], 2)
+        self.assertEqual(row["from_name"], self.store.name)
+
+    def test_a_cancelled_consignment_is_not_a_movement(self):
+        from warehouse.selectors import get_stock_movements
+        from warehouse.services.retail import cancel_dispatch
+
+        product = self._product(quantity=10)
+        dispatch = self._dispatch(product, quantity=3)
+        cancel_dispatch(user=self.admin, id=dispatch.id)
+
+        references = [r["reference"] for r in get_stock_movements(self.admin)]
+        self.assertNotIn(dispatch.dispatch_number, references)
+
+    def test_one_garment_can_be_asked_for_its_own_history(self):
+        from warehouse.selectors import get_stock_movements
+
+        product, dispatch = self._sent(quantity=3)
+        other = self._product(quantity=5)
+        second = self._dispatch(other, quantity=1)
+        self._scan(second, other, 1)
+        pack_dispatch(user=self.admin, id=second.id)
+
+        rows = get_stock_movements(self.admin, product_id=product.id)
+        self.assertEqual([r["reference"] for r in rows], [dispatch.dispatch_number])
+
+    def test_the_newest_movement_comes_first(self):
+        from warehouse.selectors import get_stock_movements
+
+        _, first = self._sent(quantity=1)
+        _, second = self._sent(quantity=1)
+
+        references = [r["reference"] for r in get_stock_movements(self.admin)]
+        self.assertLess(references.index(second.dispatch_number),
+                        references.index(first.dispatch_number))
+
+
+class NothingGoesToTheShopUnpriced(RetailFixture):
+    """A bought-in garment arrives priced at what it cost, as a placeholder.
+    Sent like that, the shop sells it for no margin."""
+
+    def test_a_garment_still_at_cost_is_refused(self):
+        from warehouse.services.production import update_finished_product
+
+        product = self._product(quantity=10, cost=500)
+        update_finished_product(user=self.admin, id=product.id, sale_price=500)
+        dispatch = self._dispatch(product, quantity=2)
+        self._scan(dispatch, product, 2)
+        pack_dispatch(user=self.admin, id=dispatch.id)
+
+        with self.assertRaises(GraphQLError) as caught:
+            send_dispatch(user=self.admin, id=dispatch.id,
+                          _transport=lambda c, q, v: {})
+
+        self.assertIn(product.sku, str(caught.exception))
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.PACKED)
+
+    def test_a_deliberate_markdown_is_allowed_through(self):
+        """Selling below cost is somebody's decision, not a mistake to block."""
+        from warehouse.services.production import update_finished_product
+
+        product = self._product(quantity=10, cost=500)
+        update_finished_product(user=self.admin, id=product.id, sale_price=400)
+        dispatch = self._dispatch(product, quantity=2)
+        self._scan(dispatch, product, 2)
+        pack_dispatch(user=self.admin, id=dispatch.id)
+
+        send_dispatch(user=self.admin, id=dispatch.id,
+                      _transport=lambda c, q, v: {"recordStockReceipt": {"receipt": {"id": 99}}})
+
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.ACKNOWLEDGED)

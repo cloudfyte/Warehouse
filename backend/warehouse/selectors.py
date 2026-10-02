@@ -859,6 +859,122 @@ def get_retail_stores(user):
     return RetailStore.objects.select_related("channel").all()
 
 
+def get_stock_movements(user, limit=500, product_id=None, since=None):
+    """Every piece that left this godown, or came back to it.
+
+    One list, because "which garment went where, when, how many, and who did
+    it" is one question and the answer was spread over three screens: a
+    consignment to the shop, a transfer to another godown, and goods coming
+    back from the shop. Read off the records that already exist rather than
+    written to a register of its own — a second copy of a movement is a second
+    thing that can disagree with the stock.
+    """
+    from warehouse.models import RetailDispatch, RetailReturn, StockTransfer
+    from warehouse.permissions import accessible_warehouses
+
+    mine = accessible_warehouses(user)
+    rows = []
+
+    def who(*users):
+        for u in users:
+            if u:
+                return getattr(u, "username", "") or ""
+        return ""
+
+    # Each source is cut to the window and to the limit before anything is
+    # flattened, so the work does not grow with years of history.
+    dispatches = (RetailDispatch.objects
+                  .filter(from_warehouse__in=mine)
+                  .exclude(status=RetailDispatch.Status.CANCELLED)
+                  .select_related("store", "from_warehouse", "created_by",
+                                  "packed_by", "sent_by")
+                  .prefetch_related("items__finished_product__item_type",
+                                    "items__finished_product__cloth_color")
+                  .order_by("-created_at"))
+    if since:
+        dispatches = dispatches.filter(created_at__gte=since)
+    dispatches = dispatches[:limit]
+    for d in dispatches:
+        for item in d.items.all():
+            if product_id and str(item.finished_product_id) != str(product_id):
+                continue
+            rows.append({
+                "id": f"dispatch-{item.id}",
+                "kind": "TO_SHOP",
+                "when": d.sent_at or d.packed_at or d.created_at,
+                "product": item.finished_product,
+                "quantity": item.packed_quantity or item.quantity,
+                "from_name": d.from_warehouse.name,
+                "to_name": d.store.name,
+                # The hand that actually sent it, falling back to whoever got
+                # as far as closing or writing it.
+                "person": who(d.sent_by, d.packed_by, d.created_by),
+                "reference": d.dispatch_number,
+                "status": d.status,
+                "lr_number": d.lr_number or "",
+            })
+
+    returns = (RetailReturn.objects
+               .filter(to_warehouse__in=mine)
+               .select_related("store", "to_warehouse", "received_by")
+               .prefetch_related("items__finished_product__item_type",
+                                 "items__finished_product__cloth_color")
+               .order_by("-created_at"))
+    if since:
+        returns = returns.filter(created_at__gte=since)
+    returns = returns[:limit]
+    for r in returns:
+        for item in r.items.all():
+            if product_id and str(item.finished_product_id) != str(product_id):
+                continue
+            rows.append({
+                "id": f"return-{item.id}",
+                "kind": "BACK_FROM_SHOP",
+                "when": r.created_at,
+                "product": item.finished_product,
+                "quantity": item.quantity,
+                "from_name": r.store.name,
+                "to_name": r.to_warehouse.name,
+                "person": who(r.received_by),
+                "reference": r.return_number,
+                "status": "RECEIVED",
+                "lr_number": "",
+            })
+
+    transfers = (StockTransfer.objects
+                 .filter(from_warehouse__in=mine, finished_product__isnull=False)
+                 .select_related("from_warehouse", "to_warehouse", "created_by",
+                                 "received_by", "finished_product__item_type",
+                                 "finished_product__cloth_color")
+                 .order_by("-created_at"))
+    if product_id:
+        transfers = transfers.filter(finished_product_id=product_id)
+    if since:
+        transfers = transfers.filter(created_at__gte=since)
+    transfers = transfers[:limit]
+    for t in transfers:
+        if product_id and str(t.finished_product_id) != str(product_id):
+            continue
+        rows.append({
+            "id": f"transfer-{t.id}",
+            "kind": "BETWEEN_GODOWNS",
+            "when": t.received_at or t.dispatched_at or t.created_at,
+            "product": t.finished_product,
+            "quantity": t.quantity_to_transfer or 0,
+            "from_name": t.from_warehouse.name,
+            "to_name": t.to_warehouse.name,
+            "person": who(t.received_by, t.created_by),
+            "reference": t.transfer_number,
+            "status": t.status,
+            "lr_number": "",
+        })
+
+    if since:
+        rows = [r for r in rows if r["when"] and r["when"] >= since]
+    rows.sort(key=lambda r: r["when"] or timezone.now(), reverse=True)
+    return rows[:limit]
+
+
 def get_retail_dispatches(user, status=None, limit=100):
     from warehouse.models import RetailDispatch
     from warehouse.permissions import accessible_warehouses

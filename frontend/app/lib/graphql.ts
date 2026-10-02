@@ -93,6 +93,16 @@ export const SETTINGS_QUERY = `
   }
 `;
 
+/** The movement register, fetched when that view is opened rather than on
+ *  every page load — it is a record looked at now and then, and it can run to
+ *  years. */
+export const STOCK_MOVEMENTS_QUERY = `query Movements($days:Int,$limit:Int){
+  stockMovements(days:$days, limit:$limit){
+    id kind when quantity fromName toName person reference status lrNumber
+    product { id name sku size barcode itemType { id name } clothColor { id name } }
+  }
+}`;
+
 export const DASHBOARD_QUERY = `
   query GarmentDashboard {
     systemSettings {

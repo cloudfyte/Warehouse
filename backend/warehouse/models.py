@@ -1874,6 +1874,13 @@ class RetailDispatch(models.Model):
     last_error = models.TextField(blank=True)
     attempts = models.PositiveIntegerField(default=0)
     packed_at = models.DateTimeField(null=True, blank=True)
+    # Three people, often. One writes the consignment, another closes the
+    # carton, a third presses send — and "who moved this stock" has to answer
+    # for the hand that did each part, not just the one that started it.
+    packed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                  null=True, blank=True, related_name="retail_dispatches_packed")
+    sent_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                null=True, blank=True, related_name="retail_dispatches_sent")
     sent_at = models.DateTimeField(null=True, blank=True)
     acknowledged_at = models.DateTimeField(null=True, blank=True)
 

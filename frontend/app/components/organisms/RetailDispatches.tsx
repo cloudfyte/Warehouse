@@ -290,14 +290,13 @@ export default function RetailDispatches({
         <div style={{
           borderRadius: 10, border: "1px solid var(--line)", padding: "12px 14px", marginBottom: 16,
         }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-            {unlinked.length} product{unlinked.length === 1 ? "" : "s"} cannot be sent yet
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
+            {unlinked.length} product{unlinked.length === 1 ? "" : "s"} not on the shop&apos;s list yet
           </div>
-          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>
-            Nobody has said which product at the shop these are. They are not created over there
-            automatically — two catalogues that mint each other&apos;s rows fork quietly and are never
-            reconciled again. Their variants carry a barcode of their own, so most of this settles
-            itself.
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10, lineHeight: 1.55 }}>
+            They are added to it the first time one is sent, under the barcode already printed on
+            the tag — so the same code scans here and at their counter. Match by barcode first if
+            somebody has already added them over there by hand, and nothing is created twice.
           </div>
           {canManage && (
             <div style={{ marginBottom: 10 }}>

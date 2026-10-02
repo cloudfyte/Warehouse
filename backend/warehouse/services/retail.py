@@ -239,16 +239,6 @@ def pack_dispatch(*, user, id, allow_short=False):
         if not items:
             raise GraphQLError("There is nothing on this consignment.")
 
-        unlinked = [i.finished_product.sku for i in items
-                    if not RetailProductLink.objects.filter(
-                        finished_product=i.finished_product).exists()]
-        if unlinked:
-            raise GraphQLError(
-                "These have no matching product at the shop yet: "
-                + ", ".join(unlinked)
-                + ". Link them first — creating them over there automatically "
-                  "would fork the two catalogues."
-            )
 
         short = [i for i in items if i.packed_quantity < i.quantity]
         if short and not allow_short:
@@ -285,7 +275,8 @@ def pack_dispatch(*, user, id, allow_short=False):
 
         dispatch.status = RetailDispatch.Status.PACKED
         dispatch.packed_at = timezone.now()
-        dispatch.save(update_fields=["status", "packed_at", "updated_at"])
+        dispatch.packed_by = user
+        dispatch.save(update_fields=["status", "packed_at", "packed_by", "updated_at"])
     return dispatch
 
 
@@ -352,6 +343,42 @@ def send_dispatch(*, user, id, _transport=None):
     """
     require_role(user, *_MANAGE)
     channel = _require_channel()
+    post = _transport or _post
+
+    # Anything not on their catalogue yet is added to it first, under the
+    # barcode already printed on its tag. Done before the row is locked,
+    # because these are calls over the wire and a database lock held across
+    # them blocks the rest of the warehouse.
+    pending = [i.finished_product for i in
+               RetailDispatch.objects.get(pk=id).items.select_related(
+                   "finished_product__item_type", "finished_product__cloth_color")]
+
+    # A garment bought in arrives priced at what it cost, as a placeholder for
+    # somebody to replace. Sent like that, the shop puts it on the shelf at our
+    # cost and sells it for no margin — so an unpriced garment does not leave.
+    # A deliberate markdown below cost is somebody's decision and is allowed.
+    unpriced = [p for p in pending
+                if (p.sale_price or 0) <= 0 or p.sale_price == p.cost_price]
+    if unpriced:
+        raise GraphQLError(
+            "Price these before they go to the shop — they are still at cost, "
+            "and the shop would sell them for no margin: "
+            + ", ".join(f"{_shop_name(p)} ({p.sku})" for p in unpriced[:6])
+            + ("…" if len(unpriced) > 6 else "")
+        )
+    missing = [p for p in pending
+               if not RetailProductLink.objects.filter(finished_product=p).exists()]
+    if missing:
+        try:
+            data = post(channel, _LIST_PRODUCTS,
+                        {"hms": channel.subsite_id, "limit": 2000})
+            catalogue = _shop_barcodes(data.get("listProducts") or [])
+            for product in missing:
+                ensure_shop_product(user=user, product=product, channel=channel,
+                                    post=post, catalogue=catalogue)
+        except Exception as exc:  # noqa: BLE001
+            with transaction.atomic():
+                return _failed(_locked(id), f"Could not add the garments to the shop: {exc}")
 
     with transaction.atomic():
         dispatch = _locked(id)
@@ -375,8 +402,8 @@ def send_dispatch(*, user, id, _transport=None):
                 finished_product=item.finished_product).first()
             if not link:
                 raise GraphQLError(
-                    f"{item.finished_product.sku} lost its link to the shop's "
-                    f"catalogue. Link it again before sending."
+                    f"{item.finished_product.sku} is not on the shop's catalogue "
+                    f"and could not be added to it."
                 )
             entry = {"quantity": item.quantity, "unitCost": float(item.unit_cost)}
             # A variant is the sellable thing when the product has them; the
@@ -389,8 +416,9 @@ def send_dispatch(*, user, id, _transport=None):
 
         dispatch.status = RetailDispatch.Status.SENT
         dispatch.sent_at = timezone.now()
+        dispatch.sent_by = user
         dispatch.attempts += 1
-        dispatch.save(update_fields=["status", "sent_at", "attempts", "updated_at"])
+        dispatch.save(update_fields=["status", "sent_at", "sent_by", "attempts", "updated_at"])
 
     payload = {
         "hms": channel.subsite_id,
@@ -402,7 +430,6 @@ def send_dispatch(*, user, id, _transport=None):
         "notes": f"{dispatch.dispatch_number} · {dispatch.notes}".strip(" ·"),
     }
 
-    post = _transport or _post
     try:
         result = post(channel, _RECORD_RECEIPT, payload)
     except Exception as exc:  # noqa: BLE001 — every failure is the same failure here
@@ -491,10 +518,113 @@ _LIST_BUILDINGS = (
 
 _LIST_PRODUCTS = (
     "query P($hms:Int!,$limit:Int){listProducts(hmsId:$hms,limit:$limit)"
-    "{id name isActive hasVariants "
+    "{id name barcode isActive hasVariants "
     "variants{id sku barcode price isActive label options{name value} "
     "storeStocks{buildingId stockQuantity}}}}"
 )
+
+# The shop's catalogue gains the garment the first time one is sent to it. The
+# barcode goes over unchanged, because that code is already printed on the tag
+# hanging off the piece — minting a second one over there would mean the tag in
+# the shop and the tag on the garment disagree, and a scan at the counter finds
+# nothing.
+# Our cost does not go over. It is the figure the shop floor is not meant to
+# read, their wholesale price is a separate permission on their side, and the
+# shop needs the selling price and the code — nothing else.
+_CREATE_PRODUCT = (
+    "mutation C($hms:Int!,$name:String!,$price:Float!,$barcode:String,"
+    "$active:Boolean){"
+    "createProduct(hmsId:$hms,name:$name,price:$price,barcode:$barcode,"
+    "isActive:$active)"
+    "{success message product{id name barcode}}}"
+)
+
+
+def _shop_barcodes(products):
+    """Their codes to what a dispatch can be sent against.
+
+    A variant is the sellable thing where a product has them, the product
+    itself where it does not. A code used twice over there is ambiguous and so
+    is no use for matching — it is dropped rather than guessed at.
+    """
+    found, duplicates = {}, set()
+
+    def offer(code, value):
+        code = (code or "").strip()
+        if not code:
+            return
+        if code in found and found[code] != value:
+            duplicates.add(code)
+            return
+        found[code] = value
+
+    for product in products:
+        variants = product.get("variants") or []
+        for variant in variants:
+            offer(variant.get("barcode"), (int(product["id"]), int(variant["id"])))
+        if not variants:
+            offer(product.get("barcode"), (int(product["id"]), None))
+    for code in duplicates:
+        found.pop(code, None)
+    return found
+
+
+def _shop_name(product):
+    """What the garment is called on their shelf.
+
+    Colour and size are in the name because the shop sells the piece, not the
+    style: two colours of one kurta are two things a customer chooses between.
+    """
+    parts = [
+        (product.name or "").strip() or product.item_type.name,
+        product.cloth_color.name if product.cloth_color_id else "",
+        product.size or "",
+    ]
+    return " · ".join(p for p in parts if p)
+
+
+def ensure_shop_product(*, user, product, channel=None, post=None, catalogue=None):
+    """The garment exists over there, under the barcode on its own tag.
+
+    Three steps, in the order that cannot create a duplicate: the link we
+    already hold, then their catalogue matched on the barcode, and only then
+    creating it. The middle step is what stops a second row appearing over
+    there for a garment somebody had already added by hand.
+    """
+    channel = channel or _require_channel()
+    post = post or _post
+
+    link = RetailProductLink.objects.filter(finished_product=product).first()
+    if link:
+        return link
+
+    if catalogue is None:
+        data = post(channel, _LIST_PRODUCTS, {"hms": channel.subsite_id, "limit": 2000})
+        catalogue = _shop_barcodes(data.get("listProducts") or [])
+
+    codes = [product.barcode, *product.past_codes()]
+    match = next((catalogue[c] for c in codes if c in catalogue), None)
+    if match:
+        product_id, variant_id = match
+        return RetailProductLink.objects.create(
+            finished_product=product, product_id=product_id,
+            variant_id=variant_id, linked_by=user)
+
+    result = post(channel, _CREATE_PRODUCT, {
+        "hms": channel.subsite_id,
+        "name": _shop_name(product),
+        "price": float(product.sale_price or 0),
+        "barcode": product.barcode,
+        "active": True,
+    })
+    payload = (result or {}).get("createProduct") or {}
+    created = payload.get("product") or {}
+    if not created.get("id"):
+        raise RuntimeError(
+            payload.get("message") or f"The shop would not add {product.sku}.")
+    return RetailProductLink.objects.create(
+        finished_product=product, product_id=int(created["id"]),
+        variant_id=None, linked_by=user)
 
 
 def pull_stores(*, user, _transport=None):

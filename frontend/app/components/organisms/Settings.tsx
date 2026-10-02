@@ -460,11 +460,12 @@ export default function Settings({ settings, isSuperAdmin, retailChannel, onMuta
                 onChange={e => setShop(p => ({ ...p, apiUrl: e.target.value }))} />
             </Field>
             <Field label="Service username"
-              hint="An account on the shop's side that can see the sriweddings subsite.">
+              hint="A login on the shop's side with admin rights over products for the sriweddings subsite — it both adds the garment to their list and books the consignment in.">
               <Input value={shop.serviceUsername}
                 onChange={e => setShop(p => ({ ...p, serviceUsername: e.target.value }))} />
             </Field>
-            <Field label="Service password" hint="Leave blank to keep the stored one.">
+            <Field label="Service password"
+              hint="Typed once and kept here. Leave blank to keep the stored one. Nobody can read it back out of the shop — it is stored there hashed.">
               <Input type="password" value={shop.servicePassword}
                 onChange={e => setShop(p => ({ ...p, servicePassword: e.target.value }))} />
             </Field>

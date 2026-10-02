@@ -11,7 +11,7 @@ from .types import (
     NotificationType, PLReport, ProductSetType, PublicSettingsType,
     PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType,
     ReconciliationRowType, RecurringSettlementType, ReorderPointType, RetailChannelType,
-    RetailDispatchType, RetailReturnType, RetailStoreType, SalesOrderType, SettlementType,
+    RetailDispatchType, StockMovementType, RetailReturnType, RetailStoreType, SalesOrderType, SettlementType,
     StitchingJobType, StockAdjustmentType, StockTransferType, SupplierPaymentType,
     SupplierReturnType, SupplierType, SystemSettingsType, WarehouseLocationType,
 )
@@ -94,6 +94,10 @@ class Query(graphene.ObjectType):
     retail_channel = graphene.Field(RetailChannelType)
     retail_stores = graphene.List(RetailStoreType)
     retail_dispatches = graphene.List(RetailDispatchType, status=graphene.String(), limit=graphene.Int())
+    # Every piece that left a godown or came back, in one list.
+    stock_movements = graphene.List(
+        StockMovementType, limit=graphene.Int(),
+        product_id=graphene.ID(), days=graphene.Int())
     retail_returns = graphene.List(RetailReturnType, limit=graphene.Int())
     retail_reconciliation = graphene.List(ReconciliationRowType, store_id=graphene.ID(required=True))
     unlinked_finished_products = graphene.List(FinishedProductType)
@@ -330,6 +334,17 @@ class Query(graphene.ObjectType):
         return selectors.get_retail_stores(info.context.user)
 
     @login_required
+    @login_required
+    def resolve_stock_movements(self, info, limit=500, product_id=None, days=None):
+        since = None
+        if days:
+            from django.utils import timezone as _tz
+
+            since = _tz.now() - _tz.timedelta(days=int(days))
+        return selectors.get_stock_movements(
+            info.context.user, limit=min(limit, 2000),
+            product_id=product_id, since=since)
+
     def resolve_retail_dispatches(self, info, status=None, limit=100):
         return selectors.get_retail_dispatches(info.context.user, status=status, limit=limit)
 

@@ -345,6 +345,14 @@ export interface AuditLog {
   actorName: string; detail: Record<string, unknown>; createdAt: string
 }
 
+/** One piece of stock leaving a godown, or coming back to it. */
+export interface StockMovement {
+  id: string; kind: string; when?: string | null; quantity: number
+  fromName: string; toName: string; person?: string
+  reference: string; status: string; lrNumber?: string
+  product?: FinishedProduct | null
+}
+
 // ─── dashboard ────────────────────────────────────────────────────────────────
 
 export interface DashboardStats {

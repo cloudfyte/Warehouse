@@ -658,6 +658,21 @@ class NotificationType(DjangoObjectType):
         fields = "__all__"
 
 
+class StockMovementType(graphene.ObjectType):
+    """One piece of stock leaving a godown, or coming back to it."""
+    id = graphene.String()
+    kind = graphene.String()
+    when = graphene.DateTime()
+    product = graphene.Field("warehouse.schema.types.FinishedProductType")
+    quantity = graphene.Int()
+    from_name = graphene.String()
+    to_name = graphene.String()
+    person = graphene.String()
+    reference = graphene.String()
+    status = graphene.String()
+    lr_number = graphene.String()
+
+
 class AuditLogType(DjangoObjectType):
     class Meta:
         model = AuditLog
