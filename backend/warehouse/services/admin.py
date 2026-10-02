@@ -6,9 +6,9 @@ from warehouse.models import (
     AuditLog, BuyerReturn, ClothCategory, ClothColor, CreditPayment,
     CreditTransaction, CuttingAssignment, CustomRole, EmployeeProfile,
     Expense, FCMToken, FinishedProduct, ItemType, Notification, OTPCode,
-    ParcelInspection, PurchaseBill, PurchaseBillItem, PurchaseOrder,
+    PurchaseBill, PurchaseBillItem, PurchaseOrder,
     PurchaseOrderItem, Quotation, QuotationItem, RawClothBatch,
-    ReadymadeStock, ReorderPoint, SalesOrder, SalesOrderItem, StitchingJob,
+    ReorderPoint, SalesOrder, SalesOrderItem, StitchingJob,
     StockAdjustment, StockTransfer, Supplier, SupplierPayment, SupplierReturn,
     Buyer, WarehouseLocation,
 )
@@ -53,7 +53,6 @@ def reset_all_data(user, confirm_phrase: str) -> None:
     FinishedProduct.objects.all().delete()
     StitchingJob.objects.all().delete()
     CuttingAssignment.objects.all().delete()
-    ReadymadeStock.objects.all().delete()
 
     # Inventory management
     StockAdjustment.objects.all().delete()
@@ -61,7 +60,6 @@ def reset_all_data(user, confirm_phrase: str) -> None:
     ReorderPoint.objects.all().delete()
 
     # Purchasing
-    ParcelInspection.objects.all().delete()
     PurchaseOrderItem.objects.all().delete()
     PurchaseOrder.objects.all().delete()
     SupplierPayment.objects.all().delete()

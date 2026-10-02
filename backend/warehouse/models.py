@@ -465,32 +465,6 @@ class RawClothBatch(models.Model):
         return f"{self.batch_number} — {self.cloth_category} {self.cloth_color}"
 
 
-class ReadymadeStock(models.Model):
-    """Readymade garments received from a supplier, stored before tagging."""
-    po_item = models.ForeignKey(PurchaseOrderItem, null=True, blank=True, on_delete=models.SET_NULL, related_name="readymade_stocks")
-    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="readymade_stocks")
-    item_type = models.ForeignKey(ItemType, on_delete=models.PROTECT, related_name="readymade_stocks")
-    cloth_category = models.ForeignKey(ClothCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="readymade_stocks")
-    cloth_color = models.ForeignKey(ClothColor, null=True, blank=True, on_delete=models.SET_NULL, related_name="readymade_stocks")
-    age_group = models.CharField(max_length=10, choices=AgeGroup.choices, blank=True)
-    size = models.CharField(max_length=30, blank=True)
-    warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="readymade_stocks")
-    quantity_received = models.PositiveIntegerField()
-    quantity_available = models.PositiveIntegerField()
-    cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
-    received_date = models.DateField(default=timezone.now)
-    notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"{self.item_type} — {self.cloth_color} {self.size} ({self.quantity_available} pcs)"
-
-
-# ─── production pipeline ──────────────────────────────────────────────────────
-
 class CuttingAssignment(models.Model):
     """Meters of raw cloth assigned to a cutting master to cut into garment pieces."""
     class Status(models.TextChoices):
@@ -592,9 +566,9 @@ class StitchingJob(models.Model):
     item_type = models.ForeignKey(ItemType, null=True, blank=True,
                                   on_delete=models.PROTECT, related_name="stitching_jobs")
     design_number = models.CharField(max_length=60, blank=True, db_index=True)
-    # Who is actually doing the work. A karigar is paid by the piece and need
-    # not be staff; tailor stays for jobs booked before karigars existed and
-    # for in-house work still tracked against an employee.
+    # Who is doing the work — the only answer. Paid by the piece whether they
+    # are staff or an outside unit; an in-house one links to their employee
+    # record, which is how a tailor signing in still finds their own jobs.
     karigar = models.ForeignKey("Karigar", null=True, blank=True, on_delete=models.PROTECT,
                                 related_name="stitching_jobs")
     # Frozen when the job is given out. The karigar's rate may change later,
@@ -634,7 +608,6 @@ class StitchingJob(models.Model):
     customer_order = models.ForeignKey("CustomerOrder", null=True, blank=True,
                                        on_delete=models.SET_NULL, related_name="stitching_jobs")
     photos = models.TextField(blank=True, help_text="Comma-separated photo paths — the sample or the customer's bill")
-    tailor = models.ForeignKey(EmployeeProfile, null=True, blank=True, on_delete=models.PROTECT, related_name="stitching_jobs", limit_choices_to={"role": EmployeeProfile.Role.TAILOR})
     pieces_assigned = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RECEIVED)
     assigned_date = models.DateField(default=timezone.now)
@@ -782,7 +755,12 @@ class FinishedProduct(models.Model):
     # nobody waiting, so this stays empty there.
     handed_over_at = models.DateTimeField(null=True, blank=True)
     handed_over_to = models.CharField(max_length=140, blank=True, help_text="Who collected it")
-    readymade_stock = models.ForeignKey(ReadymadeStock, null=True, blank=True, on_delete=models.SET_NULL, related_name="finished_products")
+    # Bought in rather than made: whose it was. Garments from a supplier used to
+    # live in a table of their own and had to be "converted" before they could
+    # be sold, which is two shelves for one pile of clothes.
+    supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.PROTECT,
+                                 related_name="finished_products")
+    notes = models.TextField(blank=True)
 
     quantity = models.PositiveIntegerField(default=0)
     warehouse = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, related_name="finished_products")
@@ -1147,8 +1125,10 @@ class SupplierReturn(models.Model):
     raw_cloth_batch = models.ForeignKey(RawClothBatch, null=True, blank=True, on_delete=models.SET_NULL, related_name="supplier_returns")
     meters_returned = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
-    # For readymade returns
-    readymade_stock = models.ForeignKey(ReadymadeStock, null=True, blank=True, on_delete=models.SET_NULL, related_name="supplier_returns")
+    # For readymade returns — the garments themselves, which is where bought-in
+    # stock lives now that it is not a table of its own.
+    finished_product = models.ForeignKey("FinishedProduct", null=True, blank=True,
+                                         on_delete=models.SET_NULL, related_name="supplier_returns")
     quantity_returned = models.PositiveIntegerField(null=True, blank=True)
 
     reason = models.TextField()
@@ -1597,30 +1577,6 @@ class StockTransfer(models.Model):
 
 
 # ─── parcel inspection ────────────────────────────────────────────────────────
-
-class ParcelInspection(models.Model):
-    """Formal inspection record when a PO parcel is opened at the warehouse."""
-    class Condition(models.TextChoices):
-        GOOD = "GOOD", "Good Condition"
-        PARTIAL_DAMAGE = "PARTIAL_DAMAGE", "Partial Damage"
-        DAMAGED = "DAMAGED", "Damaged"
-
-    purchase_order = models.OneToOneField(PurchaseOrder, on_delete=models.CASCADE, related_name="parcel_inspection")
-    inspected_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="parcel_inspections")
-    inspection_date = models.DateField()
-    parcel_condition = models.CharField(max_length=20, choices=Condition.choices, default=Condition.GOOD)
-    quantity_check_passed = models.BooleanField(default=True)
-    discrepancy_notes = models.TextField(blank=True)
-    photos = models.TextField(blank=True, help_text="Comma-separated base64 photo strings")
-    notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"Inspection {self.purchase_order.po_number} — {self.get_parcel_condition_display()}"
-
 
 # ─── system settings ──────────────────────────────────────────────────────────
 
@@ -2134,7 +2090,7 @@ class CustomerOrder(models.Model):
 
 
 class GoodsReceipt(models.Model):
-    """One delivery arriving against a purchase order.
+    """One delivery arriving against a purchase order, and how it arrived.
 
     An order records who received it and when, but a supplier delivers over two
     or three trips, and each arrival used to overwrite the last — so an order
@@ -2142,6 +2098,11 @@ class GoodsReceipt(models.Model):
     only Thursday. Every arrival is its own record here, which is what makes
     "who took this in, and when" answerable rather than approximately true.
     """
+    class Condition(models.TextChoices):
+        GOOD = "GOOD", "Good condition"
+        PARTIAL_DAMAGE = "PARTIAL_DAMAGE", "Partly damaged"
+        DAMAGED = "DAMAGED", "Damaged"
+
     purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE,
                                        related_name="receipts")
     received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
@@ -2149,6 +2110,15 @@ class GoodsReceipt(models.Model):
     # The moment it was booked in, to the minute. The order carries a date for
     # the whole delivery; this is the actual time somebody stood at the bay.
     received_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    # What was found when the parcel was opened. This used to be a separate
+    # inspection record, one per order — which cannot describe three lorries
+    # arriving on three days, and asked somebody to write down the same arrival
+    # twice. The condition belongs to the arrival.
+    parcel_condition = models.CharField(max_length=20, choices=Condition.choices,
+                                        default=Condition.GOOD)
+    quantity_check_passed = models.BooleanField(default=True)
+    discrepancy_notes = models.TextField(blank=True)
+    photos = models.TextField(blank=True, help_text="Comma-separated photos of the parcel")
     notes = models.TextField(blank=True)
 
     class Meta:

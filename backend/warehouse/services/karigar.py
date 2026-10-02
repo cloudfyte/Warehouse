@@ -16,8 +16,18 @@ from warehouse.permissions import require_role
 _MANAGE = (EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER)
 
 
+def _employee_or_none(employee_id):
+    """An in-house stitcher who signs in finds their own jobs through this link."""
+    if not employee_id:
+        return None
+    try:
+        return EmployeeProfile.objects.get(pk=employee_id, active=True)
+    except EmployeeProfile.DoesNotExist as exc:
+        raise GraphQLError("That employee was not found.") from exc
+
+
 def create_karigar(*, user, name, kind="OUTSIDE", rate_per_piece=0, phone="",
-                   whatsapp="", city="", address="", notes=""):
+                   whatsapp="", city="", address="", notes="", employee_id=None):
     require_role(user, *_MANAGE)
     name = (name or "").strip()
     if not name:
@@ -37,7 +47,7 @@ def create_karigar(*, user, name, kind="OUTSIDE", rate_per_piece=0, phone="",
     return Karigar.objects.create(
         name=name, kind=kind, rate_per_piece=rate, phone=phone.strip(),
         whatsapp=whatsapp.strip(), city=city.strip(), address=address.strip(),
-        notes=notes.strip(),
+        notes=notes.strip(), employee=_employee_or_none(employee_id),
     )
 
 
@@ -68,6 +78,8 @@ def update_karigar(*, user, id, **changes):
         karigar.kind = kind
     if changes.get("active") is not None:
         karigar.active = changes["active"]
+    if "employee_id" in changes:
+        karigar.employee = _employee_or_none(changes["employee_id"])
 
     karigar.save()
     return karigar

@@ -16,7 +16,7 @@ from graphql import GraphQLError
 from warehouse.models import (
     ClothCategory, ClothColor, CuttingAssignment, EmployeeProfile,
     FinishedProduct, ItemType, PurchaseOrder, PurchaseOrderItem, RawClothBatch,
-    ReadymadeStock, SalesOrder, StitchingJob, Supplier, WarehouseLocation,
+    FinishedProduct, SalesOrder, StitchingJob, Supplier, WarehouseLocation,
 )
 from warehouse.services.production import (
     create_cutting_assignment, create_finished_products, create_stitching_job,
@@ -152,10 +152,16 @@ class FinishedGoodsCannotBeMinted(StockFixture):
             id=assignment.id, status=CuttingAssignment.Status.COMPLETED,
             pieces_completed=pieces, cloth_used=Decimal("38.00"),
         )
+        from warehouse.services.karigar import create_karigar
+
+        if not getattr(self, "_karigar", None):
+            self._karigar = create_karigar(
+                user=self.admin, name="In-house tailor", kind="IN_HOUSE",
+                employee_id=self.tailor.id, rate_per_piece=50)
         job = create_stitching_job(
             user=self.admin,
             cutting_assignment_id=assignment.id,
-            tailor_id=self.tailor.id,
+            karigar_id=self._karigar.id,
             pieces_assigned=pieces,
         )
         update_stitching_job(
@@ -342,10 +348,11 @@ class PurchaseOrderReceipt(StockFixture):
         self.assertEqual(item.received_quantity, 100)
         self.assertEqual(po.status, PurchaseOrder.Status.RECEIVED)
 
-        # One stock row per delivery, and together they account for every piece.
-        rows = ReadymadeStock.objects.filter(po_item=item)
-        self.assertEqual(rows.count(), 3)
-        self.assertEqual(sum(r.quantity_received for r in rows), 100)
+        # Three deliveries of the same goods are one pile of the same goods,
+        # topped up — not three rows with three barcodes for one style.
+        rows = FinishedProduct.objects.filter(source="IMPORTED", item_type=item.item_type)
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.first().quantity, 100)
 
     def test_an_order_is_part_received_until_the_balance_arrives(self):
         po, item = self._placed_readymade_po(pieces=100)
@@ -374,7 +381,8 @@ class PurchaseOrderReceipt(StockFixture):
 
         item.refresh_from_db()
         self.assertEqual(item.received_quantity, 80)
-        self.assertEqual(ReadymadeStock.objects.filter(po_item=item).count(), 1)
+        self.assertEqual(
+            FinishedProduct.objects.filter(source="IMPORTED", item_type=item.item_type).count(), 1)
 
     def test_omitting_the_quantity_receives_only_what_is_still_outstanding(self):
         """The UI can send every line each time; complete lines are skipped, not doubled."""
@@ -459,16 +467,12 @@ class SupplierReturnsLeaveStock(StockFixture):
         self.assertEqual(self.batch.available_meters, Decimal("100.00"))
 
     def test_returning_readymade_units_removes_them_from_stock(self):
-        stock = ReadymadeStock.objects.create(
-            supplier=self.supplier,
-            item_type=self.item_type,
-            cloth_color=self.color,
-            size="40",
-            warehouse=self.warehouse,
-            quantity_received=20,
-            quantity_available=20,
-            cost_price=Decimal("400.00"),
-        )
+        from warehouse.services.stock import receive_readymade_into_stock
+
+        stock = receive_readymade_into_stock(
+            supplier=self.supplier, item_type_id=self.item_type.id,
+            cloth_color_id=self.color.id, size="40",
+            warehouse=self.warehouse, quantity=20, cost_price=400)
 
         create_supplier_return(
             user=self.admin,
@@ -476,58 +480,46 @@ class SupplierReturnsLeaveStock(StockFixture):
             return_kind="READYMADE",
             reason="Damaged",
             warehouse_id=self.warehouse.id,
-            readymade_stock_id=stock.id,
+            finished_product_id=stock.id,
             quantity_returned=8,
         )
 
         stock.refresh_from_db()
-        self.assertEqual(stock.quantity_available, 12)
+        self.assertEqual(stock.quantity, 12)
 
-    def test_tagging_readymade_stock_keeps_its_size_and_category(self):
-        """A delivery is described once, on the stock row.
+    def test_a_delivery_arrives_already_described(self):
+        """It used to land in a second table and wait to be "converted", and a
+        caller that forgot to repeat the size minted a sizeless product."""
+        from warehouse.services.stock import receive_readymade_into_stock
 
-        The tagging call used to take size and category from whatever the
-        caller happened to pass, so a caller that only sent the stock id got a
-        sizeless product — and a size run of five became five identical SKUs.
-        """
-        from warehouse.services.production import create_finished_products
-
-        stock = ReadymadeStock.objects.create(
-            supplier=self.supplier,
-            item_type=self.item_type,
-            cloth_category=self.category,
-            cloth_color=self.color,
-            size="42",
-            warehouse=self.warehouse,
-            quantity_received=6,
-            quantity_available=6,
-            cost_price=Decimal("400.00"),
-        )
-
-        product = create_finished_products(
-            user=self.admin,
-            readymade_stock_id=stock.id,
-            warehouse_id=self.warehouse.id,
-            quantity=6,
-            cost_price=400,
-            sale_price=900,
-        )
+        product = receive_readymade_into_stock(
+            supplier=self.supplier, item_type_id=self.item_type.id,
+            cloth_category_id=self.category.id, cloth_color_id=self.color.id,
+            size="42", warehouse=self.warehouse, quantity=6, cost_price=400)
 
         self.assertEqual(product.size, "42")
+        self.assertEqual(product.source, "IMPORTED")
         self.assertEqual(product.cloth_category_id, self.category.id)
         self.assertEqual(product.cloth_color_id, self.color.id)
-        stock.refresh_from_db()
-        self.assertEqual(stock.quantity_available, 0)
+        self.assertTrue(product.barcode)
 
+    def test_the_same_goods_arriving_again_top_up_one_row(self):
+        from warehouse.services.stock import receive_readymade_into_stock
 
-class ScalarsReachTheClientAsRealTypes(TestCase):
-    """JSONField and DecimalField used to serialise as JSON *strings*.
+        first = receive_readymade_into_stock(
+            supplier=self.supplier, item_type_id=self.item_type.id,
+            cloth_color_id=self.color.id, size="42",
+            warehouse=self.warehouse, quantity=10, cost_price=400)
+        again = receive_readymade_into_stock(
+            supplier=self.supplier, item_type_id=self.item_type.id,
+            cloth_color_id=self.color.id, size="42",
+            warehouse=self.warehouse, quantity=10, cost_price=500)
 
-    A `"[]"` is truthy and has length 2, so guards passed and `for...of` walked
-    the characters — that is what printed blank product tags and showed custom
-    roles an empty tab list. The converters in warehouse/schema/converters.py
-    fix it schema-wide; this pins the schema so a future type cannot regress.
-    """
+        self.assertEqual(first.id, again.id)
+        again.refresh_from_db()
+        self.assertEqual(again.quantity, 20)
+        # Weighted average, not the latest price pretending to be the cost.
+        self.assertEqual(again.cost_price, Decimal("450.00"))
 
     def test_no_output_field_is_a_json_or_decimal_string(self):
         from config.schema import schema

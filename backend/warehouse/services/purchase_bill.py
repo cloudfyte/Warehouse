@@ -4,11 +4,11 @@ from django.db import transaction
 from django.utils import timezone
 from graphql import GraphQLError
 
-from warehouse.services.stock import receive_cloth_into_stock
+from warehouse.services.stock import receive_cloth_into_stock, receive_readymade_into_stock
 from warehouse.models import (
     ClothCategory, ClothColor, ItemType,
     PurchaseBill, PurchaseBillItem, PurchaseOrder,
-    RawClothBatch, ReadymadeStock, Supplier,
+    RawClothBatch, Supplier,
 )
 from warehouse.permissions import get_scoped, get_warehouse
 from warehouse.services.uploads import save_data_url
@@ -173,15 +173,14 @@ def create_purchase_bill(
                     it = ItemType.objects.get(pk=item["item_type_id"])
                 except ItemType.DoesNotExist as exc:
                     raise GraphQLError("Item type not found.") from exc
-                ReadymadeStock.objects.create(
+                receive_readymade_into_stock(
                     supplier=supplier,
-                    item_type=it,
+                    item_type_id=it.id,
                     cloth_color_id=item.get("cloth_color_id"),
                     age_group=item.get("age_group", ""),
                     size=item.get("size", ""),
                     warehouse=warehouse,
-                    quantity_received=int(item.get("quantity", 0)),
-                    quantity_available=int(item.get("quantity", 0)),
+                    quantity=int(item.get("quantity", 0)),
                     cost_price=Decimal(str(item.get("unit_price") or 0)),
                     notes=f"Bill {bill.bill_number}" + (f" — {item.get('notes', '')}" if item.get("notes") else ""),
                 )

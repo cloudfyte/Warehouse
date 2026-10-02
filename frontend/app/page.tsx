@@ -27,7 +27,7 @@ import Stitching from "@/app/components/organisms/Stitching";
 import KarigarsTab from "@/app/components/organisms/KarigarsTab";
 import CustomerBills from "@/app/components/organisms/CustomerBills";
 import FinishedProducts from "@/app/components/organisms/FinishedProducts";
-import Settlements from "@/app/components/organisms/Settlements";
+import MoneyOut from "@/app/components/organisms/MoneyOut";
 import ProductSets from "@/app/components/organisms/ProductSets";
 import SalesOrders from "@/app/components/organisms/SalesOrders";
 import Credit from "@/app/components/organisms/Credit";
@@ -42,7 +42,7 @@ import AuditLogs from "@/app/components/organisms/AuditLogs";
 import { SIDEBAR_SECTIONS } from "@/app/lib/nav";
 import Expenses from "@/app/components/organisms/Expenses";
 import StockAdjustments from "@/app/components/organisms/StockAdjustments";
-import StockTransfers from "@/app/components/organisms/StockTransfers";
+import MovingStock from "@/app/components/organisms/MovingStock";
 import RetailDispatches from "@/app/components/organisms/RetailDispatches";
 import RawCloth from "@/app/components/organisms/RawCloth";
 import ReadymadeStock from "@/app/components/organisms/ReadymadeStock";
@@ -66,8 +66,8 @@ import { setCurrencySymbol } from "@/app/lib/formatters";
 const ALL_TABS: Tab[] = [
   "dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills",
   "raw_cloth", "readymade_stock", "cutting", "stitching",
-  "finished_products", "product_sets", "sales_orders", "credit", "returns", "expenses", "settlements",
-  "stock_adjustments", "stock_transfers", "reorder_points", "retail_dispatches",
+  "finished_products", "product_sets", "sales_orders", "credit", "returns", "expenses",
+  "stock_adjustments", "stock_transfers", "reorder_points",
   "quotations", "reports", "ledger",
   "karigars", "customer_bills",
   "item_types", "employees", "warehouses", "roles", "notifications", "audit_log", "settings", "profile",
@@ -86,7 +86,7 @@ function getVisibleTabs(role: string, customRole?: CustomRole | null): Tab[] {
   if (["MANAGER"].includes(role)) return [...ALL_TABS.filter(t => t !== "profile" && t !== "settings" && t !== "audit_log" && t !== "roles"), ...profileTab];
   if (role === "CUTTING_MASTER") return ["dashboard", "cutting", "notifications", ...profileTab];
   if (role === "TAILOR") return ["dashboard", "stitching", "notifications", ...profileTab];
-  if (role === "STORE_KEEPER") return ["dashboard", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "stock_adjustments", "stock_transfers", "retail_dispatches", "notifications", ...profileTab];
+  if (role === "STORE_KEEPER") return ["dashboard", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "stock_adjustments", "stock_transfers", "notifications", ...profileTab];
   if (role === "AUDITOR") return ["dashboard", "analytics", "suppliers", "buyers", "purchase_orders", "purchase_bills", "raw_cloth", "readymade_stock", "finished_products", "sales_orders", "credit", "returns", "notifications", "audit_log", ...profileTab];
   return ["dashboard", "notifications", ...profileTab];
 }
@@ -107,13 +107,11 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   credit: <Landmark size={16} />,
   returns: <RefreshCcw size={16} />,
   expenses: <Receipt size={16} />,
-  settlements: <CalendarClock size={16} />,
   product_sets: <Layers size={16} />,
   stock_adjustments: <Package size={16} />,
   stock_transfers: <ArrowLeftRight size={16} />,
   karigars: <Scissors size={16} />,
   customer_bills: <FileText size={16} />,
-  retail_dispatches: <Store size={16} />,
   reorder_points: <AlertCircle size={16} />,
   quotations: <FileText size={16} />,
   reports: <TrendingUp size={16} />,
@@ -393,7 +391,6 @@ export default function Home() {
 
   const unreadCount = (data?.notifications || []).filter((n: { read: boolean }) => !n.read).length;
   const cuttingMasters = (data?.employees || []).filter((e: { role: string }) => e.role === "CUTTING_MASTER");
-  const tailors = (data?.employees || []).filter((e: { role: string }) => e.role === "TAILOR");
 
   const SIDEBAR_W = sidebarOpen ? 232 : 56;
 
@@ -804,22 +801,16 @@ export default function Home() {
             onRefresh={() => token && loadData(token)}
           />
         )}
-        {currentTab === "settlements" && (
-          <Settlements
+        {currentTab === "expenses" && (
+          <MoneyOut
+            expenses={data?.expenses || []}
             settlements={data?.settlements || []}
             recurring={data?.recurringSettlements || []}
             warehouses={data?.warehouseLocations || []}
+            isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager}
             canManage={isSuperAdmin || isAdmin || isManager}
             onMutate={mutate}
             onRefresh={() => token && loadData(token)}
-          />
-        )}
-        {currentTab === "expenses" && (
-          <Expenses
-            expenses={data?.expenses || []}
-            warehouses={data?.warehouseLocations || []}
-            isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isManager={isManager}
-            onMutate={mutate}
           />
         )}
         {currentTab === "stock_adjustments" && (
@@ -832,27 +823,20 @@ export default function Home() {
             onMutate={mutate}
           />
         )}
-        {currentTab === "retail_dispatches" && (
-          <RetailDispatches
-            channel={data?.retailChannel}
-            stores={data?.retailStores || []}
-            dispatches={data?.retailDispatches || []}
-            products={data?.finishedProducts || []}
-            unlinked={data?.unlinkedFinishedProducts || []}
-            warehouses={data?.warehouseLocations || []}
-            canManage={isAdmin || isSuperAdmin || isManager || isStoreKeeper}
-            onRefresh={() => token && loadData(token)}
-            onMutate={mutate}
-          />
-        )}
         {currentTab === "stock_transfers" && (
-          <StockTransfers
+          <MovingStock
             transfers={data?.stockTransfers || []}
             warehouses={data?.warehouseLocations || []}
             rawClothBatches={data?.rawClothBatches || []}
             finishedProducts={data?.finishedProducts || []}
+            channel={data?.retailChannel}
+            stores={data?.retailStores || []}
+            dispatches={data?.retailDispatches || []}
+            unlinked={data?.unlinkedFinishedProducts || []}
+            canManage={isAdmin || isSuperAdmin || isManager || isStoreKeeper}
             gql={runQuery}
             onRefresh={() => loadData(token!)}
+            onMutate={mutate}
           />
         )}
         {currentTab === "reorder_points" && (
@@ -903,6 +887,7 @@ export default function Home() {
           <KarigarsTab
             workload={data?.karigarWorkload || []}
             karigars={data?.karigars || []}
+            employees={data?.employees || []}
             canManage={isAdmin || isSuperAdmin || isManager}
             onRefresh={() => token && loadData(token)}
             onMutate={mutate}

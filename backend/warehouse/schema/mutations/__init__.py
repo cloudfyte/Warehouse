@@ -42,7 +42,6 @@ from .reorder_point import CreateReorderPoint, UpdateReorderPoint, DeleteReorder
 from .stock_transfer import (
     CreateStockTransfer, DispatchStockTransfer, ReceiveStockTransfer, CancelStockTransfer,
 )
-from .parcel_inspection import CreateParcelInspection, UpdateParcelInspection
 from .quotation import CreateQuotation, UpdateQuotationStatus, ConvertQuotationToSO
 from .custom_role import CreateCustomRole, UpdateCustomRole, DeleteCustomRole
 from .admin import ResetAllData
@@ -169,8 +168,6 @@ class Mutation(graphene.ObjectType):
     cancel_stock_transfer = CancelStockTransfer.Field()
 
     # Parcel inspection
-    create_parcel_inspection = CreateParcelInspection.Field()
-    update_parcel_inspection = UpdateParcelInspection.Field()
 
     # Quotations
     create_quotation = CreateQuotation.Field()

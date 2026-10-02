@@ -60,7 +60,7 @@ class CreateSupplierReturn(graphene.Mutation):
         warehouse_id = graphene.ID(required=True)
         raw_cloth_batch_id = graphene.ID()
         meters_returned = graphene.Float()
-        readymade_stock_id = graphene.ID()
+        finished_product_id = graphene.ID()
         quantity_returned = graphene.Int()
 
     supplier_return = graphene.Field(SupplierReturnType)
@@ -68,7 +68,7 @@ class CreateSupplierReturn(graphene.Mutation):
     @login_required
     def mutate(self, info, supplier_id, return_kind, reason, warehouse_id,
                raw_cloth_batch_id=None, meters_returned=None,
-               readymade_stock_id=None, quantity_returned=None):
+               finished_product_id=None, quantity_returned=None):
         require_role(info.context.user, _R.ADMIN, _R.MANAGER, _R.STORE_KEEPER)
         ret = create_supplier_return(
             user=info.context.user,
@@ -78,7 +78,7 @@ class CreateSupplierReturn(graphene.Mutation):
             warehouse_id=warehouse_id,
             raw_cloth_batch_id=raw_cloth_batch_id,
             meters_returned=meters_returned,
-            readymade_stock_id=readymade_stock_id,
+            finished_product_id=finished_product_id,
             quantity_returned=quantity_returned,
         )
         return CreateSupplierReturn(supplier_return=ret)

@@ -13,12 +13,10 @@ from .models import (
     FinishedProduct,
     ItemType,
     Notification,
-    ParcelInspection,
     PurchaseBill,
     PurchaseOrder,
     Quotation,
     RawClothBatch,
-    ReadymadeStock,
     ReorderPoint,
     Expense,
     SalesOrder,
@@ -112,12 +110,12 @@ def get_purchase_orders(user, status=None, limit=50):
     qs = (
         PurchaseOrder.objects
         .select_related(
-            "supplier", "warehouse", "parcel_inspection",
+            "supplier", "warehouse",
             "created_by__profile", "received_by__profile",
-            "parcel_inspection__inspected_by__profile",
         )
         .prefetch_related(
             "items__cloth_category", "items__cloth_color", "items__item_type",
+            "receipts__received_by__profile", "receipts__lines",
         )
         .filter(warehouse__in=accessible_warehouses(user))
     )
@@ -170,9 +168,15 @@ def get_raw_cloth_batches(user, category_id=None, color_id=None, warehouse_id=No
 
 
 def get_readymade_stock(user, item_type_id=None, warehouse_id=None):
+    """Garments bought in rather than made here.
+
+    The same table as everything else on the shelf — a second one meant two
+    counts of one pile and a conversion step between them.
+    """
     qs = (
-        ReadymadeStock.objects
-        .select_related("item_type", "cloth_color", "warehouse", "supplier")
+        FinishedProduct.objects
+        .filter(source=FinishedProduct.Source.IMPORTED, active=True)
+        .select_related("item_type", "cloth_category", "cloth_color", "warehouse", "supplier")
         .filter(warehouse__in=accessible_warehouses(user))
     )
     if item_type_id:
@@ -203,21 +207,23 @@ def get_cutting_assignments(user, status=None, master_id=None, limit=100):
     return qs[: min(limit, 200)]
 
 
-def get_stitching_jobs(user, status=None, tailor_id=None, limit=100):
+def get_stitching_jobs(user, status=None, karigar_id=None, limit=100):
     profile = get_profile(user)
     qs = (
         StitchingJob.objects
         .select_related(
             "cutting_assignment__item_type",
             "cutting_assignment__raw_cloth_batch__warehouse",
-            "tailor__user", "assigned_by",
+            "karigar__employee__user", "assigned_by",
         )
         .filter(cutting_assignment__raw_cloth_batch__warehouse__in=accessible_warehouses(user))
     )
     if profile.role == EmployeeProfile.Role.TAILOR:
-        qs = qs.filter(tailor=profile)
-    elif tailor_id:
-        qs = qs.filter(tailor_id=tailor_id)
+        # A tailor signing in sees their own work, found through the karigar
+        # record that stands for them.
+        qs = qs.filter(karigar__employee=profile)
+    elif karigar_id:
+        qs = qs.filter(karigar_id=karigar_id)
     if status:
         qs = qs.filter(status=status)
     return qs[: min(limit, 200)]
@@ -419,7 +425,7 @@ def get_supplier_returns(user):
     return SupplierReturn.objects.filter(
         warehouse__in=accessible_warehouses(user)
     ).select_related(
-        "supplier", "raw_cloth_batch", "readymade_stock", "warehouse"
+        "supplier", "raw_cloth_batch", "finished_product", "warehouse"
     ).order_by("-created_at")
 
 
@@ -558,14 +564,15 @@ def get_analytics_stats(user):
     for b in cloth_qs:
         cat_map[b.cloth_category.name] = cat_map.get(b.cloth_category.name, 0) + float(b.available_meters)
 
+    # Everything on the shelf, stitched or bought in — one table, so one count.
     rmd_qs = (
-        ReadymadeStock.objects
-        .filter(warehouse__in=warehouses, quantity_available__gt=0)
+        FinishedProduct.objects
+        .filter(warehouse__in=warehouses, quantity__gt=0, active=True)
         .select_related("item_type")
     )
     pcs_map: dict[str, int] = {}
     for r in rmd_qs:
-        pcs_map[r.item_type.name] = pcs_map.get(r.item_type.name, 0) + r.quantity_available
+        pcs_map[r.item_type.name] = pcs_map.get(r.item_type.name, 0) + r.quantity
 
     all_cats = set(cat_map) | set(pcs_map)
     stock_by_category = [
@@ -643,11 +650,14 @@ def get_analytics_stats(user):
         for row in size_qs
     ]
 
-    # Tailor productivity (last 12 months)
+    # Who stitched what. Filtered on either end of the job, because work sent
+    # outside has no cutting docket behind it and was being left out of the
+    # figures entirely.
     tailor_qs = (
         StitchingJob.objects
-        .filter(cutting_assignment__raw_cloth_batch__warehouse__in=warehouses)
-        .values("tailor__user__username")
+        .filter(Q(cutting_assignment__raw_cloth_batch__warehouse__in=warehouses)
+                | Q(return_warehouse__in=warehouses))
+        .values("karigar__name")
         .annotate(
             completed=Sum("pieces_completed"),
             rejected=Sum("pieces_rejected"),
@@ -662,7 +672,7 @@ def get_analytics_stats(user):
         total_processed = completed + rejected
         rejection_rate = round((rejected / total_processed * 100) if total_processed > 0 else 0.0, 1)
         tailor_productivity.append(TailorProductivityStat(
-            tailor_name=row["tailor__user__username"] or "Unknown",
+            tailor_name=row["karigar__name"] or "Unknown",
             pieces_completed=completed,
             pieces_rejected=rejected,
             rejection_rate=rejection_rate,
@@ -739,12 +749,6 @@ def get_stock_transfers(user, status=None, limit=100):
     if status:
         qs = qs.filter(status=status.upper())
     return qs[:limit]
-
-
-# ─── parcel inspections ───────────────────────────────────────────────────────
-
-def get_parcel_inspection(po_id):
-    return ParcelInspection.objects.filter(purchase_order_id=po_id).first()
 
 
 # ─── quotations ───────────────────────────────────────────────────────────────

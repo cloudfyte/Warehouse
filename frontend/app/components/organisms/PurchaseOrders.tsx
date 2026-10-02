@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import type { PurchaseOrder, ParcelInspection, Supplier, WarehouseLocation, ClothCategory, ClothColor, ItemType, ConfirmState } from "@/app/types";
+import type { PurchaseOrder, Supplier, WarehouseLocation, ClothCategory, ClothColor, ItemType, ConfirmState } from "@/app/types";
 import ConfirmDialog from "@/app/components/molecules/ConfirmDialog";
 import { PO_STATUS_LABELS, STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { friendlyError } from "@/app/lib/errors";
@@ -16,7 +16,6 @@ import { showToast } from "@/app/lib/toast";
 import Input from "@/app/components/atoms/Input";
 import Select from "@/app/components/atoms/Select";
 import Textarea from "@/app/components/atoms/Textarea";
-import FileInput from "@/app/components/atoms/FileInput";
 import Checkbox from "@/app/components/atoms/Checkbox";
 import Field from "@/app/components/molecules/Field";
 import PhotoPicker from "@/app/components/molecules/PhotoPicker";
@@ -131,8 +130,17 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
         binLocation: r.binLocation || undefined,
       }));
       const res = await onMutate(
-        `mutation R($poId:ID!,$items:[ReceiptItemInput!]!){receivePurchaseOrder(poId:$poId,receiptItems:$items){purchaseOrder{id status actualDelivery receivedBy{id username} items{id receivedMeters receivedQuantity}}}}`,
-        { poId: detail.id, items }
+        `mutation R($poId:ID!,$items:[ReceiptItemInput!]!,$cond:String,$qcp:Boolean,$dn:String,$photos:String){`
+        + `receivePurchaseOrder(poId:$poId,receiptItems:$items,parcelCondition:$cond,`
+        + `quantityCheckPassed:$qcp,discrepancyNotes:$dn,photos:$photos)`
+        + `{purchaseOrder{id status actualDelivery receivedBy{id username} items{id receivedMeters receivedQuantity}}}}`,
+        {
+          poId: detail.id, items,
+          cond: inspForm.parcelCondition,
+          qcp: inspForm.quantityCheckPassed,
+          dn: inspForm.discrepancyNotes || undefined,
+          photos: inspForm.proofImage || undefined,
+        }
       );
       // Whether this delivery completed the order is the server's call — it is the
       // only side that knows what every other line still has outstanding. Assuming
@@ -174,16 +182,13 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
     } finally { setLoading(false); }
   }
 
-  // Parcel inspection state
-  const [showInspection, setShowInspection] = useState(false);
-  const [inspection, setInspection] = useState<ParcelInspection | null>(null);
+  // How the parcel turned up, recorded with the delivery.
+
   const [inspForm, setInspForm] = useState({
     parcelCondition: "GOOD", quantityCheckPassed: true,
     discrepancyNotes: "", notes: "", inspectionDate: new Date().toISOString().slice(0, 10),
     proofImage: "",
   });
-  const [inspSaving, setInspSaving] = useState(false);
-  const [inspErr, setInspErr] = useState("");
 
   // New PO form state
   const [supplierId, setSupplierId] = useState("");
@@ -284,62 +289,6 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
       showToast(`Order marked as ${PO_STATUS_LABELS[status] || status}.`, "success");
     } catch (e: unknown) { setError(friendlyError(e)); showToast(friendlyError(e), "error"); }
     finally { setLoading(false); }
-  }
-
-  function openInspection(po: PurchaseOrder) {
-    const existing = po.parcelInspection;
-    if (existing) {
-      setInspForm({
-        parcelCondition: existing.parcelCondition,
-        quantityCheckPassed: existing.quantityCheckPassed,
-        discrepancyNotes: existing.discrepancyNotes || "",
-        notes: existing.notes || "",
-        inspectionDate: existing.inspectionDate,
-        proofImage: existing.photos || "",
-      });
-      setInspection(existing);
-    } else {
-      setInspForm({ parcelCondition: "GOOD", quantityCheckPassed: true, discrepancyNotes: "", notes: "", inspectionDate: new Date().toISOString().slice(0, 10), proofImage: "" });
-      setInspection(null);
-    }
-    setInspErr(""); setShowInspection(true);
-  }
-
-  async function saveInspection() {
-    if (!detail) return;
-    setInspSaving(true); setInspErr("");
-    try {
-      let savedId = inspection?.id ?? "";
-      if (inspection) {
-        await onMutate(
-          `mutation U($id:ID!,$cond:String,$qcp:Boolean,$dn:String,$photos:String,$notes:String){updateParcelInspection(id:$id,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,photos:$photos,notes:$notes){inspection{id parcelCondition}}}`,
-          { id: inspection.id, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, photos: inspForm.proofImage || undefined, notes: inspForm.notes || undefined }
-        );
-      } else {
-        const r = await onMutate(
-          `mutation C($poId:ID!,$date:Date!,$cond:String,$qcp:Boolean,$dn:String,$photos:String,$notes:String){createParcelInspection(poId:$poId,inspectionDate:$date,parcelCondition:$cond,quantityCheckPassed:$qcp,discrepancyNotes:$dn,photos:$photos,notes:$notes){inspection{id parcelCondition}}}`,
-          { poId: detail.id, date: inspForm.inspectionDate, cond: inspForm.parcelCondition, qcp: inspForm.quantityCheckPassed, dn: inspForm.discrepancyNotes || undefined, photos: inspForm.proofImage || undefined, notes: inspForm.notes || undefined }
-        );
-        savedId = r.createParcelInspection.inspection.id;
-      }
-      // Update detail immediately so panel reflects without a page refresh
-      const updated = {
-        id: savedId, parcelCondition: inspForm.parcelCondition,
-        quantityCheckPassed: inspForm.quantityCheckPassed,
-        discrepancyNotes: inspForm.discrepancyNotes, photos: inspForm.proofImage,
-        notes: inspForm.notes, inspectionDate: inspForm.inspectionDate,
-        createdAt: inspection?.createdAt ?? new Date().toISOString(),
-        inspectedBy: inspection?.inspectedBy,
-      };
-      setDetail(d => d ? { ...d, parcelInspection: updated } : null);
-      setInspection(updated);
-      setShowInspection(false);
-      showToast("Inspection recorded.", "success");
-    } catch (e: unknown) {
-      const msg = friendlyError(e);
-      setInspErr(msg); showToast(msg, "error");
-    }
-    finally { setInspSaving(false); }
   }
 
   function printPO(po: PurchaseOrder) {
@@ -637,6 +586,13 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                           {when.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
+                      {(r.parcelCondition && r.parcelCondition !== "GOOD") || r.quantityCheckPassed === false ? (
+                        <div style={{ fontSize: 12.5, color: "#d32f2f", marginTop: 3 }}>
+                          {CONDITION_LABEL[r.parcelCondition ?? ""] ?? r.parcelCondition}
+                          {r.quantityCheckPassed === false ? " · counts did not match" : ""}
+                          {r.discrepancyNotes ? ` — ${r.discrepancyNotes}` : ""}
+                        </div>
+                      ) : null}
                       <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
                         {r.lines.map(l => [
                           l.metersReceived != null ? `${l.metersReceived}m` : null,
@@ -737,36 +693,6 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
               );
             })()}
 
-            {/* Parcel Inspection */}
-            <div style={{ marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>Parcel Inspection</div>
-                {canEdit && (
-                  <Button variant="secondary" size="sm" onClick={() => openInspection(detail)}>
-                    {detail.parcelInspection ? "Update Inspection" : "Record Inspection"}
-                  </Button>
-                )}
-              </div>
-              {detail.parcelInspection ? (
-                <div style={{ background: "var(--canvas)", borderRadius: 8, padding: "10px 14px", fontSize: 13 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontWeight: 700, color: CONDITION_COLOR[detail.parcelInspection.parcelCondition] || "#888" }}>
-                      {CONDITION_LABEL[detail.parcelInspection.parcelCondition] || detail.parcelInspection.parcelCondition}
-                    </span>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 100, background: detail.parcelInspection.quantityCheckPassed ? "#d1fae5" : "#fef2f2", color: detail.parcelInspection.quantityCheckPassed ? "#065f46" : "#b91c1c" }}>
-                      Qty {detail.parcelInspection.quantityCheckPassed ? "OK" : "Mismatch"}
-                    </span>
-                  </div>
-                  {detail.parcelInspection.discrepancyNotes && <div style={{ color: "var(--muted)", fontSize: 12 }}>{detail.parcelInspection.discrepancyNotes}</div>}
-                  {detail.parcelInspection.photos && (
-                    <img src={detail.parcelInspection.photos} alt="Proof" style={{ marginTop: 8, maxWidth: "100%", maxHeight: 140, borderRadius: 6, border: "1px solid var(--line)", display: "block" }} />
-                  )}
-                  <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 4 }}>Inspected: {detail.parcelInspection.inspectionDate} · by {detail.parcelInspection.inspectedBy?.username ?? "unknown"}</div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: "var(--muted)", fontStyle: "italic" }}>No inspection recorded yet.</div>
-              )}
-            </div>
         </Drawer>
       )}
 
@@ -823,68 +749,43 @@ export default function PurchaseOrders({ orders, suppliers, warehouses, categori
                 </div>
               </div>
             ))}
-            {receiveErr && <ErrorBanner msg={receiveErr} />}
-        </Modal>
-      )}
-
-      {/* Parcel Inspection Modal */}
-      {showInspection && detail && (
-        <Modal
-          title={`${inspection ? "Update" : "Record"} Parcel Inspection`}
-          subtitle={`${detail.poNumber} — ${detail.supplier.name}`}
-          width={460}
-          zIndex={200}
-          onClose={() => setShowInspection(false)}
-          onSubmit={saveInspection}
-          footer={
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <Button variant="secondary" onClick={() => setShowInspection(false)}>Cancel</Button>
-              <Button type="submit" disabled={inspSaving}>
-                {inspSaving ? "Saving…" : inspection ? "Update" : "Save Inspection"}
-              </Button>
-            </div>
-          }
-        >
-            <ErrorBanner msg={inspErr} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <Field label="Inspection Date">
-                <Input type="date" value={inspForm.inspectionDate} onChange={e => setInspForm(f => ({ ...f, inspectionDate: e.target.value }))} />
-              </Field>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 8 }}>Parcel Condition</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {["GOOD", "PARTIAL_DAMAGE", "DAMAGED"].map(c => (
-                    <Button key={c} variant="secondary" size="sm" onClick={() => setInspForm(f => ({ ...f, parcelCondition: c }))}
-                      style={{ flex: 1, justifyContent: "center", border: `2px solid ${inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--line)"}`, background: inspForm.parcelCondition === c ? CONDITION_COLOR[c] + "22" : "transparent", color: inspForm.parcelCondition === c ? CONDITION_COLOR[c] : "var(--muted)" }}>
-                      {CONDITION_LABEL[c]}
-                    </Button>
-                  ))}
-                </div>
+            {/* How the parcel turned up. Asked here because this is the moment
+                somebody has it open in front of them — it used to be a second
+                record, on its own screen, one per order however many lorries came. */}
+            <div style={{ borderTop: "1px solid var(--line)", marginTop: 14, paddingTop: 14 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                How did it arrive?
               </div>
-              <Checkbox label="Quantity check passed (received matches ordered)" checked={inspForm.quantityCheckPassed} onChange={e => setInspForm(f => ({ ...f, quantityCheckPassed: e.target.checked }))} />
-              <Field label="Discrepancy Notes">
-                <Textarea value={inspForm.discrepancyNotes} onChange={e => setInspForm(f => ({ ...f, discrepancyNotes: e.target.value }))} rows={2} placeholder="Describe any discrepancies…" style={{ minHeight: "unset" }} />
-              </Field>
-              <Field label="Additional Notes">
-                <Textarea value={inspForm.notes} onChange={e => setInspForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Optional notes…" style={{ minHeight: "unset" }} />
-              </Field>
-              <Field label="Proof Photo">
-                <FileInput accept="image/*" onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = ev => setInspForm(f => ({ ...f, proofImage: ev.target?.result as string ?? "" }));
-                  reader.readAsDataURL(file);
-                }} />
-                {inspForm.proofImage && (
-                  <div style={{ marginTop: 8, position: "relative", display: "inline-block" }}>
-                    <img src={inspForm.proofImage} alt="Proof" style={{ maxWidth: "100%", maxHeight: 160, borderRadius: 6, border: "1px solid var(--line)" }} />
-                    <Button variant="danger" size="sm" onClick={() => setInspForm(f => ({ ...f, proofImage: "" }))}
-                      style={{ position: "absolute", top: 4, right: 4, borderRadius: "50%", width: 20, height: 20, padding: 0, fontSize: 12, lineHeight: 1, justifyContent: "center" }}>×</Button>
-                  </div>
-                )}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                {(["GOOD", "PARTIAL_DAMAGE", "DAMAGED"] as const).map(c => (
+                  <button type="button" key={c}
+                    onClick={() => setInspForm(f => ({ ...f, parcelCondition: c }))}
+                    style={{
+                      padding: "7px 14px", borderRadius: 20, cursor: "pointer", fontSize: 13, fontWeight: 600,
+                      border: `1px solid ${inspForm.parcelCondition === c ? (CONDITION_COLOR[c] || "var(--primary)") : "var(--line)"}`,
+                      background: inspForm.parcelCondition === c ? (CONDITION_COLOR[c] || "var(--primary)") : "var(--canvas)",
+                      color: inspForm.parcelCondition === c ? "#fff" : "var(--ink)",
+                    }}>
+                    {CONDITION_LABEL[c] || c}
+                  </button>
+                ))}
+              </div>
+              <Checkbox label="Counts match what was ordered"
+                checked={inspForm.quantityCheckPassed}
+                onChange={e => setInspForm(f => ({ ...f, quantityCheckPassed: e.target.checked }))} />
+              {(!inspForm.quantityCheckPassed || inspForm.parcelCondition !== "GOOD") && (
+                <Field label="What was wrong?" style={{ marginTop: 10 }}>
+                  <Textarea rows={2} value={inspForm.discrepancyNotes}
+                    onChange={e => setInspForm(f => ({ ...f, discrepancyNotes: e.target.value }))}
+                    placeholder="Torn bale, 4 pieces short, water marks…" style={{ minHeight: "unset" }} />
+                </Field>
+              )}
+              <Field label="Photo of the parcel" style={{ marginTop: 10 }}>
+                <PhotoPicker value={inspForm.proofImage}
+                  onChange={v => setInspForm(f => ({ ...f, proofImage: v }))} max={4} />
               </Field>
             </div>
+            {receiveErr && <ErrorBanner msg={receiveErr} />}
         </Modal>
       )}
 

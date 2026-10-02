@@ -109,3 +109,52 @@ class EveryArrivalIsItsOwnRecord(ReceiptFixture):
         self._receive(self.admin, 200, "4472")
 
         self.assertEqual(GoodsReceipt.objects.get().lines.get().design_number, "4472")
+
+
+class TheArrivalCarriesItsOwnCondition(ReceiptFixture):
+    """A single inspection per order could not tell three lorries apart, and it
+    asked somebody to write the same arrival down twice."""
+
+    def test_the_condition_is_recorded_with_the_delivery(self):
+        from warehouse.models import GoodsReceipt
+
+        po = self.po
+        receive_purchase_order(
+            po_id=po.id, user=self.admin,
+            receipt_items=[{"po_item_id": self.item.id,
+                            "received_meters": 20, "design_number": "D-1"}],
+            parcel_condition="PARTIAL_DAMAGE", quantity_check_passed=False,
+            discrepancy_notes="One bale torn", notes="left at the bay")
+
+        arrival = GoodsReceipt.objects.get()
+        self.assertEqual(arrival.parcel_condition, "PARTIAL_DAMAGE")
+        self.assertFalse(arrival.quantity_check_passed)
+        self.assertEqual(arrival.discrepancy_notes, "One bale torn")
+        self.assertEqual(arrival.received_by, self.admin)
+
+    def test_each_lorry_keeps_its_own_condition(self):
+        from warehouse.models import GoodsReceipt
+
+        po = self.po
+        item = self.item
+        receive_purchase_order(
+            po_id=po.id, user=self.admin,
+            receipt_items=[{"po_item_id": item.id, "received_meters": 10, "design_number": "D-1"}],
+            parcel_condition="GOOD")
+        receive_purchase_order(
+            po_id=po.id, user=self.other,
+            receipt_items=[{"po_item_id": item.id, "received_meters": 10, "design_number": "D-1"}],
+            parcel_condition="DAMAGED", discrepancy_notes="soaked")
+
+        conditions = list(GoodsReceipt.objects.order_by("received_at")
+                          .values_list("parcel_condition", flat=True))
+        self.assertEqual(conditions, ["GOOD", "DAMAGED"])
+
+    def test_nonsense_conditions_are_refused(self):
+        po = self.po
+        with self.assertRaises(GraphQLError):
+            receive_purchase_order(
+                po_id=po.id, user=self.admin,
+                receipt_items=[{"po_item_id": self.item.id,
+                                "received_meters": 5, "design_number": "D-1"}],
+                parcel_condition="SOGGY")

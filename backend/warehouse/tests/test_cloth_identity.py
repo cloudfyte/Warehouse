@@ -152,9 +152,15 @@ class ReadymadeWorkNamesItsCustomer(ClothFixture):
 
     def _job(self, **kw):
         from warehouse.services.production import create_stitching_job
+        from warehouse.services.karigar import create_karigar
+
+        if not hasattr(self, "_karigar"):
+            self._karigar = create_karigar(
+                user=self.admin, name="In-house tailor", kind="IN_HOUSE",
+                employee_id=self.tailor.id, rate_per_piece=50)
         return create_stitching_job(
             user=self.admin, cutting_assignment_id=self.cut.id,
-            tailor_id=self.tailor.id, pieces_assigned=5, **kw)
+            karigar_id=self._karigar.id, pieces_assigned=5, **kw)
 
     def test_work_is_wholesale_unless_said_otherwise(self):
         job = self._job()

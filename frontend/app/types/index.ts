@@ -85,11 +85,12 @@ export interface PurchaseOrder {
   items: POItem[]; createdAt: string
   createdBy?: { id: string; username: string }
   receivedBy?: { id: string; username: string }
-  parcelInspection?: ParcelInspection
-  /** One record per delivery — who took it in, and at what time. */
+  /** One record per delivery — who took it in, when, and how it turned up. */
   receipts?: {
     id: string; receivedAt: string; notes?: string
     receivedBy?: { id: string; username: string } | null
+    parcelCondition?: string; quantityCheckPassed?: boolean
+    discrepancyNotes?: string; photos?: string
     lines: { id: string; metersReceived?: number | null; quantityReceived?: number | null
       designNumber?: string; poItem: { id: string } }[]
   }[]
@@ -105,12 +106,6 @@ export interface RawClothBatch {
   designNumber?: string; clothCode?: string; photos?: string; notes?: string
   /** True when the system put a placeholder there because nobody had typed one. */
   designNumberProvisional?: boolean
-}
-
-export interface ReadymadeStock {
-  id: string; itemType: ItemType; clothColor?: ClothColor; ageGroup?: string; size: string
-  warehouse: WarehouseLocation; quantityReceived: number; quantityAvailable: number
-  costPrice: number; receivedDate: string; supplier: Supplier
 }
 
 // ─── production ───────────────────────────────────────────────────────────────
@@ -154,6 +149,8 @@ export interface CuttingAssignment {
 export interface Karigar {
   id: string; name: string; kind: string; phone?: string; whatsapp?: string
   city?: string; address?: string; ratePerPiece: number; active: boolean
+  /** An in-house stitcher's login, if they have one — how they find their own jobs. */
+  employee?: { id: string; username: string } | null
 }
 
 export interface StitchingJob {
@@ -164,7 +161,7 @@ export interface StitchingJob {
   /** Resolved by the backend, so no screen has to know where to look. */
   isOutside?: boolean; garmentName?: string; clothDesignNumber?: string
   clothCost?: number; costPerPiece?: number; supplierName?: string
-  tailor?: Employee | null; piecesAssigned: number; status: string
+  piecesAssigned: number; status: string
   assignedDate: string; dueDate?: string; piecesCompleted: number
   piecesRejected: number; completedDate?: string; notes: string
   /** Wholesale work goes to stock; readymade is stitched against one customer's bill. */
@@ -269,15 +266,6 @@ export interface StockTransfer {
   dispatchedAt?: string; receivedAt?: string; createdAt: string
 }
 
-// ─── parcel inspection ────────────────────────────────────────────────────────
-
-export interface ParcelInspection {
-  id: string; parcelCondition: string; quantityCheckPassed: boolean
-  discrepancyNotes: string; photos: string; notes: string
-  inspectionDate: string; createdAt: string
-  inspectedBy?: { id: string; username: string }
-}
-
 // ─── stock adjustments ────────────────────────────────────────────────────────
 
 export interface StockAdjustment {
@@ -299,7 +287,7 @@ export interface BuyerReturn {
 export interface SupplierReturn {
   id: string; returnNumber: string; supplier: Supplier; returnKind: string
   rawClothBatch?: RawClothBatch; metersReturned?: number
-  readymadeStock?: ReadymadeStock; quantityReturned?: number
+  finishedProduct?: FinishedProduct; quantityReturned?: number
   reason: string; status: string; warehouse: WarehouseLocation; createdAt: string
 }
 
@@ -410,9 +398,9 @@ export type Tab =
   | "purchase_orders" | "purchase_bills" | "raw_cloth" | "readymade_stock"
   | "cutting" | "stitching" | "finished_products"
   | "sales_orders" | "credit" | "returns" | "expenses"
-  | "stock_adjustments" | "stock_transfers" | "reorder_points" | "retail_dispatches"
+  | "stock_adjustments" | "stock_transfers" | "reorder_points"
   | "karigars" | "customer_bills"
-  | "quotations" | "reports" | "ledger" | "settlements" | "product_sets"
+  | "quotations" | "reports" | "ledger" | "product_sets"
   | "item_types"
   | "employees" | "warehouses" | "roles" | "notifications" | "audit_log" | "settings" | "profile"
 

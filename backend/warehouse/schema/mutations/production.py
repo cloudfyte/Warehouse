@@ -86,11 +86,8 @@ class UpdateCuttingAssignment(graphene.Mutation):
 class CreateStitchingJob(graphene.Mutation):
     class Arguments:
         cutting_assignment_id = graphene.ID(required=True)
-        # Either a karigar (paid per piece, possibly an outside unit) or a
-        # tailor on the payroll. One of the two is required, checked in the
-        # service so both doors enforce it.
+        # Whoever is stitching it, paid by the piece — staff or an outside unit.
         karigar_id = graphene.ID()
-        tailor_id = graphene.ID()
         rate_per_piece = graphene.Float()
         # Either a size run, or a bare total for a sizeless job.
         pieces_assigned = graphene.Int()
@@ -180,7 +177,6 @@ class CreateFinishedProducts(graphene.Mutation):
     class Arguments:
         item_type_id = graphene.ID()
         stitching_job_id = graphene.ID()
-        readymade_stock_id = graphene.ID()
         cloth_category_id = graphene.ID()
         cloth_color_id = graphene.ID()
         age_group = graphene.String()

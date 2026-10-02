@@ -65,7 +65,7 @@ class AnOutsideUnitIsNotStaff(KarigarFixture):
 
         self.assertEqual(job.karigar_id, self.mumbai.id)
         # Nobody to notify, and nothing should have blown up trying.
-        self.assertIsNone(job.tailor)
+        self.assertIsNone(job.karigar.employee)
 
     def test_somebody_has_to_be_doing_the_work(self):
         with self.assertRaises(GraphQLError):

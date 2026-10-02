@@ -142,11 +142,8 @@ export const DASHBOARD_QUERY = `
       receipts {
         id receivedAt notes
         receivedBy { id username }
+        parcelCondition quantityCheckPassed discrepancyNotes photos
         lines { id metersReceived quantityReceived designNumber poItem { id } }
-      }
-      parcelInspection {
-        id parcelCondition quantityCheckPassed discrepancyNotes photos notes inspectionDate createdAt
-        inspectedBy { id username }
       }
     }
     expenses(limit: 500) {
@@ -178,7 +175,7 @@ export const DASHBOARD_QUERY = `
       warehouse { id name code }
     }
     readymadeStock {
-      id ageGroup size quantityReceived quantityAvailable costPrice receivedDate
+      id ageGroup size quantity costPrice salePrice barcode tagsPrinted createdAt
       itemType { id name }
       clothCategory { id name }
       clothColor { id name hexCode }
@@ -203,7 +200,8 @@ export const DASHBOARD_QUERY = `
       stitchingJobs { id jobNumber status piecesAssigned piecesCompleted isOutside
         garmentName karigar { id name city } }
     }
-    karigars { id name kind phone whatsapp city address ratePerPiece active }
+    karigars { id name kind phone whatsapp city address ratePerPiece active
+      employee { id username } }
     awaitingCollection {
       id sku name size quantity salePrice customerBillNumber
       customerOrder { id billNumber customerName customerPhone billPhotos notes }
@@ -233,7 +231,6 @@ export const DASHBOARD_QUERY = `
       cuttingAssignment { id assignmentNumber size costPerPiece itemType { name }
         rawClothBatch { designNumber warehouse { id name } } }
       purchaseBillItem { id bill { id billNumber } }
-      tailor { id username role }
     }
     finishedProducts {
       id name sku source quantity costPrice salePrice profitMargin barcode barcodeSvg tagsPrinted ageGroup size createdAt

@@ -4,7 +4,7 @@ from django.db import transaction
 from graphql import GraphQLError
 
 from warehouse.models import (
-    ClothCategory, ClothColor, ItemType, RawClothBatch, ReadymadeStock, Supplier,
+    ClothCategory, ClothColor, ItemType, RawClothBatch, Supplier,
 )
 from warehouse.permissions import get_warehouse
 from warehouse.services.uploads import save_data_urls_csv
@@ -33,6 +33,72 @@ def claim_design_number(design_number, warehouse_id, *, exclude_pk=None):
             f"in this warehouse. Use a different number, or add the meters to that batch."
         )
     return code
+
+
+def receive_readymade_into_stock(*, supplier, item_type_id, warehouse, quantity,
+                                 cost_price, sale_price=None, cloth_category_id=None,
+                                 cloth_color_id=None, age_group="", size="", notes=""):
+    """Put bought-in garments on the shelf, as garments.
+
+    They used to land in a table of their own and wait for somebody to "convert"
+    them before they could be tagged or sold — two shelves for one pile of
+    clothes, and a step that existed only because there were two tables. The
+    same goods arriving again are more of the same goods, so an identical
+    description tops up what is already there and averages the cost, exactly as
+    cloth does under its design number.
+    """
+    from warehouse.models import FinishedProduct
+    from warehouse.services.barcode import generate_barcode_svg
+
+    qty = int(quantity or 0)
+    if qty <= 0:
+        raise GraphQLError("Quantity must be greater than zero.")
+    cost = Decimal(str(cost_price or 0))
+
+    existing = (FinishedProduct.objects
+                .select_for_update()
+                .filter(source=FinishedProduct.Source.IMPORTED,
+                        item_type_id=item_type_id,
+                        cloth_color_id=cloth_color_id,
+                        cloth_category_id=cloth_category_id,
+                        age_group=(age_group or "").strip(),
+                        size=(size or "").strip(),
+                        warehouse=warehouse,
+                        active=True)
+                .first())
+    if existing:
+        # Weighted average, so a second delivery at a different price does not
+        # quietly restate what the first one cost.
+        had = existing.quantity or 0
+        total_value = (existing.cost_price or Decimal("0.00")) * had + cost * qty
+        existing.quantity = had + qty
+        if existing.quantity:
+            existing.cost_price = (total_value / existing.quantity).quantize(Decimal("0.01"))
+        if sale_price is not None and not existing.sale_price:
+            existing.sale_price = Decimal(str(sale_price))
+        if supplier and not existing.supplier_id:
+            existing.supplier = supplier
+        existing.save(update_fields=["quantity", "cost_price", "sale_price", "supplier", "updated_at"])
+        return existing
+
+    product = FinishedProduct.objects.create(
+        item_type_id=item_type_id,
+        cloth_category_id=cloth_category_id,
+        cloth_color_id=cloth_color_id,
+        age_group=(age_group or "").strip(),
+        size=(size or "").strip(),
+        source=FinishedProduct.Source.IMPORTED,
+        supplier=supplier,
+        quantity=qty,
+        warehouse=warehouse,
+        cost_price=cost,
+        # Nobody has priced it yet; the cost is a placeholder a manager edits.
+        sale_price=Decimal(str(sale_price if sale_price is not None else cost)),
+        notes=(notes or "").strip(),
+    )
+    product.barcode_svg = generate_barcode_svg(product.barcode)
+    product.save(update_fields=["barcode_svg"])
+    return product
 
 
 def receive_cloth_into_stock(*, design_number, warehouse_id, meters, cost_per_meter,
@@ -186,13 +252,10 @@ def create_readymade_stock(*, user, supplier_id, item_type_id, warehouse_id,
         raise GraphQLError("Quantity must be greater than zero.")
 
     with transaction.atomic():
-        stock = ReadymadeStock.objects.create(
-            supplier=supplier, item_type=item_type,
-            cloth_category=category, cloth_color=color,
-            warehouse=warehouse, size=size.strip(),
-            quantity_received=qty, quantity_available=qty,
-            cost_price=Decimal(str(cost_price)),
-            notes=notes.strip(),
-            **({"received_date": received_date} if received_date else {}),
+        return receive_readymade_into_stock(
+            supplier=supplier, item_type_id=item_type.id,
+            cloth_category_id=category.id if category else None,
+            cloth_color_id=color.id if color else None,
+            warehouse=warehouse, size=size,
+            quantity=qty, cost_price=cost_price, notes=notes,
         )
-    return stock

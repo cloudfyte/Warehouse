@@ -6,7 +6,7 @@ from warehouse.permissions import require_role
 from warehouse.services.stock import (
     create_raw_cloth_batch, create_readymade_stock, update_raw_cloth_batch,
 )
-from warehouse.schema.types import RawClothBatchType, ReadymadeStockType
+from warehouse.schema.types import FinishedProductType, RawClothBatchType
 
 
 class CreateRawClothBatch(graphene.Mutation):
@@ -48,7 +48,9 @@ class CreateReadymadeStock(graphene.Mutation):
         notes = graphene.String()
         received_date = graphene.Date()
 
-    stock = graphene.Field(ReadymadeStockType)
+    # Bought-in garments are garments: they land on the shelf tagged, with
+    # no second table and no conversion step in between.
+    stock = graphene.Field(FinishedProductType)
 
     @login_required
     def mutate(self, info, supplier_id, item_type_id, warehouse_id, quantity, **kwargs):

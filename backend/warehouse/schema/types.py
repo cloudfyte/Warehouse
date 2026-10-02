@@ -11,9 +11,9 @@ from warehouse.models import (
     AuditLog, Buyer, BuyerReturn, ClothCategory, ClothColor, CreditPayment, CreditTransaction,
     CustomRole, CustomerOrder, CuttingAssignment, CuttingSize, EmployeeProfile, Expense,
     FinishedProduct, FinishedProductOption, GoodsReceipt, GoodsReceiptLine, ItemType,
-    Karigar, Notification, OTPCode, ParcelInspection, ProductSet,
+    Karigar, Notification, OTPCode, ProductSet,
     ProductSetItem, PurchaseBill, PurchaseBillItem, PurchaseOrder, PurchaseOrderItem, Quotation,
-    QuotationItem, RawClothBatch, ReadymadeStock, RecurringSettlement, ReorderPoint,
+    QuotationItem, RawClothBatch, RecurringSettlement, ReorderPoint,
     RetailChannel, RetailDispatch, RetailDispatchItem, RetailProductLink, RetailReturn,
     RetailReturnItem, RetailStore, SalesOrder, SalesOrderItem, Settlement, StitchingJob,
     StitchingSize, StockAdjustment, StockTransfer, Supplier, SupplierPayment, SupplierReturn,
@@ -150,7 +150,6 @@ class PurchaseOrderItemType(DjangoObjectType):
 class PurchaseOrderType(DjangoObjectType):
     created_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
     received_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
-    parcel_inspection = graphene.Field("warehouse.schema.types.ParcelInspectionType")
 
     class Meta:
         model = PurchaseOrder
@@ -170,12 +169,6 @@ class PurchaseOrderType(DjangoObjectType):
         try:
             return self.received_by.profile
         except (AttributeError, EmployeeProfile.DoesNotExist):
-            return None
-
-    def resolve_parcel_inspection(self, info):
-        try:
-            return self.parcel_inspection
-        except ParcelInspection.DoesNotExist:
             return None
 
 
@@ -275,12 +268,6 @@ class RawClothBatchType(DjangoObjectType):
 
     def resolve_cost_per_meter(self, info):
         return float(self.cost_per_meter)
-
-
-class ReadymadeStockType(DjangoObjectType):
-    class Meta:
-        model = ReadymadeStock
-        fields = "__all__"
 
 
 class CuttingAssignmentType(DjangoObjectType):
@@ -435,8 +422,12 @@ class GoodsReceiptLineType(DjangoObjectType):
 
 
 class GoodsReceiptType(DjangoObjectType):
-    """One delivery arriving — who took it in, and at what time."""
+    """One delivery arriving — who took it in, when, and how it looked."""
     received_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
+    photos = graphene.String()
+
+    def resolve_photos(self, info):
+        return to_urls_csv(self.photos)
 
     class Meta:
         model = GoodsReceipt
@@ -657,26 +648,6 @@ class StockTransferType(DjangoObjectType):
             return None
         try:
             return self.received_by.profile
-        except (AttributeError, EmployeeProfile.DoesNotExist):
-            return None
-
-
-class ParcelInspectionType(DjangoObjectType):
-    inspected_by = graphene.Field("warehouse.schema.types.EmployeeProfileType")
-    photos = graphene.String()
-
-    class Meta:
-        model = ParcelInspection
-        fields = "__all__"
-
-    def resolve_photos(self, info):
-        return to_urls_csv(self.photos)
-
-    def resolve_inspected_by(self, info):
-        if not self.inspected_by_id:
-            return None
-        try:
-            return self.inspected_by.profile
         except (AttributeError, EmployeeProfile.DoesNotExist):
             return None
 

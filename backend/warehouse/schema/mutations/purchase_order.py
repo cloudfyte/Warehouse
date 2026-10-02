@@ -80,14 +80,22 @@ class ReceivePurchaseOrder(graphene.Mutation):
     class Arguments:
         po_id = graphene.ID(required=True)
         receipt_items = graphene.List(graphene.NonNull(ReceiptItemInput), required=True)
+        # How the parcel turned up, recorded with the arrival rather than as a
+        # second record somebody has to remember to write.
+        parcel_condition = graphene.String()
+        quantity_check_passed = graphene.Boolean()
+        discrepancy_notes = graphene.String()
+        photos = graphene.String()
+        notes = graphene.String()
 
     purchase_order = graphene.Field(PurchaseOrderType)
 
     @login_required
-    def mutate(self, info, po_id, receipt_items):
+    def mutate(self, info, po_id, receipt_items, **kwargs):
         require_role(info.context.user, EmployeeProfile.Role.ADMIN, EmployeeProfile.Role.MANAGER, EmployeeProfile.Role.STORE_KEEPER)
         po = receive_purchase_order(
             po_id=po_id, user=info.context.user, receipt_items=[dict(i) for i in receipt_items],
+            **kwargs,
         )
         notify_managers(
             title=f"PO Received: {po.po_number}",

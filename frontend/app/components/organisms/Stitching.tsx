@@ -136,7 +136,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
   const q = search.toLowerCase();
   const filtered = jobs.filter(j =>
     (!statusFilter || j.status === statusFilter) &&
-    (!q || (j.karigar?.name ?? j.tailor?.username ?? "").toLowerCase().includes(q)
+    (!q || (j.karigar?.name ?? "").toLowerCase().includes(q)
       || (j.garmentName ?? "").toLowerCase().includes(q)
       || (j.clothDesignNumber ?? "").toLowerCase().includes(q))
   );
@@ -281,7 +281,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
       />
 
       <FilterBar style={{ marginBottom: 20 }}>
-        <Input placeholder="Search tailor or item type…" value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+        <Input placeholder="Search a stitcher, a design or a garment…" value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
         <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: "auto", minWidth: 180 }}>
           <option value="">All statuses</option>
           {Object.entries(STITCHING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -350,7 +350,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
       {paying && (
         <Modal
           title="Pay karigar"
-          subtitle={`${paying.jobNumber} · ${paying.karigar?.name ?? paying.tailor?.username ?? ""}`}
+          subtitle={`${paying.jobNumber} · ${paying.karigar?.name ?? ""}`}
           width={400}
           onClose={() => setPaying(null)}
           onSubmit={payJob}
@@ -373,7 +373,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
       )}
 
       {showForm && (
-        <Modal title="New Stitching Job" subtitle="Assign cut pieces to a tailor for stitching"
+        <Modal title="New Stitching Job" subtitle="Hand cut pieces to whoever is stitching them"
           onClose={() => { setShowForm(false); setError(""); setForm({ assignmentId: "", karigarId: "", pieces: "", notes: "", jobType: "WHOLESALE", customerBillNumber: "", photos: "", rate: "" }); }} width={480}
           footer={<div style={{ display: "flex", gap: 10 }}>
             <Button onClick={createJob} disabled={loading || !form.assignmentId || !form.karigarId || (runTotal === 0 && !form.pieces)
@@ -487,7 +487,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
         const isReady = selected.status === "READY";
         return (
           <Modal title={`Update: ${selected.jobNumber}`}
-            subtitle={`${selected.garmentName ?? ""} · ${selected.piecesAssigned} pieces → ${selected.karigar?.name ?? selected.tailor?.username ?? ""}`}
+            subtitle={`${selected.garmentName ?? ""} · ${selected.piecesAssigned} pieces → ${selected.karigar?.name ?? ""}`}
             onClose={() => { setSelected(null); setError(""); }} width={440}
             footer={<div style={{ display: "flex", gap: 10 }}>
               {isReady ? (
@@ -628,7 +628,7 @@ export default function Stitching({ jobs, assignments, karigars, warehouses, isA
 
                 <div style={{ minWidth: 0 }}>
                   <Cell label="Stitcher"
-                    value={`${j.karigar?.name ?? j.tailor?.username ?? "—"}${j.karigar?.city ? ` · ${j.karigar.city}` : ""}`} />
+                    value={`${j.karigar?.name ?? "—"}${j.karigar?.city ? ` · ${j.karigar.city}` : ""}`} />
                   {(j.ratePerPiece ?? 0) > 0 && (
                     <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>
                       {formatMoney(j.ratePerPiece!)}/pc

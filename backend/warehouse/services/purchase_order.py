@@ -6,9 +6,9 @@ from graphql import GraphQLError
 from warehouse.models import (
     GoodsReceipt, GoodsReceiptLine,
     ClothCategory, ClothColor, ItemType, PurchaseOrder,
-    PurchaseOrderItem, RawClothBatch, ReadymadeStock, Supplier,
+    PurchaseOrderItem, RawClothBatch, Supplier,
 )
-from warehouse.services.stock import receive_cloth_into_stock
+from warehouse.services.stock import receive_cloth_into_stock, receive_readymade_into_stock
 from warehouse.permissions import get_scoped, get_warehouse, scoped
 from warehouse.services.uploads import save_data_urls_csv
 
@@ -95,7 +95,7 @@ def update_purchase_order_status(*, user, id, status, actual_delivery=None):
         po = get_scoped(user, PurchaseOrder, id, lock=True)
 
         # Reopening a received order let it be received again, and every receipt
-        # mints fresh RawClothBatch / ReadymadeStock rows — the stock doubles.
+        # mints fresh stock rows — the stock doubles.
         if po.status == PurchaseOrder.Status.CANCELLED:
             raise GraphQLError("This order is cancelled and cannot be changed.")
         if po.status in (PurchaseOrder.Status.RECEIVED, PurchaseOrder.Status.VERIFIED):
@@ -135,7 +135,9 @@ def _requested(receipt, key):
     return None if value is None or value == "" else value
 
 
-def receive_purchase_order(*, po_id, user, receipt_items):
+def receive_purchase_order(*, po_id, user, receipt_items, parcel_condition=None,
+                           quantity_check_passed=None, discrepancy_notes="",
+                           photos="", notes=""):
     """
     Book a delivery against a purchase order and create the stock it brought in.
 
@@ -145,7 +147,7 @@ def receive_purchase_order(*, po_id, user, receipt_items):
     PARTIALLY_RECEIVED until every line is complete. Only then does it become
     RECEIVED.
 
-    Every delivery still creates its own RawClothBatch / ReadymadeStock row, so
+    Every delivery still tops up the cloth or the garments it brought, so
     those rows are the receipt history — each one carries the date, the cost and
     the bin it landed in for that particular lorry.
 
@@ -171,9 +173,23 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                 f"this one is {po.get_status_display().lower()}."
             )
 
-        # Each arrival is its own record. A supplier delivering over three
-        # trips used to leave only the last one's name and date on the order.
-        arrival = GoodsReceipt.objects.create(purchase_order=po, received_by=user)
+        # Each arrival is its own record, carrying how it turned up. A supplier
+        # delivering over three trips used to leave only the last one's name and
+        # date on the order, and the condition was a separate record one per
+        # order that could not tell the three trips apart at all.
+        from warehouse.services.uploads import save_data_urls_csv
+
+        condition = (parcel_condition or GoodsReceipt.Condition.GOOD).upper()
+        if condition not in GoodsReceipt.Condition.values:
+            raise GraphQLError("A parcel is good, partly damaged or damaged.")
+        arrival = GoodsReceipt.objects.create(
+            purchase_order=po, received_by=user,
+            parcel_condition=condition,
+            quantity_check_passed=True if quantity_check_passed is None else quantity_check_passed,
+            discrepancy_notes=(discrepancy_notes or "").strip(),
+            photos=save_data_urls_csv(photos or "", "goods-receipts"),
+            notes=(notes or "").strip(),
+        )
         booked_anything = False
         for receipt in receipt_items:
             try:
@@ -249,15 +265,14 @@ def receive_purchase_order(*, po_id, user, receipt_items):
                 poi.save(update_fields=["received_quantity"])
                 GoodsReceiptLine.objects.create(
                     receipt=arrival, po_item=poi, quantity_received=qty)
-                ReadymadeStock.objects.create(
-                    po_item=poi,
+                receive_readymade_into_stock(
                     supplier=po.supplier,
-                    item_type=poi.item_type,
-                    cloth_color=poi.cloth_color,
-                    size=poi.size,
+                    item_type_id=poi.item_type_id,
+                    cloth_color_id=poi.cloth_color_id,
+                    age_group=poi.age_group or "",
+                    size=poi.size or "",
                     warehouse=po.warehouse,
-                    quantity_received=qty,
-                    quantity_available=qty,
+                    quantity=qty,
                     cost_price=poi.unit_price,
                     notes=receipt.get("notes", ""),
                 )

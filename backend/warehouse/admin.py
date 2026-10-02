@@ -13,7 +13,6 @@ from .models import (
     OTPCode,
     PurchaseOrder,
     RawClothBatch,
-    ReadymadeStock,
     SalesOrder,
     StitchingJob,
     Supplier,
@@ -91,12 +90,6 @@ class RawClothBatchAdmin(admin.ModelAdmin):
     readonly_fields = ("batch_number", "created_at")
 
 
-@admin.register(ReadymadeStock)
-class ReadymadeStockAdmin(admin.ModelAdmin):
-    list_display = ("item_type", "cloth_color", "size", "quantity_available", "quantity_received", "warehouse")
-    list_filter = ("item_type", "warehouse")
-
-
 @admin.register(CuttingAssignment)
 class CuttingAssignmentAdmin(admin.ModelAdmin):
     list_display = ("assignment_number", "cutting_master", "item_type", "meters_assigned", "target_pieces", "pieces_completed", "status")
@@ -107,7 +100,7 @@ class CuttingAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(StitchingJob)
 class StitchingJobAdmin(admin.ModelAdmin):
-    list_display = ("job_number", "tailor", "pieces_assigned", "pieces_completed", "pieces_rejected", "status")
+    list_display = ("job_number", "karigar", "pieces_assigned", "pieces_completed", "pieces_rejected", "status")
     list_filter = ("status",)
     search_fields = ("job_number",)
     readonly_fields = ("job_number", "created_at")

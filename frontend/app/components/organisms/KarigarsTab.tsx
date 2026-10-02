@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import type { Karigar, KarigarWorkload } from "@/app/types";
+import type { Karigar, KarigarWorkload, Employee } from "@/app/types";
 import KarigarWork from "@/app/components/organisms/KarigarWork";
 import Karigars from "@/app/components/organisms/Karigars";
 
 interface Props {
   workload: KarigarWorkload[];
   karigars: Karigar[];
+  employees: Employee[];
   canManage: boolean;
   onRefresh?: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,7 +21,7 @@ interface Props {
  * they are and what they charge is the same subject, so it is a switch here
  * rather than another line in the sidebar.
  */
-export default function KarigarsTab({ workload, karigars, canManage, onRefresh, onMutate }: Props) {
+export default function KarigarsTab({ workload, karigars, employees, canManage, onRefresh, onMutate }: Props) {
   const [view, setView] = useState<"work" | "list">("work");
   return (
     <div>
@@ -39,7 +40,7 @@ export default function KarigarsTab({ workload, karigars, canManage, onRefresh, 
       </div>
       {view === "work"
         ? <KarigarWork workload={workload} canManage={canManage} onRefresh={onRefresh} onMutate={onMutate} />
-        : <Karigars karigars={karigars} canManage={canManage} onRefresh={onRefresh} onMutate={onMutate} />}
+        : <Karigars karigars={karigars} employees={employees} canManage={canManage} onRefresh={onRefresh} onMutate={onMutate} />}
     </div>
   );
 }

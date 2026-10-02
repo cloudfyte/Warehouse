@@ -17,6 +17,9 @@ class CreateKarigar(graphene.Mutation):
         city = graphene.String()
         address = graphene.String()
         notes = graphene.String()
+        # An in-house stitcher on the payroll: the link is how they find their
+        # own jobs when they sign in.
+        employee_id = graphene.ID()
 
     karigar = graphene.Field(KarigarType)
 
@@ -36,6 +39,9 @@ class UpdateKarigar(graphene.Mutation):
         city = graphene.String()
         address = graphene.String()
         notes = graphene.String()
+        # An in-house stitcher on the payroll: the link is how they find their
+        # own jobs when they sign in.
+        employee_id = graphene.ID()
         active = graphene.Boolean()
 
     karigar = graphene.Field(KarigarType)

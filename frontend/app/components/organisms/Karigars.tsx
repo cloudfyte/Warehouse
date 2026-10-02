@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Pencil, Scissors } from "lucide-react";
-import type { Karigar } from "@/app/types";
+import type { Karigar, Employee } from "@/app/types";
 import { formatMoney } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
@@ -15,14 +15,15 @@ import PageHeader from "@/app/components/molecules/PageHeader";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
 
 interface Props {
-  karigars: Karigar[];
+  karigars: Karigar[]
+  employees: Employee[];
   canManage: boolean;
   onRefresh?: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMutate: (q: string, v: Record<string, unknown>) => Promise<any>;
 }
 
-const BLANK = { name: "", kind: "OUTSIDE", ratePerPiece: "", phone: "", whatsapp: "", city: "", address: "", notes: "" };
+const BLANK = { name: "", kind: "OUTSIDE", ratePerPiece: "", phone: "", whatsapp: "", city: "", address: "", notes: "", employeeId: "" };
 const cell: React.CSSProperties = { padding: "11px 14px" };
 
 /**
@@ -32,7 +33,7 @@ const cell: React.CSSProperties = { padding: "11px 14px" };
  * be in another city entirely — cloth bought in Surat can be stitched in
  * Mumbai and arrive at the godown only as finished garments.
  */
-export default function Karigars({ karigars, canManage, onRefresh, onMutate }: Props) {
+export default function Karigars({ karigars, employees, canManage, onRefresh, onMutate }: Props) {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Karigar | null>(null);
   const [creating, setCreating] = useState(false);
@@ -47,7 +48,8 @@ export default function Karigars({ karigars, canManage, onRefresh, onMutate }: P
   function open(k: Karigar | null) {
     setForm(k
       ? { name: k.name, kind: k.kind, ratePerPiece: String(k.ratePerPiece ?? ""), phone: k.phone || "",
-          whatsapp: k.whatsapp || "", city: k.city || "", address: k.address || "", notes: "" }
+          whatsapp: k.whatsapp || "", city: k.city || "", address: k.address || "", notes: "",
+          employeeId: k.employee?.id ?? "" }
       : { ...BLANK });
     setEditing(k); setCreating(!k); setErr("");
   }
@@ -59,14 +61,16 @@ export default function Karigars({ karigars, canManage, onRefresh, onMutate }: P
       name: form.name.trim(), kind: form.kind,
       rate: form.ratePerPiece === "" ? 0 : +form.ratePerPiece,
       phone: form.phone, whatsapp: form.whatsapp, city: form.city, address: form.address,
+      // An in-house stitcher with a login finds their own jobs through this.
+      employeeId: form.kind === "IN_HOUSE" ? (form.employeeId || null) : null,
     };
     try {
       await onMutate(
         editing
-          ? `mutation U($id:ID!,$name:String,$kind:String,$rate:Float,$phone:String,$whatsapp:String,$city:String,$address:String){`
-            + `updateKarigar(id:$id,name:$name,kind:$kind,ratePerPiece:$rate,phone:$phone,whatsapp:$whatsapp,city:$city,address:$address){karigar{id}}}`
-          : `mutation C($name:String!,$kind:String,$rate:Float,$phone:String,$whatsapp:String,$city:String,$address:String){`
-            + `createKarigar(name:$name,kind:$kind,ratePerPiece:$rate,phone:$phone,whatsapp:$whatsapp,city:$city,address:$address){karigar{id}}}`,
+          ? `mutation U($id:ID!,$name:String,$kind:String,$rate:Float,$phone:String,$whatsapp:String,$city:String,$address:String,$employeeId:ID){`
+            + `updateKarigar(id:$id,name:$name,kind:$kind,ratePerPiece:$rate,phone:$phone,whatsapp:$whatsapp,city:$city,address:$address,employeeId:$employeeId){karigar{id}}}`
+          : `mutation C($name:String!,$kind:String,$rate:Float,$phone:String,$whatsapp:String,$city:String,$address:String,$employeeId:ID){`
+            + `createKarigar(name:$name,kind:$kind,ratePerPiece:$rate,phone:$phone,whatsapp:$whatsapp,city:$city,address:$address,employeeId:$employeeId){karigar{id}}}`,
         vars,
       );
       showToast(editing ? "Karigar updated." : "Karigar added.", "success");
@@ -156,6 +160,17 @@ export default function Karigars({ karigars, canManage, onRefresh, onMutate }: P
                 <option value="IN_HOUSE">In-house</option>
               </Select>
             </Field>
+            {form.kind === "IN_HOUSE" && (
+              <Field label="Their login" hint="So they see their own jobs when they sign in. Leave blank if they have none.">
+                <Select value={form.employeeId}
+                  onChange={e => setForm(f => ({ ...f, employeeId: e.target.value }))}>
+                  <option value="">No login</option>
+                  {employees.filter(e => e.active !== false).map(e => (
+                    <option key={e.id} value={e.id}>{e.username}</option>
+                  ))}
+                </Select>
+              </Field>
+            )}
             <Field label="Rate per piece" hint="The usual rate. A job can still agree its own.">
               <Input type="number" min="0" step="0.01" value={form.ratePerPiece} placeholder="0.00"
                 onChange={e => setForm(f => ({ ...f, ratePerPiece: e.target.value }))} />

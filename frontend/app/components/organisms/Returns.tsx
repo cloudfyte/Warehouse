@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { BuyerReturn, SupplierReturn, Buyer, Supplier, FinishedProduct, RawClothBatch, ReadymadeStock, WarehouseLocation } from "@/app/types";
+import type { BuyerReturn, SupplierReturn, Buyer, Supplier, FinishedProduct, RawClothBatch, WarehouseLocation } from "@/app/types";
 import { STATUS_BADGE_COLORS } from "@/app/lib/constants";
 import { formatDateShort, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
@@ -26,8 +26,8 @@ const CREATE_BUYER_RETURN = `mutation CreateBuyerReturn($buyerId:ID!,$finishedPr
 const PROCESS_BUYER_RETURN = `mutation ProcessBuyerReturn($id:ID!,$status:String!){
   processBuyerReturn(id:$id,status:$status){buyerReturn{id status}}}`;
 
-const CREATE_SUPPLIER_RETURN = `mutation CreateSupplierReturn($supplierId:ID!,$returnKind:String!,$reason:String!,$warehouseId:ID!,$rawClothBatchId:ID,$metersReturned:Float,$readymadeStockId:ID,$quantityReturned:Int){
-  createSupplierReturn(supplierId:$supplierId,returnKind:$returnKind,reason:$reason,warehouseId:$warehouseId,rawClothBatchId:$rawClothBatchId,metersReturned:$metersReturned,readymadeStockId:$readymadeStockId,quantityReturned:$quantityReturned){
+const CREATE_SUPPLIER_RETURN = `mutation CreateSupplierReturn($supplierId:ID!,$returnKind:String!,$reason:String!,$warehouseId:ID!,$rawClothBatchId:ID,$metersReturned:Float,$finishedProductId:ID,$quantityReturned:Int){
+  createSupplierReturn(supplierId:$supplierId,returnKind:$returnKind,reason:$reason,warehouseId:$warehouseId,rawClothBatchId:$rawClothBatchId,metersReturned:$metersReturned,finishedProductId:$finishedProductId,quantityReturned:$quantityReturned){
     supplierReturn{id returnNumber}}}`;
 
 interface Props {
@@ -37,7 +37,7 @@ interface Props {
   suppliers: Supplier[]
   finishedProducts: FinishedProduct[]
   rawClothBatches: RawClothBatch[]
-  readymadeStock: ReadymadeStock[]
+  readymadeStock: FinishedProduct[]
   warehouses: WarehouseLocation[]
   isAdmin: boolean; isSuperAdmin: boolean; isManager: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,7 +59,7 @@ function EmptyTable({ colSpan, icon, title, hint }: { colSpan: number; icon: str
 }
 
 const emptyBuyerForm = () => ({ buyerId: "", finishedProductId: "", quantity: 1, condition: "RESTOCKABLE", reason: "", warehouseId: "" });
-const emptySupplierForm = () => ({ supplierId: "", returnKind: "RAW_CLOTH", reason: "", warehouseId: "", rawClothBatchId: "", metersReturned: "", readymadeStockId: "", quantityReturned: "" });
+const emptySupplierForm = () => ({ supplierId: "", returnKind: "RAW_CLOTH", reason: "", warehouseId: "", rawClothBatchId: "", metersReturned: "", finishedProductId: "", quantityReturned: "" });
 
 export default function Returns({ buyerReturns, supplierReturns, buyers, suppliers, finishedProducts, rawClothBatches, readymadeStock, warehouses, isAdmin, isSuperAdmin, isManager, onMutate }: Props) {
   const [buyerPage, setBuyerPage] = useState(1);
@@ -114,19 +114,19 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
   }
 
   async function submitSupplierReturn() {
-    const { supplierId, returnKind, reason, warehouseId, rawClothBatchId, metersReturned, readymadeStockId, quantityReturned } = supplierForm;
+    const { supplierId, returnKind, reason, warehouseId, rawClothBatchId, metersReturned, finishedProductId, quantityReturned } = supplierForm;
     if (!supplierId || !returnKind || !reason || !warehouseId) {
       setSupplierErr("Fill all required fields."); return;
     }
     if (returnKind === "RAW_CLOTH" && !rawClothBatchId) { setSupplierErr("Select a raw cloth batch."); return; }
-    if (returnKind === "READYMADE" && !readymadeStockId) { setSupplierErr("Select a readymade stock item."); return; }
+    if (returnKind === "READYMADE" && !finishedProductId) { setSupplierErr("Pick the garments going back."); return; }
     setSupplierLoading(true); setSupplierErr("");
     try {
       await onMutate(CREATE_SUPPLIER_RETURN, {
         supplierId, returnKind, reason, warehouseId,
         rawClothBatchId: returnKind === "RAW_CLOTH" ? rawClothBatchId : undefined,
         metersReturned: returnKind === "RAW_CLOTH" && metersReturned ? Number(metersReturned) : undefined,
-        readymadeStockId: returnKind === "READYMADE" ? readymadeStockId : undefined,
+        finishedProductId: returnKind === "READYMADE" ? finishedProductId : undefined,
         quantityReturned: returnKind === "READYMADE" && quantityReturned ? Number(quantityReturned) : undefined,
       });
       setShowSupplier(false); setSupplierForm(emptySupplierForm);
@@ -322,7 +322,7 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
                 </Select>
               </Field>
               <Field label="Return Kind" required>
-                <Select value={supplierForm.returnKind} onChange={e => setSupplierForm(f => ({ ...f, returnKind: e.target.value, rawClothBatchId: "", metersReturned: "", readymadeStockId: "", quantityReturned: "" }))}>
+                <Select value={supplierForm.returnKind} onChange={e => setSupplierForm(f => ({ ...f, returnKind: e.target.value, rawClothBatchId: "", metersReturned: "", finishedProductId: "", quantityReturned: "" }))}>
                   <option value="RAW_CLOTH">Raw Cloth</option>
                   <option value="READYMADE">Readymade</option>
                 </Select>
@@ -341,11 +341,11 @@ export default function Returns({ buyerReturns, supplierReturns, buyers, supplie
                     onChange={e => setSupplierForm(f => ({ ...f, metersReturned: e.target.value }))} placeholder="0.00" />
                 </Field>
               </>) : (<>
-                <Field label="Readymade Stock Item" required>
-                  <Select value={supplierForm.readymadeStockId} onChange={e => setSupplierForm(f => ({ ...f, readymadeStockId: e.target.value }))}>
+                <Field label="Which garments?" required>
+                  <Select value={supplierForm.finishedProductId} onChange={e => setSupplierForm(f => ({ ...f, finishedProductId: e.target.value }))}>
                     <option value="">Select item</option>
                     {readymadeStock.map(s => (
-                      <option key={s.id} value={s.id}>{s.itemType.name}{s.size ? ` (${s.size})` : ""} — {s.quantityAvailable} avail</option>
+                      <option key={s.id} value={s.id}>{s.itemType.name}{s.size ? ` (${s.size})` : ""} — {s.quantity} in stock</option>
                     ))}
                   </Select>
                 </Field>

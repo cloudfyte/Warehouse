@@ -100,8 +100,8 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
         map.set(key, g);
       }
       g.rows.push(s);
-      g.available += Number(s.quantityAvailable ?? 0);
-      g.received += Number(s.quantityReceived ?? 0);
+      g.available += Number(s.quantity ?? 0);
+      g.received += Number(s.quantity ?? 0);
     }
     const out = [...map.values()];
     for (const g of out) {
@@ -112,9 +112,9 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
   }, [filtered]);
 
   const totals = useMemo(() => filtered.reduce((a, s) => ({
-    available: a.available + Number(s.quantityAvailable ?? 0),
-    received: a.received + Number(s.quantityReceived ?? 0),
-    value: a.value + Number(s.quantityAvailable ?? 0) * Number(s.costPrice ?? 0),
+    available: a.available + Number(s.quantity ?? 0),
+    received: a.received + Number(s.quantity ?? 0),
+    value: a.value + Number(s.quantity ?? 0) * Number(s.costPrice ?? 0),
   }), { available: 0, received: 0, value: 0 }), [filtered]);
 
   const narrowed = !!(search.trim() || itemFilter);
@@ -124,14 +124,17 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
   }
 
   /**
-   * A delivery arrives as one stock row per size, so tagging it is a job on the
-   * whole run, not on one row — open every selected row in one sheet and set
-   * the prices there.
+   * A delivery arrives as one row per size, so pricing it is a job on the whole
+   * run — open every selected row in one sheet and set the prices there. The
+   * pieces are already on the shelf and already tagged; this says what they
+   * sell for, and can bundle a run into a set.
    */
   function openFor(ids: string[]) {
-    const rows = items.filter(s => ids.includes(s.id) && s.quantityAvailable > 0);
+    const rows = items.filter(s => ids.includes(s.id) && s.quantity > 0);
     if (!rows.length) return;
-    setLines(rows.map(item => ({ item, qty: String(item.quantityAvailable), salePrice: "" })));
+    setLines(rows.map(item => ({
+      item, qty: String(item.quantity), salePrice: item.salePrice ? String(item.salePrice) : "",
+    })));
     setFillPrice(""); setAsSet(false); setSetName(""); setErr("");
   }
 
@@ -143,8 +146,8 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
     if (!lines) return;
     const bad = lines.find(l => !(parseFloat(l.salePrice) > 0) || !(parseInt(l.qty) > 0));
     if (bad) { setErr(`Give ${label(bad.item)} a quantity and a sale price.`); return; }
-    if (lines.some(l => parseInt(l.qty) > l.item.quantityAvailable)) {
-      setErr("One of the rows asks for more pieces than are available."); return;
+    if (lines.some(l => parseInt(l.qty) > l.item.quantity)) {
+      setErr("One of the rows asks for more pieces than are on the shelf."); return;
     }
     if (asSet) {
       if (!setName.trim()) { setErr("Give the set a name, or turn the set off."); return; }
@@ -156,24 +159,16 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
     }
 
     setAdding(true); setErr("");
-    // Each row is its own atomic move of stock into finished goods. A failure
-    // partway leaves the rows before it correctly converted rather than rolling
-    // the lot back, so the count says exactly how far it got.
+    // Each row is priced on its own, so a failure partway leaves the rows before
+    // it correctly priced rather than rolling the lot back.
     const ids: string[] = [];
     try {
       for (const l of lines) {
-        const res = await onMutate(
-          `mutation A($rsId:ID!,$itId:ID!,$wId:ID!,$qty:Int!,$cp:Float!,$sp:Float!,$cat:ID,$col:ID,$sz:String){createFinishedProducts(readymadeStockId:$rsId,itemTypeId:$itId,warehouseId:$wId,quantity:$qty,costPrice:$cp,salePrice:$sp,clothCategoryId:$cat,clothColorId:$col,size:$sz){finishedProduct{id sku}}}`,
-          {
-            rsId: l.item.id, itId: l.item.itemType?.id, wId: l.item.warehouse?.id,
-            qty: parseInt(l.qty), cp: parseFloat(l.item.costPrice), sp: parseFloat(l.salePrice),
-            cat: l.item.clothCategory?.id || undefined,
-            col: l.item.clothColor?.id || undefined,
-            sz: l.item.size || undefined,
-          }
+        await onMutate(
+          `mutation P($id:ID!,$sp:Float){updateFinishedProduct(id:$id,salePrice:$sp){finishedProduct{id salePrice}}}`,
+          { id: l.item.id, sp: parseFloat(l.salePrice) }
         );
-        const id = res?.createFinishedProducts?.finishedProduct?.id;
-        if (id) ids.push(id);
+        ids.push(l.item.id);
       }
 
       if (asSet && ids.length) {
@@ -190,14 +185,14 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
 
       showToast(
         asSet
-          ? `${ids.length} products tagged and bundled as "${setName.trim()}".`
-          : `${ids.length} product${ids.length === 1 ? "" : "s"} added to finished goods.`,
+          ? `${ids.length} priced and bundled as "${setName.trim()}".`
+          : `${ids.length} product${ids.length === 1 ? "" : "s"} priced.`,
         "success",
       );
       setLines(null); setSelected([]);
     } catch (e: unknown) {
       const msg = friendlyError(e);
-      setErr(ids.length ? `${ids.length} of ${lines.length} added, then: ${msg}` : msg);
+      setErr(ids.length ? `${ids.length} of ${lines.length} priced, then: ${msg}` : msg);
       showToast(msg, "error");
     } finally {
       setAdding(false);
@@ -222,8 +217,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
       }}>
         {([
           ["Styles", String(groups.length), undefined],
-          ["Available", `${totals.available} pcs`, "var(--primary)"],
-          ["Received in total", `${totals.received} pcs`, undefined],
+          ["On the shelf", `${totals.available} pcs`, "var(--primary)"],
           ["Stock value", formatMoney(totals.value), undefined],
         ] as const).map(([label_, value, color]) => (
           <div key={label_} style={{ background: "var(--paper)", padding: "15px 18px" }}>
@@ -274,7 +268,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
           </div>
         ) : groups.map(g => {
           const swatch = g.colorName ? nameToColorHex(g.colorName, g.colorHex) : null;
-          const mine = g.rows.filter(r => r.quantityAvailable > 0).map(r => r.id);
+          const mine = g.rows.filter(r => r.quantity > 0).map(r => r.id);
           const allOn = mine.length > 0 && mine.every(id => selected.includes(id));
           const low = g.available > 0 && g.available < 5;
 
@@ -325,7 +319,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
                       fontSize: 24, fontWeight: 700, fontVariantNumeric: "tabular-nums",
                       color: low ? "#d32f2f" : "var(--ink)", letterSpacing: -0.5, lineHeight: 1.1,
                     }}>{g.available}</span>
-                    <span style={{ fontSize: 13, color: "var(--muted)" }}>of {g.received} pcs</span>
+                    <span style={{ fontSize: 13, color: "var(--muted)" }}>pcs</span>
                   </div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 5 }}>
                     {g.rows.length} size{g.rows.length === 1 ? "" : "s"} · {g.warehouse}
@@ -338,7 +332,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10, paddingLeft: 38 }}>
                 {g.rows.map(r => {
                   const on = selected.includes(r.id);
-                  const out = r.quantityAvailable <= 0;
+                  const out = r.quantity <= 0;
                   return (
                     <button
                       key={r.id}
@@ -356,7 +350,7 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
                         fontVariantNumeric: "tabular-nums",
                       }}>
                       <strong style={{ fontSize: 13.5 }}>{r.size || "one size"}</strong>
-                      <span style={{ color: "var(--muted)", fontSize: 12.5 }}>{r.quantityAvailable}</span>
+                      <span style={{ color: "var(--muted)", fontSize: 12.5 }}>{r.quantity}</span>
                     </button>
                   );
                 })}
@@ -405,9 +399,9 @@ export default function ReadymadeStock({ items, canAddStock, onMutate }: Props) 
                   <div key={l.item.id} style={{ display: "grid", gridTemplateColumns: "1fr 78px 90px 90px", gap: 8, padding: "8px 12px", alignItems: "center", borderTop: "1px solid var(--line)" }}>
                     <span style={{ fontSize: 13 }}>
                       {label(l.item)}
-                      <span style={{ color: "var(--muted)" }}> · {l.item.quantityAvailable} avail.</span>
+                      <span style={{ color: "var(--muted)" }}> · {l.item.quantity} avail.</span>
                     </span>
-                    <input type="number" min="1" max={l.item.quantityAvailable} value={l.qty}
+                    <input type="number" min="1" max={l.item.quantity} value={l.qty}
                       onChange={e => patch(i, { qty: e.target.value })} style={inputStyle} aria-label={`Quantity for ${label(l.item)}`} />
                     <span style={{ fontSize: 13, color: "var(--muted)" }}>₹{l.item.costPrice}</span>
                     <input type="number" min="0" step="0.01" placeholder="0.00" value={l.salePrice}

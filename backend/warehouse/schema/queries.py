@@ -8,8 +8,8 @@ from .types import (
     ClothColorType, CreditTransactionType, CustomRoleType, CustomerBillStatusType,
     CustomerOrderType, CuttingAssignmentType, DashboardStats, EmployeeProfileType, ExpenseType,
     FinishedProductType, ItemTypeType, KarigarType, KarigarWorkloadType,
-    NotificationType, PLReport, ParcelInspectionType, ProductSetType, PublicSettingsType,
-    PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType, ReadymadeStockType,
+    NotificationType, PLReport, ProductSetType, PublicSettingsType,
+    PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType,
     ReconciliationRowType, RecurringSettlementType, ReorderPointType, RetailChannelType,
     RetailDispatchType, RetailReturnType, RetailStoreType, SalesOrderType, SettlementType,
     StitchingJobType, StockAdjustmentType, StockTransferType, SupplierPaymentType,
@@ -43,11 +43,11 @@ class Query(graphene.ObjectType):
     expenses = graphene.List(ExpenseType, limit=graphene.Int())
     purchase_bills = graphene.List(PurchaseBillType, limit=graphene.Int())
     raw_cloth_batches = graphene.List(RawClothBatchType, category_id=graphene.ID(), color_id=graphene.ID(), warehouse_id=graphene.ID())
-    readymade_stock = graphene.List(ReadymadeStockType, item_type_id=graphene.ID(), warehouse_id=graphene.ID())
+    readymade_stock = graphene.List(FinishedProductType, item_type_id=graphene.ID(), warehouse_id=graphene.ID())
 
     # Production
     cutting_assignments = graphene.List(CuttingAssignmentType, status=graphene.String(), master_id=graphene.ID(), limit=graphene.Int())
-    stitching_jobs = graphene.List(StitchingJobType, status=graphene.String(), tailor_id=graphene.ID(), limit=graphene.Int())
+    stitching_jobs = graphene.List(StitchingJobType, status=graphene.String(), karigar_id=graphene.ID(), limit=graphene.Int())
 
     # Finished goods
     finished_products = graphene.List(FinishedProductType, item_type_id=graphene.ID(), search=graphene.String(), untagged_only=graphene.Boolean(), warehouse_id=graphene.ID())
@@ -99,7 +99,6 @@ class Query(graphene.ObjectType):
     unlinked_finished_products = graphene.List(FinishedProductType)
 
     # Parcel inspection
-    parcel_inspection = graphene.Field(ParcelInspectionType, po_id=graphene.ID(required=True))
 
     # Quotations
     quotations = graphene.List(QuotationType, limit=graphene.Int())
@@ -191,8 +190,8 @@ class Query(graphene.ObjectType):
         return selectors.get_cutting_assignments(info.context.user, status=status, master_id=master_id, limit=limit)
 
     @login_required
-    def resolve_stitching_jobs(self, info, status=None, tailor_id=None, limit=100):
-        return selectors.get_stitching_jobs(info.context.user, status=status, tailor_id=tailor_id, limit=limit)
+    def resolve_stitching_jobs(self, info, status=None, karigar_id=None, limit=100):
+        return selectors.get_stitching_jobs(info.context.user, status=status, karigar_id=karigar_id, limit=limit)
 
     @login_required
     def resolve_finished_products(self, info, item_type_id=None, search=None, untagged_only=False, warehouse_id=None):
@@ -347,10 +346,6 @@ class Query(graphene.ObjectType):
     @login_required
     def resolve_unlinked_finished_products(self, info):
         return selectors.get_unlinked_finished_products(info.context.user)
-
-    @login_required
-    def resolve_parcel_inspection(self, info, po_id):
-        return selectors.get_parcel_inspection(po_id)
 
     @login_required
     def resolve_quotations(self, info, limit=100):

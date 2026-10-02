@@ -241,7 +241,7 @@ def update_cutting_assignment(*, id, status=None, pieces_completed=None, cloth_u
     return assignment
 
 
-def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_assigned=0,
+def create_stitching_job(*, user, cutting_assignment_id, pieces_assigned=0,
                          assigned_date=None, due_date=None, notes="",
                          job_type=None, customer_bill_number="", photos="",
                          karigar_id=None, rate_per_piece=None, sizes=None):
@@ -262,32 +262,21 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
 
     if pieces_assigned <= 0:
         raise GraphQLError("Pieces assigned must be greater than zero.")
-    if not karigar_id and not tailor_id:
+    if not karigar_id:
         raise GraphQLError("Who is stitching this? Pick a karigar.")
 
-
-    karigar = None
-    tailor = None
-    if karigar_id:
-        try:
-            karigar = Karigar.objects.get(pk=karigar_id, active=True)
-        except Karigar.DoesNotExist as exc:
-            raise GraphQLError("Karigar not found or inactive.") from exc
-        # An in-house karigar may also be on the payroll, so notifications
-        # still reach the right person.
-        tailor = karigar.employee
-    else:
-        try:
-            tailor = EmployeeProfile.objects.get(pk=tailor_id, role=EmployeeProfile.Role.TAILOR, active=True)
-        except EmployeeProfile.DoesNotExist as exc:
-            raise GraphQLError("Tailor not found or inactive.") from exc
+    try:
+        karigar = Karigar.objects.get(pk=karigar_id, active=True)
+    except Karigar.DoesNotExist as exc:
+        raise GraphQLError("Karigar not found or inactive.") from exc
+    # An in-house karigar is usually on the payroll too, which is how the
+    # notification reaches a person who can sign in.
+    tailor = karigar.employee
 
     # Frozen at the moment the work is handed over. The karigar's rate may
     # change later, and a job already given out must settle at what was agreed.
     rate = Decimal(str(
-        rate_per_piece if rate_per_piece is not None
-        else (karigar.rate_per_piece if karigar else 0)
-    ))
+        rate_per_piece if rate_per_piece is not None else karigar.rate_per_piece))
     if rate < 0:
         raise GraphQLError("A rate cannot be negative.")
 
@@ -322,7 +311,6 @@ def create_stitching_job(*, user, cutting_assignment_id, tailor_id=None, pieces_
 
         job = StitchingJob.objects.create(
             cutting_assignment=ca,
-            tailor=tailor,
             pieces_assigned=pieces_assigned,
             assigned_date=assigned_date or timezone.now().date(),
             due_date=due_date,
@@ -406,7 +394,6 @@ def open_outside_job_from_purchase(*, user, bill_item, item, warehouse):
         item_type_id=item["item_type_id"],
         design_number=(item.get("design_number") or "").strip(),
         karigar=karigar,
-        tailor=karigar.employee,
         rate_per_piece=rate,
         pieces_assigned=0,
         status=StitchingJob.Status.PROCESSING,
@@ -505,7 +492,7 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
     if status == StitchingJob.Status.READY and prev_status != StitchingJob.Status.READY:
         notify_managers(
             title=f"Stitching Ready: {job.job_number}",
-            message=f"{job.karigar.name if job.karigar else job.tailor.user.username} "
+            message=f"{job.karigar.name if job.karigar else 'The stitcher'} "
                     f"completed {job.pieces_completed} pieces "
                     f"(job {job.job_number}) — ready to move to Finished Goods.",
             level="INFO",
@@ -514,17 +501,19 @@ def update_stitching_job(*, id, status=None, pieces_completed=None, pieces_rejec
     return job
 
 
-def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=None,
+def create_finished_products(*, user, stitching_job_id=None,
                               item_type_id=None, cloth_category_id=None, cloth_color_id=None,
                               age_group="", size="", quantity, warehouse_id, cost_price, sale_price,
                               customer_bill_number="", customer_order=None):
-    from warehouse.models import ReadymadeStock
+    """Book stitched garments onto the shelf.
 
+    Bought-in garments no longer pass through here: they arrive as garments on
+    the purchase, so there is nothing to convert.
+    """
     warehouse = get_warehouse(user, warehouse_id)
     source = FinishedProduct.Source.IN_HOUSE if stitching_job_id else FinishedProduct.Source.IMPORTED
 
     sj = None
-    rs = None
 
     with transaction.atomic():
         if quantity <= 0:
@@ -567,22 +556,6 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
                 cloth_category_id = line.cloth_category_id if line else None
                 cloth_color_id = line.cloth_color_id if line else None
 
-        if readymade_stock_id:
-            rs = get_scoped(user, ReadymadeStock, readymade_stock_id, lock=True)
-            if rs.quantity_available < quantity:
-                raise GraphQLError(f"Only {rs.quantity_available} units available.")
-            rs.quantity_available -= quantity
-            rs.save(update_fields=["quantity_available"])
-            # The stock row is what the goods physically are, so it settles the
-            # description. Size and category used to be left to the caller, so
-            # any caller that did not repeat them back minted a sizeless,
-            # uncategorised product out of a perfectly well-described delivery.
-            item_type_id = rs.item_type_id
-            cloth_color_id = rs.cloth_color_id
-            age_group = rs.age_group
-            size = rs.size or size
-            cloth_category_id = rs.cloth_category_id or cloth_category_id
-
         fp = FinishedProduct.objects.create(
             item_type_id=item_type_id,
             cloth_category_id=cloth_category_id,
@@ -591,7 +564,6 @@ def create_finished_products(*, user, stitching_job_id=None, readymade_stock_id=
             size=size.strip(),
             source=source,
             stitching_job=sj,
-            readymade_stock=rs,
             customer_bill_number=(customer_bill_number or "").strip(),
             customer_order=customer_order,
             quantity=quantity,

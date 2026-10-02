@@ -7,7 +7,7 @@ from graphql import GraphQLError
 from warehouse.permissions import get_scoped, get_warehouse, scoped
 from warehouse.models import (
     BuyerReturn, Buyer, FinishedProduct, SalesOrder,
-    SupplierReturn, Supplier, RawClothBatch, ReadymadeStock,
+    SupplierReturn, Supplier, RawClothBatch,
 )
 
 
@@ -66,7 +66,7 @@ def process_buyer_return(*, user, id, status):
 
 def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_id,
                             raw_cloth_batch_id=None, meters_returned=None,
-                            readymade_stock_id=None, quantity_returned=None):
+                            finished_product_id=None, quantity_returned=None):
     try:
         supplier = Supplier.objects.get(pk=supplier_id)
     except Supplier.DoesNotExist as exc:
@@ -86,7 +86,7 @@ def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_
         if meters_returned <= 0:
             raise GraphQLError("Meters returned must be greater than zero.")
     else:
-        if not readymade_stock_id or not quantity_returned:
+        if not finished_product_id or not quantity_returned:
             raise GraphQLError("Readymade stock and quantity are required for READYMADE returns.")
         if quantity_returned <= 0:
             raise GraphQLError("Quantity must be greater than zero.")
@@ -104,14 +104,14 @@ def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_
             raw_batch.available_meters -= meters_returned
             raw_batch.save(update_fields=["available_meters", "updated_at"])
         else:
-            readymade = get_scoped(user, ReadymadeStock, readymade_stock_id, lock=True)
-            if quantity_returned > readymade.quantity_available:
+            readymade = get_scoped(user, FinishedProduct, finished_product_id, lock=True)
+            if quantity_returned > readymade.quantity:
                 raise GraphQLError(
-                    f"Only {readymade.quantity_available} unit(s) still in stock — "
+                    f"Only {readymade.quantity} piece(s) still in stock — "
                     f"{quantity_returned} cannot be returned."
                 )
-            readymade.quantity_available -= quantity_returned
-            readymade.save(update_fields=["quantity_available"])
+            readymade.quantity -= quantity_returned
+            readymade.save(update_fields=["quantity", "updated_at"])
 
         ret = SupplierReturn.objects.create(
             supplier=supplier,
@@ -120,7 +120,7 @@ def create_supplier_return(*, user, supplier_id, return_kind, reason, warehouse_
             warehouse=warehouse,
             raw_cloth_batch=raw_batch,
             meters_returned=meters_returned,
-            readymade_stock=readymade,
+            finished_product=readymade,
             quantity_returned=quantity_returned,
             created_by=user,
         )
