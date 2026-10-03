@@ -459,13 +459,13 @@ export default function Settings({ settings, isSuperAdmin, retailChannel, onMuta
               <Input value={shop.apiUrl} placeholder="https://…/graphql/"
                 onChange={e => setShop(p => ({ ...p, apiUrl: e.target.value }))} />
             </Field>
-            <Field label="Service username"
-              hint="A login on the shop's side with admin rights over products for the sriweddings subsite — it both adds the garment to their list and books the consignment in.">
+            <Field label="Shop username"
+              hint="Any HMS login that can manage products for sriweddings — your own works to start with. It adds the garment to their list and books the consignment in, so a read-only account will connect and then fail at the first dispatch.">
               <Input value={shop.serviceUsername}
                 onChange={e => setShop(p => ({ ...p, serviceUsername: e.target.value }))} />
             </Field>
-            <Field label="Service password"
-              hint="Typed once and kept here. Leave blank to keep the stored one. Nobody can read it back out of the shop — it is stored there hashed.">
+            <Field label="Shop password"
+              hint="Typed once and kept here. Leave blank to keep the stored one. It has to be typed because nobody — including this app — can read a password back out of HMS; they are stored hashed.">
               <Input type="password" value={shop.servicePassword}
                 onChange={e => setShop(p => ({ ...p, servicePassword: e.target.value }))} />
             </Field>
