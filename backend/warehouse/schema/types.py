@@ -685,6 +685,19 @@ class NotificationType(DjangoObjectType):
         fields = "__all__"
 
 
+class RetailCatalogueEntryType(graphene.ObjectType):
+    """One sellable thing on the shop's list, for a person to pick from.
+
+    A variant where the product has them, the product itself where it does
+    not — which is the thing their till actually sells, and so the thing a
+    consignment has to be sent against.
+    """
+    product_id = graphene.Int()
+    variant_id = graphene.Int()
+    label = graphene.String()
+    barcode = graphene.String()
+
+
 class StockMovementType(graphene.ObjectType):
     """One piece of stock leaving a godown, or coming back to it."""
     id = graphene.String()

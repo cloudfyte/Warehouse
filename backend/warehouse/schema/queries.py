@@ -11,7 +11,7 @@ from .types import (
     NotificationType, PLReport, ProductSetType, PublicSettingsType,
     PurchaseBillType, PurchaseOrderType, QuotationType, RawClothBatchType,
     ReconciliationRowType, RecurringSettlementType, ReorderPointType, RetailChannelType,
-    RetailDispatchType, StockMovementType, RetailReturnType, RetailStoreType, SalesOrderType, SettlementType,
+    RetailCatalogueEntryType, RetailDispatchType, StockMovementType, RetailReturnType, RetailStoreType, SalesOrderType, SettlementType,
     StitchingJobType, StockAdjustmentType, StockTransferType, SupplierPaymentType,
     SupplierReturnType, SupplierType, SystemSettingsType, WarehouseLocationType,
 )
@@ -95,6 +95,10 @@ class Query(graphene.ObjectType):
     retail_stores = graphene.List(RetailStoreType)
     retail_dispatches = graphene.List(RetailDispatchType, status=graphene.String(), limit=graphene.Int())
     # Every piece that left a godown or came back, in one list.
+    # The shop's own list, fetched live so somebody can pick from it instead of
+    # copying numeric ids off another screen.
+    retail_catalogue = graphene.List(
+        RetailCatalogueEntryType, search=graphene.String(), limit=graphene.Int())
     stock_movements = graphene.List(
         StockMovementType, limit=graphene.Int(),
         product_id=graphene.ID(), days=graphene.Int())
@@ -334,6 +338,13 @@ class Query(graphene.ObjectType):
         return selectors.get_retail_stores(info.context.user)
 
     @login_required
+    @login_required
+    def resolve_retail_catalogue(self, info, search="", limit=200):
+        from warehouse.services.retail import browse_catalogue
+
+        return [RetailCatalogueEntryType(**row) for row in browse_catalogue(
+            user=info.context.user, search=search, limit=min(limit, 500))]
+
     @login_required
     def resolve_stock_movements(self, info, limit=500, product_id=None, days=None):
         since = None

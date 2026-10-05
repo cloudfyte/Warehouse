@@ -32,6 +32,10 @@ interface Dispatch {
   store: Store; fromWarehouse: WarehouseLocation; items: DispatchItem[];
 }
 
+interface CatalogueEntry {
+  productId: number; variantId?: number | null; label: string; barcode?: string;
+}
+
 interface ReconRow {
   finishedProduct: FinishedProduct; sent: number; returned: number;
   netSent: number; shopHas: number | null; difference: number | null;
@@ -95,7 +99,11 @@ export default function RetailDispatches({
   const [returning, setReturning] = useState(false);
   const [ret, setRet] = useState({ storeId: "", reason: "UNSOLD", restock: true });
   const [retLines, setRetLines] = useState<{ productId: string; quantity: string }[]>([]);
-  const [linkForm, setLinkForm] = useState({ productId: "", variantId: "" });
+  // Their catalogue, fetched when somebody opens the picker. Asking a person to
+  // copy numeric ids off another screen is how the wrong garment gets linked.
+  const [catalogue, setCatalogue] = useState<CatalogueEntry[] | null>(null);
+  const [catalogueSearch, setCatalogueSearch] = useState("");
+  const [catalogueBusy, setCatalogueBusy] = useState(false);
 
   // New consignment form
   const [storeId, setStoreId] = useState("");
@@ -237,16 +245,36 @@ export default function RetailDispatches({
     setReturning(false); setRetLines([]);
   }
 
-  async function saveLink() {
+  async function loadCatalogue(term = "") {
+    setCatalogueBusy(true);
+    try {
+      const res = await onMutate(
+        `query C($s:String){retailCatalogue(search:$s,limit:400){productId variantId label barcode}}`,
+        { s: term || undefined });
+      setCatalogue(res?.retailCatalogue ?? []);
+    } catch (e: unknown) {
+      setErr(friendlyError(e));
+      setCatalogue([]);
+    } finally {
+      setCatalogueBusy(false);
+    }
+  }
+
+  function openLink(product: FinishedProduct) {
+    setLinking(product);
+    setCatalogue(null);
+    setCatalogueSearch("");
+    setErr("");
+    loadCatalogue("");
+  }
+
+  async function linkTo(entry: CatalogueEntry) {
     if (!linking) return;
     await run(() => onMutate(
       `mutation L($fp:ID!,$p:Int!,$v:Int){linkRetailProduct(finishedProductId:$fp,productId:$p,variantId:$v){link{id productId variantId}}}`,
-      {
-        fp: linking.id, p: parseInt(linkForm.productId, 10),
-        v: linkForm.variantId ? parseInt(linkForm.variantId, 10) : undefined,
-      },
-    ), `${productName(linking)} linked to the shop's catalogue.`);
-    setLinking(null); setLinkForm({ productId: "", variantId: "" });
+      { fp: linking.id, p: entry.productId, v: entry.variantId ?? undefined },
+    ), `${productName(linking)} linked to ${entry.label}.`);
+    setLinking(null);
   }
 
   const packedAll = !!live?.items.every(i => i.packedQuantity >= i.quantity);
@@ -319,7 +347,7 @@ export default function RetailDispatches({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {unlinked.slice(0, 12).map(p => (
               <button key={p.id} type="button" disabled={!canManage}
-                onClick={() => { setLinking(p); setLinkForm({ productId: "", variantId: "" }); setErr(""); }}
+                onClick={() => openLink(p)}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px",
                   borderRadius: 7, border: "1px solid var(--line)", background: "transparent",
@@ -696,29 +724,48 @@ export default function RetailDispatches({
       {linking && (
         <Modal title="Link to the shop's catalogue"
           subtitle={`${productName(linking)}${linking.size ? ` · ${linking.size}` : ""} — ${linking.sku}`}
-          width={460} onClose={() => setLinking(null)} onSubmit={saveLink}
-          footer={
-            <div style={{ display: "flex", gap: 10 }}>
-              <Button variant="primary" type="submit" disabled={busy || !linkForm.productId} style={{ flex: 1 }}>
-                {busy ? "Linking…" : "Link"}
-              </Button>
-              <Button variant="secondary" onClick={() => setLinking(null)}>Cancel</Button>
-            </div>
-          }>
-          <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6, marginBottom: 12 }}>
-            Only for what <strong>Match by barcode</strong> could not settle — because the shop has no
-            barcode on it, or has used the same one twice. Take the ids from the shop&apos;s own product
-            screen, and give the variant id when the product has sizes or colours over there: that is
-            the thing their till actually sells.
+          width={520} onClose={() => setLinking(null)}
+          footer={<Button variant="secondary" onClick={() => setLinking(null)}>Cancel</Button>}>
+          <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, marginBottom: 12 }}>
+            Only for what <strong>Match by barcode</strong> could not settle — the shop has no barcode
+            on it, or used the same one twice. Pick the thing their till sells: where a product has
+            sizes or colours over there, each one is listed separately.
           </div>
-          <Field label="Product id *">
-            <Input type="number" min="1" value={linkForm.productId} autoFocus
-              onChange={e => setLinkForm(f => ({ ...f, productId: e.target.value }))} />
-          </Field>
-          <Field label="Variant id" hint="Leave blank if the product has no variants over there.">
-            <Input type="number" min="1" value={linkForm.variantId}
-              onChange={e => setLinkForm(f => ({ ...f, variantId: e.target.value }))} />
-          </Field>
+          <Input placeholder="Search their list…" value={catalogueSearch} autoFocus
+            onChange={e => { setCatalogueSearch(e.target.value); }}
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); loadCatalogue(catalogueSearch); } }} />
+          <div style={{ fontSize: 12, color: "var(--muted)", margin: "6px 0 10px" }}>
+            Press Enter to search.
+          </div>
+
+          {catalogueBusy ? (
+            <div style={{ padding: "28px 0", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+              Reading the shop&apos;s list…
+            </div>
+          ) : (catalogue ?? []).length === 0 ? (
+            <div style={{ padding: "22px 0", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+              {catalogue === null ? "" : "Nothing on their list matches that."}
+            </div>
+          ) : (
+            <div style={{ maxHeight: 320, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 10 }}>
+              {(catalogue ?? []).map(entry => (
+                <button type="button" key={`${entry.productId}-${entry.variantId ?? 0}`}
+                  onClick={() => linkTo(entry)} disabled={busy}
+                  style={{
+                    display: "block", width: "100%", textAlign: "left", cursor: "pointer",
+                    padding: "10px 12px", border: "none", borderTop: "1px solid var(--line)",
+                    background: "transparent", color: "var(--ink)", fontSize: 14,
+                  }}>
+                  {entry.label}
+                  <span style={{ display: "block", fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>
+                    product {entry.productId}
+                    {entry.variantId ? ` · variant ${entry.variantId}` : ""}
+                    {entry.barcode ? ` · ${entry.barcode}` : " · no barcode over there"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           {err && <ErrorBanner msg={err} />}
         </Modal>
       )}
