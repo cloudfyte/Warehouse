@@ -953,3 +953,41 @@ class AKeyIsPreferredToAPassword(RetailFixture):
                           api_url="https://shop.example/graphql/", api_key="")
 
         self.assertEqual(get_channel().api_key, "whk_keep")
+
+
+class TheWarehouseSaysWhoItIs(RetailFixture):
+    """Their edge refused every call from the warehouse with a 403 while the
+    identical request from curl went through: urllib announces itself as
+    Python-urllib, and anything in front of a shop treats that as a bot."""
+
+    def test_every_call_carries_a_real_user_agent(self):
+        import urllib.request
+
+        from warehouse.services import retail
+
+        sent = {}
+
+        class FakeResponse:
+            def read(self):
+                return b'{"data":{}}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def capture(request, timeout=None):
+            sent["agent"] = request.get_header("User-agent")
+            return FakeResponse()
+
+        original = urllib.request.urlopen
+        urllib.request.urlopen = capture
+        try:
+            retail._post(self.channel, "{__typename}", {})
+        finally:
+            urllib.request.urlopen = original
+
+        self.assertTrue(sent["agent"], "the call must name who is making it")
+        self.assertNotIn("urllib", sent["agent"].lower())
+        self.assertIn("Warehouse", sent["agent"])

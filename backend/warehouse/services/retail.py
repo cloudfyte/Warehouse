@@ -470,12 +470,20 @@ def _failed(dispatch, message):
     return dispatch
 
 
+# urllib announces itself as Python-urllib, which anything sitting in front of
+# the shop treats as a bot and refuses — their edge answered 403 to every call
+# while the identical request from curl went through. So the warehouse says who
+# it actually is, which is also what somebody reading their access log wants.
+_AGENT = "SriWeddingsWarehouse/1.0 (+godown stock sync)"
+
+
 def _post(channel, query, variables):
     """One HTTP call to the retail GraphQL endpoint."""
     body = json.dumps({"query": query, "variables": variables}).encode()
     request = urllib.request.Request(
         channel.api_url, data=body,
-        headers={"Content-Type": "application/json", **_auth_header(channel)},
+        headers={"Content-Type": "application/json", "User-Agent": _AGENT,
+                 **_auth_header(channel)},
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
@@ -506,7 +514,8 @@ def _auth_header(channel):
         "variables": {"u": channel.service_username, "p": channel.service_password},
     }).encode()
     request = urllib.request.Request(
-        channel.api_url, data=body, headers={"Content-Type": "application/json"})
+        channel.api_url, data=body,
+        headers={"Content-Type": "application/json", "User-Agent": _AGENT})
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             payload = json.loads(response.read().decode())
