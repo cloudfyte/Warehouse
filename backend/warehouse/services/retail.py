@@ -372,10 +372,12 @@ def send_dispatch(*, user, id, _transport=None):
         try:
             data = post(channel, _LIST_PRODUCTS,
                         {"hms": channel.subsite_id, "limit": 2000})
-            catalogue = _shop_barcodes(data.get("listProducts") or [])
+            listing = data.get("listProducts") or []
+            catalogue = _shop_barcodes(listing)
+            blanks = _unbarcoded(listing)
             for product in missing:
                 ensure_shop_product(user=user, product=product, channel=channel,
-                                    post=post, catalogue=catalogue)
+                                    post=post, catalogue=catalogue, blanks=blanks)
         except Exception as exc:  # noqa: BLE001
             with transaction.atomic():
                 return _failed(_locked(id), f"Could not add the garments to the shop: {exc}")
@@ -540,6 +542,17 @@ _CREATE_PRODUCT = (
 )
 
 
+# A garment somebody added over there by hand often has no code on it at all.
+# Linking to it is not enough — a scan at their counter still finds nothing —
+# so ours is stamped on it. Only ever onto a blank: overwriting a code they
+# chose would break whatever they printed it on.
+_SET_BARCODE = (
+    "mutation B($id:Int!,$barcode:String!){"
+    "updateProduct(productId:$id,barcode:$barcode)"
+    "{success message product{id barcode}}}"
+)
+
+
 def _shop_barcodes(products):
     """Their codes to what a dispatch can be sent against.
 
@@ -569,6 +582,21 @@ def _shop_barcodes(products):
     return found
 
 
+def _unbarcoded(products):
+    """Their products carrying no code at all, by name — the ones a hand-made
+    entry leaves behind, which a barcode can never match."""
+    blank = {}
+    for product in products:
+        if (product.get("variants") or []):
+            continue
+        if (product.get("barcode") or "").strip():
+            continue
+        name = (product.get("name") or "").strip().lower()
+        if name and name not in blank:
+            blank[name] = int(product["id"])
+    return blank
+
+
 def _shop_name(product):
     """What the garment is called on their shelf.
 
@@ -583,7 +611,8 @@ def _shop_name(product):
     return " · ".join(p for p in parts if p)
 
 
-def ensure_shop_product(*, user, product, channel=None, post=None, catalogue=None):
+def ensure_shop_product(*, user, product, channel=None, post=None, catalogue=None,
+                        blanks=None):
     """The garment exists over there, under the barcode on its own tag.
 
     Three steps, in the order that cannot create a duplicate: the link we
@@ -598,9 +627,11 @@ def ensure_shop_product(*, user, product, channel=None, post=None, catalogue=Non
     if link:
         return link
 
+    listing = None
     if catalogue is None:
         data = post(channel, _LIST_PRODUCTS, {"hms": channel.subsite_id, "limit": 2000})
-        catalogue = _shop_barcodes(data.get("listProducts") or [])
+        listing = data.get("listProducts") or []
+        catalogue = _shop_barcodes(listing)
 
     codes = [product.barcode, *product.past_codes()]
     match = next((catalogue[c] for c in codes if c in catalogue), None)
@@ -609,6 +640,18 @@ def ensure_shop_product(*, user, product, channel=None, post=None, catalogue=Non
         return RetailProductLink.objects.create(
             finished_product=product, product_id=product_id,
             variant_id=variant_id, linked_by=user)
+
+    # The same garment already over there under no code — the usual result of
+    # somebody adding it by hand. Stamp ours on it rather than creating a
+    # second row, so the one code works on both counters.
+    if blanks is None and listing is not None:
+        blanks = _unbarcoded(listing)
+    existing_id = (blanks or {}).get(_shop_name(product).strip().lower())
+    if existing_id:
+        post(channel, _SET_BARCODE, {"id": existing_id, "barcode": product.barcode})
+        return RetailProductLink.objects.create(
+            finished_product=product, product_id=existing_id,
+            variant_id=None, linked_by=user)
 
     result = post(channel, _CREATE_PRODUCT, {
         "hms": channel.subsite_id,

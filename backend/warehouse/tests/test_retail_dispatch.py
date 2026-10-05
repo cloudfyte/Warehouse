@@ -827,3 +827,87 @@ class TheConsignmentSaysWhoDidWhat(RetailFixture):
                    if r["dispatchNumber"] == dispatch.dispatch_number)
         self.assertEqual(row["packedBy"]["username"], self.admin.username)
         self.assertEqual(row["sentBy"]["username"], self.admin.username)
+
+
+class OneCodeOnBothCounters(RetailFixture):
+    """The barcode has to be the same thing through the whole crossing —
+    created with it, matched on it, and stamped onto a hand-made entry that
+    never had one."""
+
+    def _packed_unlinked(self):
+        product = self._product(link=False)
+        dispatch = self._dispatch(product, quantity=1)
+        self._scan(dispatch, product, 1)
+        return product, pack_dispatch(user=self.admin, id=dispatch.id)
+
+    def _shop(self, catalogue):
+        calls = {"created": [], "stamped": [], "receipts": []}
+
+        def transport(channel, query, variables):
+            if "listProducts" in query:
+                return {"listProducts": catalogue}
+            if "createProduct" in query:
+                calls["created"].append(variables)
+                return {"createProduct": {"success": True, "message": "",
+                                          "product": {"id": 9001, "name": variables["name"],
+                                                      "barcode": variables["barcode"]}}}
+            if "updateProduct" in query:
+                calls["stamped"].append(variables)
+                return {"updateProduct": {"success": True, "message": "",
+                                          "product": {"id": variables["id"],
+                                                      "barcode": variables["barcode"]}}}
+            calls["receipts"].append(variables)
+            return {"recordStockReceipt": {"receipt": {"id": 321}}}
+
+        return transport, calls
+
+    def test_a_hand_made_entry_with_no_code_gets_ours(self):
+        product, dispatch = self._packed_unlinked()
+        # Somebody added it over there by hand: right name, no barcode.
+        shop_name = product.item_type.name
+        transport, calls = self._shop([{
+            "id": 77, "name": f"{shop_name} · 40", "barcode": "",
+            "isActive": True, "hasVariants": False, "variants": [],
+        }])
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        self.assertEqual(calls["created"], [], "it already existed — nothing to create")
+        self.assertEqual(len(calls["stamped"]), 1)
+        self.assertEqual(calls["stamped"][0]["barcode"], product.barcode)
+        self.assertEqual(calls["stamped"][0]["id"], 77)
+        link = RetailProductLink.objects.get(finished_product=product)
+        self.assertEqual(link.product_id, 77)
+        self.assertEqual(calls["receipts"][0]["items"][0]["productId"], 77)
+
+    def test_a_code_they_chose_is_never_overwritten(self):
+        """Theirs may be printed on something. Ours goes on a blank only."""
+        product, dispatch = self._packed_unlinked()
+        shop_name = product.item_type.name
+        transport, calls = self._shop([{
+            "id": 77, "name": f"{shop_name} · 40", "barcode": "THEIRS-123",
+            "isActive": True, "hasVariants": False, "variants": [],
+        }])
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        self.assertEqual(calls["stamped"], [])
+        self.assertEqual(len(calls["created"]), 1)
+        self.assertEqual(calls["created"][0]["barcode"], product.barcode)
+
+    def test_sending_again_adds_to_what_is_there(self):
+        """Their side increments; ours must send against the same product."""
+        product = self._product(quantity=20)
+        transport, calls = self._shop([])
+
+        for _ in range(2):
+            dispatch = self._dispatch(product, quantity=2)
+            self._scan(dispatch, product, 2)
+            pack_dispatch(user=self.admin, id=dispatch.id)
+            send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        self.assertEqual(len(calls["receipts"]), 2)
+        ids = {r["items"][0].get("variantId") or r["items"][0].get("productId")
+               for r in calls["receipts"]}
+        self.assertEqual(len(ids), 1, "both consignments must land on one product")
+        self.assertEqual(RetailProductLink.objects.filter(finished_product=product).count(), 1)
