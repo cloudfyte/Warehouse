@@ -911,3 +911,45 @@ class OneCodeOnBothCounters(RetailFixture):
                for r in calls["receipts"]}
         self.assertEqual(len(ids), 1, "both consignments must land on one product")
         self.assertEqual(RetailProductLink.objects.filter(finished_product=product).count(), 1)
+
+
+class AKeyIsPreferredToAPassword(RetailFixture):
+    """A key is bound to one subsite and is turned off over there by flipping a
+    row; a password is a whole person's account."""
+
+    def test_a_key_is_sent_as_a_header_with_no_sign_in(self):
+        from warehouse.services.retail import _auth_header, configure_channel
+
+        channel = configure_channel(
+            user=self.admin, subsite_id=7, subsite_name="sriweddings",
+            api_url="https://shop.example/graphql/", api_key="whk_secret")
+
+        # No sign-in round trip at all: if it tried, this would raise.
+        self.assertEqual(_auth_header(channel), {"X-API-Key": "whk_secret"})
+
+    def test_the_login_still_works_when_there_is_no_key(self):
+        from warehouse.models import RetailChannel
+        from warehouse.services.retail import _auth_header
+
+        channel = RetailChannel(subsite_id=7, subsite_name="s",
+                                api_url="https://shop.example/graphql/")
+        self.assertEqual(_auth_header(channel), {})
+
+    def test_the_key_never_comes_back_out_through_the_schema(self):
+        from warehouse.schema.types import RetailChannelType
+
+        # What matters is whether a client can ask for it at all.
+        queryable = set(RetailChannelType._meta.fields)
+        self.assertNotIn("api_key", queryable)
+        self.assertNotIn("service_password", queryable)
+        self.assertIn("has_api_key", queryable)
+
+    def test_a_blank_key_leaves_the_stored_one_alone(self):
+        from warehouse.services.retail import configure_channel, get_channel
+
+        configure_channel(user=self.admin, subsite_id=7, subsite_name="sriweddings",
+                          api_url="https://shop.example/graphql/", api_key="whk_keep")
+        configure_channel(user=self.admin, subsite_id=7, subsite_name="sriweddings",
+                          api_url="https://shop.example/graphql/", api_key="")
+
+        self.assertEqual(get_channel().api_key, "whk_keep")

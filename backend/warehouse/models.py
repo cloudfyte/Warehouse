@@ -1770,6 +1770,12 @@ class RetailChannel(models.Model):
     # unattended, so it must be revocable without locking a person out.
     service_username = models.CharField(max_length=150, blank=True)
     service_password = models.CharField(max_length=255, blank=True)
+    # Preferred over the login when it is set. A key is bound to one subsite and
+    # is turned off by flipping a row over there, where a password is a whole
+    # person's account and is revoked only by changing what they sign in with.
+    api_key = models.CharField(
+        max_length=120, blank=True,
+        help_text="A key issued by the shop for this warehouse. Used instead of the login when set.")
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

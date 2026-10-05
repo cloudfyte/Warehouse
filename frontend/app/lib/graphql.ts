@@ -314,7 +314,7 @@ export const DASHBOARD_QUERY = `
       size
       thresholdPieces
     }
-    retailChannel { id subsiteId subsiteName apiUrl serviceUsername active }
+    retailChannel { id subsiteId subsiteName apiUrl serviceUsername hasApiKey active }
     retailStores { id buildingId name active }
     retailDispatches(limit: 100) {
       id dispatchNumber status receiptId lastError attempts dispatchDate notes

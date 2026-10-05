@@ -22,6 +22,8 @@ class ConfigureRetailChannel(graphene.Mutation):
         # Blank leaves the stored one alone — the same rule the mail and
         # messaging credentials follow.
         service_password = graphene.String()
+        # A key issued by the shop, used instead of the login when set.
+        api_key = graphene.String()
         active = graphene.Boolean()
 
     channel = graphene.Field(RetailChannelType)
@@ -171,6 +173,7 @@ class ResolveRetailSubsite(graphene.Mutation):
         api_url = graphene.String(required=True)
         service_username = graphene.String()
         service_password = graphene.String()
+        api_key = graphene.String()
 
     channel = graphene.Field(RetailChannelType)
 

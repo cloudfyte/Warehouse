@@ -497,12 +497,18 @@ class KarigarType(DjangoObjectType):
 
 
 class RetailChannelType(DjangoObjectType):
+    has_api_key = graphene.Boolean()
+
     class Meta:
         model = RetailChannel
-        # The service password is write-only. It is used unattended by the
-        # server, never read back by the UI, so putting it in the schema would
-        # only hand the shop's credential to anyone who can run a query.
-        exclude = ("service_password",)
+        # Both secrets are write-only. They are used unattended by the server
+        # and never read back by the UI, so putting either in the schema would
+        # only hand the shop's credential to anyone who can run a query. The
+        # screen needs to know a key is set, not what it is.
+        exclude = ("service_password", "api_key")
+
+    def resolve_has_api_key(self, info):
+        return bool(self.api_key)
 
 
 class RetailStoreType(DjangoObjectType):

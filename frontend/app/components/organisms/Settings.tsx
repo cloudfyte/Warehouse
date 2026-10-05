@@ -38,7 +38,7 @@ interface SettingsData {
   barcodePriceMultiplier?: number
 }
 
-interface RetailChannel { subsiteId: number; subsiteName: string; apiUrl: string; serviceUsername?: string; active: boolean }
+interface RetailChannel { subsiteId: number; subsiteName: string; apiUrl: string; serviceUsername?: string; hasApiKey?: boolean; active: boolean }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface Props { settings: SettingsData; isSuperAdmin: boolean; retailChannel?: RetailChannel | null; onMutate: (q: string, v: Record<string, unknown>) => Promise<any> }
 
@@ -121,6 +121,7 @@ export default function Settings({ settings, isSuperAdmin, retailChannel, onMuta
     subsiteName: retailChannel?.subsiteName ?? "sriweddings",
     apiUrl: retailChannel?.apiUrl ?? "https://backend.hms.rest/graphql/",
     serviceUsername: retailChannel?.serviceUsername ?? "",
+    apiKey: "",
     servicePassword: "",
   });
   const [shopBusy, setShopBusy] = useState(false);
@@ -130,12 +131,13 @@ export default function Settings({ settings, isSuperAdmin, retailChannel, onMuta
     setShopBusy(true); setShopMsg("");
     try {
       const res = await onMutate(
-        `mutation C($n:String!,$u:String!,$su:String,$sp:String){`
-        + `resolveRetailSubsite(subsiteName:$n,apiUrl:$u,serviceUsername:$su,servicePassword:$sp)`
+        `mutation C($n:String!,$u:String!,$su:String,$sp:String,$ak:String){`
+        + `resolveRetailSubsite(subsiteName:$n,apiUrl:$u,serviceUsername:$su,servicePassword:$sp,apiKey:$ak)`
         + `{channel{subsiteId subsiteName apiUrl active}}}`,
         {
           n: shop.subsiteName.trim(), u: shop.apiUrl.trim(),
           su: shop.serviceUsername.trim() || undefined,
+          ak: shop.apiKey.trim() || undefined,
           sp: shop.servicePassword || undefined,
         },
       );
@@ -458,6 +460,15 @@ export default function Settings({ settings, isSuperAdmin, retailChannel, onMuta
               hint="The shop's own backend. Filled in already — change it only if the shop moves.">
               <Input value={shop.apiUrl} placeholder="https://…/graphql/"
                 onChange={e => setShop(p => ({ ...p, apiUrl: e.target.value }))} />
+            </Field>
+            {/* A key beats a login: bound to the one subsite, turned off over
+                there by flipping a row, and no sign-in on every dispatch. */}
+            <Field label="Shop key"
+              hint={retailChannel?.hasApiKey
+                ? "A key is stored. Leave blank to keep it, or paste a new one to replace it."
+                : "If the shop has issued this warehouse a key, paste it here and leave the login blank."}>
+              <Input type="password" value={shop.apiKey} placeholder="whk_…"
+                onChange={e => setShop(p => ({ ...p, apiKey: e.target.value }))} />
             </Field>
             <Field label="Shop username"
               hint="Any HMS login that can manage products for sriweddings — your own works to start with. It adds the garment to their list and books the consignment in, so a read-only account will connect and then fail at the first dispatch.">

@@ -55,7 +55,8 @@ def _require_channel():
 
 
 def configure_channel(*, user, subsite_id, subsite_name, api_url,
-                      service_username=None, service_password=None, active=None):
+                      service_username=None, service_password=None, api_key=None,
+                      active=None):
     """Point this warehouse at its retail subsite. Admin only, and only one."""
     require_role(user, *_ADMIN)
     if int(subsite_id) <= 0:
@@ -71,6 +72,10 @@ def configure_channel(*, user, subsite_id, subsite_name, api_url,
     # messaging credentials follow. Erasing one is done by disabling the channel.
     if service_password:
         channel.service_password = service_password
+    # Same rule as the password: blank leaves the stored one alone, so the form
+    # need not hand a secret back to the browser to keep it.
+    if api_key:
+        channel.api_key = api_key.strip()
     if active is not None:
         channel.active = active
     channel.save()
@@ -486,7 +491,14 @@ def _post(channel, query, variables):
 
 
 def _auth_header(channel):
-    """A token for the service account, fetched per send rather than stored."""
+    """How this warehouse proves who it is to the shop.
+
+    A key when there is one: it is bound to that one subsite, it is turned off
+    over there by flipping a row, and it costs no round trip. Otherwise the
+    service login, which still works and is what the shop understood first.
+    """
+    if getattr(channel, "api_key", ""):
+        return {"X-API-Key": channel.api_key}
     if not channel.service_username:
         return {}
     body = json.dumps({
@@ -800,7 +812,7 @@ _LIST_HMS = "query H{listHms(isActive:true){id hmsName hmsDisplayName}}"
 
 
 def resolve_subsite(*, user, subsite_name, api_url, service_username=None,
-                    service_password=None, _transport=None):
+                    service_password=None, api_key=None, _transport=None):
     """
     Set the shop up from its handle alone.
 
@@ -818,10 +830,12 @@ def resolve_subsite(*, user, subsite_name, api_url, service_username=None,
     # the credentials have to be proved good before they are stored.
     probe = RetailChannel(subsite_id=0, subsite_name=handle, api_url=(api_url or "").strip(),
                           service_username=(service_username or "").strip(),
-                          service_password=service_password or "")
-    if not probe.service_username:
+                          service_password=service_password or "",
+                          api_key=(api_key or "").strip())
+    if not probe.api_key and not probe.service_username:
         existing = get_channel()
         if existing:
+            probe.api_key = existing.api_key
             probe.service_username = existing.service_username
             probe.service_password = probe.service_password or existing.service_password
 
@@ -838,7 +852,7 @@ def resolve_subsite(*, user, subsite_name, api_url, service_username=None,
     return configure_channel(
         user=user, subsite_id=int(match["id"]), subsite_name=match.get("hmsName") or handle,
         api_url=api_url, service_username=service_username,
-        service_password=service_password, active=True,
+        service_password=service_password, api_key=api_key, active=True,
     )
 
 
