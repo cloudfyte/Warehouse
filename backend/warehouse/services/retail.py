@@ -382,25 +382,6 @@ def send_dispatch(*, user, id, _transport=None):
             + ", ".join(f"{_shop_name(p)} ({p.sku})" for p in unpriced[:6])
             + ("…" if len(unpriced) > 6 else "")
         )
-    missing = [] if through_the_door else [
-        p for p in pending
-        if not RetailProductLink.objects.filter(finished_product=p).exists()]
-    if missing:
-        try:
-            data = post(channel, _LIST_PRODUCTS,
-                        {"hms": channel.subsite_id, "limit": 2000})
-            listing = data.get("listProducts") or []
-            catalogue = _shop_barcodes(listing)
-            blanks = _unbarcoded(listing)
-            store_building = RetailDispatch.objects.get(pk=id).store.building_id
-            for product in missing:
-                ensure_shop_product(user=user, product=product, channel=channel,
-                                    post=post, catalogue=catalogue, blanks=blanks,
-                                    building_id=store_building)
-        except Exception as exc:  # noqa: BLE001
-            with transaction.atomic():
-                return _failed(_locked(id), f"Could not add the garments to the shop: {exc}")
-
     with transaction.atomic():
         dispatch = _locked(id)
         if dispatch.status == RetailDispatch.Status.ACKNOWLEDGED:
@@ -417,54 +398,20 @@ def send_dispatch(*, user, id, _transport=None):
                 f"Pack it before sending it."
             )
 
-        items = []
-        for item in (() if through_the_door
-                     else dispatch.items.select_related("finished_product")):
-            link = RetailProductLink.objects.filter(
-                finished_product=item.finished_product).first()
-            if not link:
-                raise GraphQLError(
-                    f"{item.finished_product.sku} is not on the shop's catalogue "
-                    f"and could not be added to it."
-                )
-            entry = {"quantity": item.quantity, "unitCost": float(item.unit_cost)}
-            # A variant is the sellable thing when the product has them; the
-            # product itself is, when it does not.
-            if link.variant_id:
-                entry["variantId"] = link.variant_id
-            else:
-                entry["productId"] = link.product_id
-            items.append(entry)
-
         dispatch.status = RetailDispatch.Status.SENT
         dispatch.sent_at = timezone.now()
         dispatch.sent_by = user
         dispatch.attempts += 1
         dispatch.save(update_fields=["status", "sent_at", "sent_by", "attempts", "updated_at"])
 
-    payload = {
-        "hms": channel.subsite_id,
-        "building": dispatch.store.building_id,
-        "items": items,
-        # The consignment number is the only thing tying their goods-in row
-        # back to ours. It is what a reconciliation is done on, and what makes
-        # a repeated send land once.
-        "notes": f"Godown — {dispatch.from_warehouse.name} · "
-                 f"{dispatch.dispatch_number} · {dispatch.notes}".strip(" ·"),
-        "key": dispatch.dispatch_number,
-    }
-
     try:
         if through_the_door:
-            receipt_id = _send_through_the_door(dispatch, channel, post, user)
+            try:
+                receipt_id = _send_through_the_door(dispatch, channel, post, user)
+            except DoorNotThere:
+                receipt_id = _send_the_long_way(dispatch, channel, post, user)
         else:
-            result = post(channel, _RECORD_RECEIPT, payload)
-            receipt_id = (((result or {}).get("recordStockReceipt") or {})
-                          .get("receipt") or {}).get("id")
-            if not receipt_id:
-                message = ((result or {}).get("recordStockReceipt") or {}).get("message")
-                return _failed(dispatch,
-                               message or "The shop did not confirm the consignment.")
+            receipt_id = _send_the_long_way(dispatch, channel, post, user)
     except Exception as exc:  # noqa: BLE001 — every failure is the same failure here
         return _failed(dispatch, str(exc))
 
@@ -483,6 +430,25 @@ _THROUGH_THE_DOOR = (
     "{success message alreadyDone receiptId "
     "lines{barcode productId created quantityAdded stockNow}}}"
 )
+
+
+class DoorNotThere(Exception):
+    """This shop's API has no godown door — it has not been deployed yet."""
+
+
+def _door_is_missing(exc):
+    """Their schema not knowing the mutation is not a refusal, it is an old shop.
+
+    Deploys land one side at a time, and either order has to be survivable: a
+    warehouse that insists on a door the shop has not got yet would stop every
+    consignment until somebody noticed. So an unknown-field answer sends us the
+    long way round instead, and a real refusal still fails as a refusal.
+    """
+    said = str(exc)
+    return ("warehouseReceiveConsignment" in said
+            or "WarehouseIntakeItem" in said) and (
+        "Cannot query field" in said or "Unknown type" in said
+        or "Unknown argument" in said or "unknown field" in said.lower())
 
 
 def _send_through_the_door(dispatch, channel, post, user):
@@ -506,12 +472,17 @@ def _send_through_the_door(dispatch, channel, post, user):
             "cost": float(item.unit_cost or 0),
         })
 
-    result = post(channel, _THROUGH_THE_DOOR, {
-        "b": dispatch.store.building_id,
-        "c": dispatch.dispatch_number,
-        "i": items,
-        "n": f"Godown — {dispatch.from_warehouse.name}",
-    })
+    try:
+        result = post(channel, _THROUGH_THE_DOOR, {
+            "b": dispatch.store.building_id,
+            "c": dispatch.dispatch_number,
+            "i": items,
+            "n": f"Godown — {dispatch.from_warehouse.name}",
+        })
+    except Exception as exc:  # noqa: BLE001
+        if _door_is_missing(exc):
+            raise DoorNotThere() from exc
+        raise
     said = (result or {}).get("warehouseReceiveConsignment") or {}
     if not said.get("success"):
         raise RuntimeError(said.get("message") or "The shop did not take the consignment.")
@@ -529,6 +500,63 @@ def _send_through_the_door(dispatch, channel, post, user):
                       "variant_id": None, "linked_by": user},
         )
     return said.get("receiptId")
+
+
+def _send_the_long_way(dispatch, channel, post, user):
+    """Three calls, for a shop with no door: catalogue, create, then book.
+
+    Kept because a shop that has issued no key still works this way, and
+    because a warehouse deployed ahead of its shop falls back to it.
+    """
+    pending = [i.finished_product for i in
+               dispatch.items.select_related("finished_product")]
+    missing = [p for p in pending
+               if not RetailProductLink.objects.filter(finished_product=p).exists()]
+    if missing:
+        data = post(channel, _LIST_PRODUCTS,
+                    {"hms": channel.subsite_id, "limit": 2000})
+        listing = data.get("listProducts") or []
+        catalogue = _shop_barcodes(listing)
+        blanks = _unbarcoded(listing)
+        for product in missing:
+            ensure_shop_product(user=user, product=product, channel=channel,
+                                post=post, catalogue=catalogue, blanks=blanks,
+                                building_id=dispatch.store.building_id)
+
+    items = []
+    for item in dispatch.items.select_related("finished_product"):
+        link = RetailProductLink.objects.filter(
+            finished_product=item.finished_product).first()
+        if not link:
+            raise RuntimeError(
+                f"{item.finished_product.sku} is not on the shop's catalogue "
+                f"and could not be added to it.")
+        entry = {"quantity": item.quantity, "unitCost": float(item.unit_cost)}
+        # A variant is the sellable thing when the product has them; the
+        # product itself is, when it does not.
+        if link.variant_id:
+            entry["variantId"] = link.variant_id
+        else:
+            entry["productId"] = link.product_id
+        items.append(entry)
+
+    result = post(channel, _RECORD_RECEIPT, {
+        "hms": channel.subsite_id,
+        "building": dispatch.store.building_id,
+        "items": items,
+        # The consignment number is the only thing tying their goods-in row
+        # back to ours. It is what a reconciliation is done on, and what makes
+        # a repeated send land once.
+        "notes": f"Godown — {dispatch.from_warehouse.name} · "
+                 f"{dispatch.dispatch_number} · {dispatch.notes}".strip(" ·"),
+        "key": dispatch.dispatch_number,
+    })
+    receipt_id = (((result or {}).get("recordStockReceipt") or {})
+                  .get("receipt") or {}).get("id")
+    if not receipt_id:
+        raise RuntimeError(((result or {}).get("recordStockReceipt") or {}).get("message")
+                           or "The shop did not confirm the consignment.")
+    return receipt_id
 
 
 def _failed(dispatch, message):

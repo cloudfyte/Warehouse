@@ -1097,3 +1097,49 @@ class OneDoorInsteadOfThreeCalls(RetailFixture):
         dispatch.refresh_from_db()
         self.assertEqual(dispatch.status, RetailDispatch.Status.ACKNOWLEDGED)
         self.assertTrue(any("recordStockReceipt" in c for c in calls))
+
+    def test_a_shop_without_the_door_yet_still_gets_the_consignment(self):
+        """Deploys land one side at a time; either order has to survive.
+
+        A warehouse live before its shop asks for a mutation that is not there
+        and gets an unknown-field answer back. That is not a refusal, so the
+        consignment goes the long way round rather than stopping.
+        """
+        product, dispatch = self._packed()
+        calls = []
+
+        def transport(channel, query, variables):
+            calls.append(query)
+            if "warehouseReceiveConsignment" in query:
+                raise RuntimeError(
+                    "The shop answered 400. Cannot query field "
+                    "'warehouseReceiveConsignment' on type 'Mutation'.")
+            if "listProducts" in query:
+                return {"listProducts": []}
+            if "createProduct" in query:
+                return {"createProduct": {"success": True, "message": "",
+                                          "product": {"id": 77, "barcode": product.barcode}}}
+            if "setProductStock" in query:
+                return {"setProductStock": {"success": True}}
+            return {"recordStockReceipt": {"receipt": {"id": 31}}}
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.ACKNOWLEDGED)
+        self.assertEqual(dispatch.receipt_id, 31)
+        self.assertTrue(any("warehouseReceiveConsignment" in c for c in calls),
+                        "it should try the door first")
+        self.assertTrue(any("recordStockReceipt" in c for c in calls),
+                        "then fall back to the long way")
+
+    def test_a_real_refusal_is_still_a_refusal(self):
+        """Only an absent door falls back. Being told no does not."""
+        _, dispatch = self._packed()
+        transport, _ = self._door(success=False, message="That store is not ours.")
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.FAILED)
+        self.assertIn("That store is not ours.", dispatch.last_error)
