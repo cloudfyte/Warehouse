@@ -189,6 +189,10 @@ class TheShopGainsTheGarmentWhenItIsSent(RetailFixture):
                     "product": {"id": created or 9001,
                                 "name": variables["name"],
                                 "barcode": variables["barcode"]}}}
+            if "setProductStock" in query:
+                # A product the shop has just gained is untracked until this.
+                calls.setdefault("tracked", []).append(variables)
+                return {"setProductStock": {"success": True, "message": ""}}
             calls["receipts"].append(variables)
             return {"recordStockReceipt": {"receipt": {"id": 777}}}
 
@@ -991,3 +995,105 @@ class TheWarehouseSaysWhoItIs(RetailFixture):
         self.assertTrue(sent["agent"], "the call must name who is making it")
         self.assertNotIn("urllib", sent["agent"].lower())
         self.assertIn("Warehouse", sent["agent"])
+
+
+class OneDoorInsteadOfThreeCalls(RetailFixture):
+    """With a key of its own the warehouse sends the whole consignment once and
+    the shop settles create-or-top-up on its side, where it belongs."""
+
+    def setUp(self):
+        super().setUp()
+        from warehouse.services.retail import configure_channel
+
+        self.channel = configure_channel(
+            user=self.admin, subsite_id=7, subsite_name="sriweddings",
+            api_url="https://shop.example/graphql/", api_key="whk_door")
+
+    def _door(self, success=True, message="", receipt=4242):
+        seen = {"calls": [], "items": None}
+
+        def transport(channel, query, variables):
+            seen["calls"].append(query)
+            if "warehouseReceiveConsignment" not in query:
+                raise AssertionError("with a key, nothing else should be called")
+            seen["items"] = variables["i"]
+            seen["consignment"] = variables["c"]
+            seen["building"] = variables["b"]
+            return {"warehouseReceiveConsignment": {
+                "success": success, "message": message, "alreadyDone": False,
+                "receiptId": receipt,
+                "lines": [{"barcode": i["barcode"], "productId": 500 + n,
+                           "created": True, "quantityAdded": i["quantity"],
+                           "stockNow": i["quantity"]}
+                          for n, i in enumerate(variables["i"])]}}
+
+        return transport, seen
+
+    def _packed(self, quantity=2):
+        product = self._product(quantity=10, link=False)
+        dispatch = self._dispatch(product, quantity=quantity)
+        self._scan(dispatch, product, quantity)
+        return product, pack_dispatch(user=self.admin, id=dispatch.id)
+
+    def test_the_whole_consignment_goes_in_one_call(self):
+        product, dispatch = self._packed()
+        transport, seen = self._door()
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        self.assertEqual(len(seen["calls"]), 1, "one call, not three")
+        self.assertEqual(seen["consignment"], dispatch.dispatch_number)
+        self.assertEqual(seen["items"][0]["barcode"], product.barcode)
+        self.assertEqual(seen["items"][0]["quantity"], 2)
+
+    def test_their_ids_come_back_and_the_link_is_made_from_them(self):
+        product, dispatch = self._packed()
+        transport, _ = self._door()
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        link = RetailProductLink.objects.get(finished_product=product)
+        self.assertEqual(link.product_id, 500)
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.ACKNOWLEDGED)
+        self.assertEqual(dispatch.receipt_id, 4242)
+
+    def test_a_refusal_parks_the_consignment_with_what_they_said(self):
+        _, dispatch = self._packed()
+        transport, _ = self._door(success=False, message="That store is not ours.")
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.FAILED)
+        self.assertIn("That store is not ours.", dispatch.last_error)
+
+    def test_without_a_key_it_still_goes_the_long_way(self):
+        """A shop that has not issued one keeps working exactly as before."""
+        from warehouse.services.retail import configure_channel, get_channel
+
+        c = get_channel()
+        c.api_key = ""
+        c.service_username = "someone"
+        c.service_password = "x"
+        c.save()
+
+        product, dispatch = self._packed()
+        calls = []
+
+        def transport(channel, query, variables):
+            calls.append(query)
+            if "listProducts" in query:
+                return {"listProducts": []}
+            if "createProduct" in query:
+                return {"createProduct": {"success": True, "message": "",
+                                          "product": {"id": 9, "barcode": product.barcode}}}
+            if "setProductStock" in query:
+                return {"setProductStock": {"success": True}}
+            return {"recordStockReceipt": {"receipt": {"id": 11}}}
+
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+
+        dispatch.refresh_from_db()
+        self.assertEqual(dispatch.status, RetailDispatch.Status.ACKNOWLEDGED)
+        self.assertTrue(any("recordStockReceipt" in c for c in calls))

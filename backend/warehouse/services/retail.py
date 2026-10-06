@@ -321,11 +321,15 @@ def _locked(id):
 
 # ── telling the shop ──────────────────────────────────────────────────────────
 
+# The shop takes a key identifying one logical submission: a retry carrying the
+# same one gives back the original receipt instead of recording — and applying —
+# a second one. The consignment number is exactly that, so a send that times out
+# without an answer can be repeated without doubling their stock.
 _RECORD_RECEIPT = (
     "mutation R($hms:Int!,$building:Int!,$items:[StockReceiptItemInput!]!,"
-    "$supplier:String,$notes:String){"
+    "$notes:String,$key:String){"
     "recordStockReceipt(hmsId:$hms,buildingId:$building,items:$items,"
-    "supplierName:$supplier,notes:$notes)"
+    "notes:$notes,idempotencyKey:$key)"
     "{success message receipt{id}}}"
 )
 
@@ -334,12 +338,16 @@ def send_dispatch(*, user, id, _transport=None):
     """
     Tell the shop what is coming.
 
-    The one rule here: a consignment lands over there exactly once. The retail
-    receipt endpoint has no idempotency key of its own, so posting twice would
-    add the stock twice with nothing to show it happened. Two things stand in
-    the way of that — a consignment that already has a receipt id refuses to
-    send again, and the dispatch number goes over in the notes so a repeat is
-    recognisable by a person reading the shop's goods-in log.
+    The one rule here: a consignment lands over there exactly once. The shop
+    settles that itself — the consignment number goes over as the key for the
+    submission, and a repeat of it returns the first receipt rather than
+    applying a second. A consignment already acknowledged here refuses to send
+    again on top of that, so the question is answered on both sides.
+
+    Where the shop has given this warehouse a key of its own, the whole
+    consignment goes through one door that creates what they have never seen
+    and adds what arrived. Without a key it is the long way round: read their
+    catalogue, create the missing, then book the stock.
 
     A call that fails without an answer is the dangerous case: it may or may
     not have landed. That leaves the consignment FAILED and waiting for a human
@@ -350,10 +358,13 @@ def send_dispatch(*, user, id, _transport=None):
     channel = _require_channel()
     post = _transport or _post
 
+    through_the_door = bool(getattr(channel, "api_key", ""))
+
     # Anything not on their catalogue yet is added to it first, under the
     # barcode already printed on its tag. Done before the row is locked,
     # because these are calls over the wire and a database lock held across
-    # them blocks the rest of the warehouse.
+    # them blocks the rest of the warehouse. The door does this itself, so
+    # this whole step belongs to the long way round.
     pending = [i.finished_product for i in
                RetailDispatch.objects.get(pk=id).items.select_related(
                    "finished_product__item_type", "finished_product__cloth_color")]
@@ -371,8 +382,9 @@ def send_dispatch(*, user, id, _transport=None):
             + ", ".join(f"{_shop_name(p)} ({p.sku})" for p in unpriced[:6])
             + ("…" if len(unpriced) > 6 else "")
         )
-    missing = [p for p in pending
-               if not RetailProductLink.objects.filter(finished_product=p).exists()]
+    missing = [] if through_the_door else [
+        p for p in pending
+        if not RetailProductLink.objects.filter(finished_product=p).exists()]
     if missing:
         try:
             data = post(channel, _LIST_PRODUCTS,
@@ -380,9 +392,11 @@ def send_dispatch(*, user, id, _transport=None):
             listing = data.get("listProducts") or []
             catalogue = _shop_barcodes(listing)
             blanks = _unbarcoded(listing)
+            store_building = RetailDispatch.objects.get(pk=id).store.building_id
             for product in missing:
                 ensure_shop_product(user=user, product=product, channel=channel,
-                                    post=post, catalogue=catalogue, blanks=blanks)
+                                    post=post, catalogue=catalogue, blanks=blanks,
+                                    building_id=store_building)
         except Exception as exc:  # noqa: BLE001
             with transaction.atomic():
                 return _failed(_locked(id), f"Could not add the garments to the shop: {exc}")
@@ -404,7 +418,8 @@ def send_dispatch(*, user, id, _transport=None):
             )
 
         items = []
-        for item in dispatch.items.select_related("finished_product"):
+        for item in (() if through_the_door
+                     else dispatch.items.select_related("finished_product")):
             link = RetailProductLink.objects.filter(
                 finished_product=item.finished_product).first()
             if not link:
@@ -431,21 +446,27 @@ def send_dispatch(*, user, id, _transport=None):
         "hms": channel.subsite_id,
         "building": dispatch.store.building_id,
         "items": items,
-        "supplier": f"Godown — {dispatch.from_warehouse.name}",
         # The consignment number is the only thing tying their goods-in row
-        # back to ours. It is what a reconciliation is done on.
-        "notes": f"{dispatch.dispatch_number} · {dispatch.notes}".strip(" ·"),
+        # back to ours. It is what a reconciliation is done on, and what makes
+        # a repeated send land once.
+        "notes": f"Godown — {dispatch.from_warehouse.name} · "
+                 f"{dispatch.dispatch_number} · {dispatch.notes}".strip(" ·"),
+        "key": dispatch.dispatch_number,
     }
 
     try:
-        result = post(channel, _RECORD_RECEIPT, payload)
+        if through_the_door:
+            receipt_id = _send_through_the_door(dispatch, channel, post, user)
+        else:
+            result = post(channel, _RECORD_RECEIPT, payload)
+            receipt_id = (((result or {}).get("recordStockReceipt") or {})
+                          .get("receipt") or {}).get("id")
+            if not receipt_id:
+                message = ((result or {}).get("recordStockReceipt") or {}).get("message")
+                return _failed(dispatch,
+                               message or "The shop did not confirm the consignment.")
     except Exception as exc:  # noqa: BLE001 — every failure is the same failure here
         return _failed(dispatch, str(exc))
-
-    receipt_id = (((result or {}).get("recordStockReceipt") or {}).get("receipt") or {}).get("id")
-    if not receipt_id:
-        message = ((result or {}).get("recordStockReceipt") or {}).get("message")
-        return _failed(dispatch, message or "The shop did not confirm the consignment.")
 
     dispatch.status = RetailDispatch.Status.ACKNOWLEDGED
     dispatch.receipt_id = int(receipt_id)
@@ -454,6 +475,60 @@ def send_dispatch(*, user, id, _transport=None):
     dispatch.save(update_fields=["status", "receipt_id", "acknowledged_at",
                                  "last_error", "updated_at"])
     return dispatch
+
+
+_THROUGH_THE_DOOR = (
+    "mutation W($b:Int!,$c:String!,$i:[WarehouseIntakeItem!]!,$n:String){"
+    "warehouseReceiveConsignment(buildingId:$b,consignment:$c,items:$i,notes:$n)"
+    "{success message alreadyDone receiptId "
+    "lines{barcode productId created quantityAdded stockNow}}}"
+)
+
+
+def _send_through_the_door(dispatch, channel, post, user):
+    """One call: the shop takes the garments and the count in the same breath.
+
+    The long way round was three calls — read their catalogue, create what was
+    missing, then book the stock — each needing rights of its own, and each a
+    place to fail halfway with the carton already packed. The door takes the
+    barcode as the identity and settles create-or-top-up on their side, where
+    it belongs.
+    """
+    items = []
+    for item in dispatch.items.select_related(
+            "finished_product__item_type", "finished_product__cloth_color"):
+        garment = item.finished_product
+        items.append({
+            "barcode": garment.barcode,
+            "name": _shop_name(garment),
+            "quantity": item.packed_quantity or item.quantity,
+            "price": float(garment.sale_price or 0),
+            "cost": float(item.unit_cost or 0),
+        })
+
+    result = post(channel, _THROUGH_THE_DOOR, {
+        "b": dispatch.store.building_id,
+        "c": dispatch.dispatch_number,
+        "i": items,
+        "n": f"Godown — {dispatch.from_warehouse.name}",
+    })
+    said = (result or {}).get("warehouseReceiveConsignment") or {}
+    if not said.get("success"):
+        raise RuntimeError(said.get("message") or "The shop did not take the consignment.")
+
+    # Their ids come back with the garments, so the link is made from what
+    # actually happened rather than from a lookup that might disagree.
+    by_barcode = {ln.get("barcode"): ln for ln in (said.get("lines") or [])}
+    for item in dispatch.items.select_related("finished_product"):
+        line = by_barcode.get(item.finished_product.barcode)
+        if not line or not line.get("productId"):
+            continue
+        RetailProductLink.objects.update_or_create(
+            finished_product=item.finished_product,
+            defaults={"product_id": int(line["productId"]),
+                      "variant_id": None, "linked_by": user},
+        )
+    return said.get("receiptId")
 
 
 def _failed(dispatch, message):
@@ -489,7 +564,17 @@ def _post(channel, query, variables):
         with urllib.request.urlopen(request, timeout=30) as response:
             payload = json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"The shop answered {exc.code}.") from exc
+        # "The shop answered 400." is a dead end for whoever has to fix it —
+        # their body says which argument they did not recognise.
+        detail = ""
+        try:
+            said = json.loads(exc.read().decode())
+            errors = said.get("errors") or []
+            detail = errors[0].get("message", "") if errors else ""
+        except Exception:  # noqa: BLE001 — a body we cannot read is not the error
+            pass
+        raise RuntimeError(
+            f"The shop answered {exc.code}." + (f" {detail}" if detail else "")) from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Could not reach the shop: {exc.reason}.") from exc
 
@@ -618,6 +703,19 @@ def _unbarcoded(products):
     return blank
 
 
+# A product the shop has just gained starts as "unlimited stock" at a store,
+# and they refuse a delivery against that — rightly, because adding to an
+# unlimited row would silently do nothing while looking like it worked. A
+# garment counted in a godown is tracked stock by definition, so it is switched
+# the moment it is created, at zero: the consignment that follows is what puts
+# the first piece on their shelf.
+_START_TRACKING = (
+    "mutation T($p:Int!,$b:Int!){"
+    "setProductStock(productId:$p,buildingId:$b,stockQuantity:0,inStock:true)"
+    "{success message}}"
+)
+
+
 def _shop_name(product):
     """What the garment is called on their shelf.
 
@@ -633,7 +731,7 @@ def _shop_name(product):
 
 
 def ensure_shop_product(*, user, product, channel=None, post=None, catalogue=None,
-                        blanks=None):
+                        blanks=None, building_id=None):
     """The garment exists over there, under the barcode on its own tag.
 
     Three steps, in the order that cannot create a duplicate: the link we
@@ -686,8 +784,11 @@ def ensure_shop_product(*, user, product, channel=None, post=None, catalogue=Non
     if not created.get("id"):
         raise RuntimeError(
             payload.get("message") or f"The shop would not add {product.sku}.")
+    product_id = int(created["id"])
+    if building_id:
+        post(channel, _START_TRACKING, {"p": product_id, "b": building_id})
     return RetailProductLink.objects.create(
-        finished_product=product, product_id=int(created["id"]),
+        finished_product=product, product_id=product_id,
         variant_id=None, linked_by=user)
 
 
