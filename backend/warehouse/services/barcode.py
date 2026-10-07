@@ -21,7 +21,15 @@ def generate_barcode_svg(code: str) -> str:
         cls = barcode.get_barcode_class("code128")
         buf = io.BytesIO()
         instance = cls(code, writer=SVGWriter())
-        instance.write(buf, options={"write_text": True, "quiet_zone": 2.0, "font_size": 8})
+        # module_width is the narrow-bar width, and it has to land on a whole
+        # printer dot or the printer rounds each bar separately and the ratios
+        # a decoder works from fall apart. A thermal head is 203dpi — 0.1251mm
+        # a dot — so the old 0.2mm default was 1.6 dots: a two-module bar came
+        # out 1.5 modules wide and a gun could not read the tag at all. 0.25mm
+        # is exactly two dots, and is also the GS1 floor for retail scanning.
+        # quiet_zone is in modules' terms the same story: 10 modules minimum.
+        instance.write(buf, options={"write_text": True, "module_width": 0.25,
+                                     "quiet_zone": 2.5, "font_size": 8})
         return buf.getvalue().decode("utf-8")
     except Exception:
         # Swallowing this silently stored an empty SVG and printed a tag with no
