@@ -373,6 +373,17 @@ def send_dispatch(*, user, id, _transport=None):
     # somebody to replace. Sent like that, the shop puts it on the shelf at our
     # cost and sells it for no margin — so an unpriced garment does not leave.
     # A deliberate markdown below cost is somebody's decision and is allowed.
+    # A garment with no category lands on the site unbrowsable — it exists, but
+    # nobody shopping can reach it. Cheaper to stop here than to find out later.
+    uncategorised = [p for p in pending if not p.shop_category_id]
+    if uncategorised and through_the_door:
+        raise GraphQLError(
+            "File these under a category on the shop's site before sending them — "
+            "without one the shop cannot list them: "
+            + ", ".join(f"{_shop_name(p)} ({p.sku})" for p in uncategorised[:6])
+            + ("…" if len(uncategorised) > 6 else "")
+        )
+
     unpriced = [p for p in pending
                 if (p.sale_price or 0) <= 0 or p.sale_price == p.cost_price]
     if unpriced:
@@ -424,6 +435,21 @@ def send_dispatch(*, user, id, _transport=None):
     return dispatch
 
 
+# The shop's own words for where a thing may be sold. dine_in is a restaurant's
+# and a garment should never carry it.
+SHOP_CHANNELS = {
+    FinishedProduct.ShopChannel.BOTH: ["website", "pos"],
+    FinishedProduct.ShopChannel.ONLINE: ["website"],
+    FinishedProduct.ShopChannel.WALKIN: ["pos"],
+}
+
+_SHOP_CATEGORIES = "{warehouseShopCategories{id name}}"
+
+_MAKE_CATEGORY = (
+    "mutation C($n:String!){warehouseCreateShopCategory(name:$n)"
+    "{success message category{id name}}}"
+)
+
 _THROUGH_THE_DOOR = (
     "mutation W($b:Int!,$c:String!,$i:[WarehouseIntakeItem!]!,$n:String){"
     "warehouseReceiveConsignment(buildingId:$b,consignment:$c,items:$i,notes:$n)"
@@ -464,13 +490,22 @@ def _send_through_the_door(dispatch, channel, post, user):
     for item in dispatch.items.select_related(
             "finished_product__item_type", "finished_product__cloth_color"):
         garment = item.finished_product
-        items.append({
+        entry = {
             "barcode": garment.barcode,
             "name": _shop_name(garment),
             "quantity": item.packed_quantity or item.quantity,
             "price": float(garment.sale_price or 0),
             "cost": float(item.unit_cost or 0),
-        })
+            # Everything the shop's product page wants, so a garment arrives as
+            # a listing somebody can browse to rather than a bare row.
+            "categoryId": garment.shop_category_id,
+            "description": garment.shop_description or "",
+            "hsnCode": garment.hsn_code or "",
+            "salesChannels": SHOP_CHANNELS[garment.shop_channel],
+        }
+        if garment.gst_percentage is not None:
+            entry["gstPercentage"] = float(garment.gst_percentage)
+        items.append(entry)
 
     try:
         result = post(channel, _THROUGH_THE_DOOR, {
@@ -500,6 +535,66 @@ def _send_through_the_door(dispatch, channel, post, user):
                       "variant_id": None, "linked_by": user},
         )
     return said.get("receiptId")
+
+
+def shop_categories(*, user, _transport=None):
+    """The shop's own category list, for picking one here.
+
+    Fetched live rather than mirrored: the shop's staff add categories too, and
+    a stale copy here would file garments under something that no longer exists.
+    """
+    require_role(user, *_MANAGE)
+    channel = _require_channel()
+    post = _transport or _post
+    try:
+        data = post(channel, _SHOP_CATEGORIES, {})
+    except Exception as exc:  # noqa: BLE001
+        raise GraphQLError(f"Could not read the shop's categories: {exc}") from exc
+    return data.get("warehouseShopCategories") or []
+
+
+def create_shop_category(*, user, name, _transport=None):
+    """Add a category to the shop's site without leaving the warehouse."""
+    require_role(user, *_MANAGE)
+    name = (name or "").strip()
+    if not name:
+        raise GraphQLError("Give the category a name.")
+    channel = _require_channel()
+    post = _transport or _post
+    try:
+        data = post(channel, _MAKE_CATEGORY, {"n": name})
+    except Exception as exc:  # noqa: BLE001
+        raise GraphQLError(f"The shop would not take the category: {exc}") from exc
+    said = (data or {}).get("warehouseCreateShopCategory") or {}
+    if not said.get("success"):
+        raise GraphQLError(said.get("message") or "The shop would not take the category.")
+    return said.get("category")
+
+
+def set_shop_listing(*, user, finished_product_id, category_id=None,
+                     category_name="", description=None, hsn_code=None,
+                     gst_percentage=None, channel=None):
+    """Record what the shop's product page needs for this garment."""
+    require_role(user, *_MANAGE)
+    garment = FinishedProduct.objects.filter(pk=finished_product_id).first()
+    if garment is None:
+        raise GraphQLError("No such garment.")
+    if channel and channel not in FinishedProduct.ShopChannel.values:
+        raise GraphQLError("Pick online, walk-in, or both.")
+
+    changed = []
+    for field, value in (("shop_category_id", category_id),
+                         ("shop_category_name", category_name or None),
+                         ("shop_description", description),
+                         ("hsn_code", hsn_code),
+                         ("gst_percentage", gst_percentage),
+                         ("shop_channel", channel)):
+        if value is not None:
+            setattr(garment, field, value)
+            changed.append(field)
+    if changed:
+        garment.save(update_fields=changed + ["updated_at"])
+    return garment
 
 
 def _send_the_long_way(dispatch, channel, post, user):

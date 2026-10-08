@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Truck, ScanLine, Package, Send, X, AlertTriangle, Link2, RefreshCw, Scale, Undo2 } from "lucide-react";
-import type { FinishedProduct, WarehouseLocation } from "@/app/types";
+import { Truck, ScanLine, Package, Send, X, AlertTriangle, Link2, RefreshCw, Scale, Undo2, Tag } from "lucide-react";
+import type { FinishedProduct, ShopCategory, WarehouseLocation } from "@/app/types";
 import { formatMoney, productName } from "@/app/lib/formatters";
 import { friendlyError } from "@/app/lib/errors";
 import { showToast } from "@/app/lib/toast";
@@ -13,6 +13,7 @@ import BarcodeScanner from "@/app/components/atoms/BarcodeScanner";
 import Field from "@/app/components/molecules/Field";
 import PageHeader from "@/app/components/molecules/PageHeader";
 import ErrorBanner from "@/app/components/molecules/ErrorBanner";
+import ShopListing, { draftFrom, type ShopListingDraft } from "@/app/components/molecules/ShopListing";
 
 interface Store { id: string; buildingId: number; name: string; active: boolean }
 interface Channel { subsiteId: number; subsiteName: string; apiUrl: string; active: boolean }
@@ -101,6 +102,10 @@ export default function RetailDispatches({
   const [retLines, setRetLines] = useState<{ productId: string; quantity: string }[]>([]);
   // Their catalogue, fetched when somebody opens the picker. Asking a person to
   // copy numeric ids off another screen is how the wrong garment gets linked.
+  // The shop's categories, read once when first needed: its staff add them too,
+  // so a copy kept here would go stale and file garments under nothing.
+  const [shopCats, setShopCats] = useState<ShopCategory[] | null>(null);
+  const [filing, setFiling] = useState<{ product: FinishedProduct; draft: ShopListingDraft } | null>(null);
   const [catalogue, setCatalogue] = useState<CatalogueEntry[] | null>(null);
   const [catalogueSearch, setCatalogueSearch] = useState("");
   const [catalogueBusy, setCatalogueBusy] = useState(false);
@@ -129,6 +134,49 @@ export default function RetailDispatches({
       const msg = friendlyError(e);
       setErr(msg); showToast(msg, "error");
     } finally { setBusy(false); }
+  }
+
+  async function loadShopCats(): Promise<ShopCategory[]> {
+    if (shopCats) return shopCats;
+    const data = await onMutate("query { shopCategories { id name } }", {});
+    const got: ShopCategory[] = data?.shopCategories ?? [];
+    setShopCats(got);
+    return got;
+  }
+
+  async function openFiling(product: FinishedProduct) {
+    setErr("");
+    try {
+      await loadShopCats();
+      setFiling({ product, draft: draftFrom(product) });
+    } catch (e) {
+      setErr(friendlyError(e));
+    }
+  }
+
+  async function saveFiling() {
+    if (!filing) return;
+    const { product, draft } = filing;
+    if (!draft.categoryId) { setErr("Pick a category — the shop cannot list it without one."); return; }
+    await run(async () => {
+      await onMutate(
+        `mutation S($id:ID!,$cat:Int,$catName:String,$desc:String,$hsn:String,$gst:Float,$ch:String){
+           setShopListing(finishedProductId:$id,categoryId:$cat,categoryName:$catName,
+             description:$desc,hsnCode:$hsn,gstPercentage:$gst,channel:$ch){
+             finishedProduct{id shopCategoryId shopCategoryName shopChannel}}}`,
+        {
+          id: product.id,
+          cat: Number(draft.categoryId),
+          catName: draft.categoryName,
+          desc: draft.description,
+          hsn: draft.hsnCode,
+          gst: draft.gstPercentage === "" ? null : Number(draft.gstPercentage),
+          ch: draft.channel,
+        },
+      );
+      setFiling(null);
+      onRefresh?.();
+    }, "Filed for the shop");
   }
 
   async function createDispatch() {
@@ -501,8 +549,12 @@ export default function RetailDispatches({
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "12px 0 6px", textTransform: "uppercase", letterSpacing: 0.5 }}>
             Products
           </div>
-          {lines.map((line, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          {lines.map((line, i) => {
+            const picked = products.find(p => p.id === line.productId);
+            const filed = Boolean(picked?.shopCategoryId);
+            return (
+            <div key={i} style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 8 }}>
               <Select value={line.productId} style={{ flex: 1 }}
                 onChange={e => setLines(ls => ls.map((l, j) => j === i ? { ...l, productId: e.target.value } : l))}>
                 <option value="">Select a product…</option>
@@ -520,7 +572,35 @@ export default function RetailDispatches({
                 <X size={15} />
               </button>
             </div>
-          ))}
+            {/* The shop cannot list a garment filed under nothing, so say so
+                here rather than letting the send fail later. */}
+            {picked && (
+              <button type="button" onClick={() => openFiling(picked)}
+                style={{
+                  marginTop: 4, display: "flex", alignItems: "center", gap: 6,
+                  background: "none", border: "none", padding: "2px 0",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  color: filed ? "var(--muted)" : "var(--danger, #c0392b)",
+                }}>
+                {filed ? (
+                  <>
+                    <Tag size={12} />
+                    {picked.shopCategoryName || "Filed"}
+                    {" · "}
+                    {picked.shopChannel === "ONLINE" ? "Online only"
+                      : picked.shopChannel === "WALKIN" ? "Walk-in only" : "Online & walk-in"}
+                    <span style={{ textDecoration: "underline" }}>change</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle size={12} />
+                    Not filed for the shop — pick a category
+                  </>
+                )}
+              </button>
+            )}
+            </div>
+          );})}
           <Button variant="secondary" onClick={() => setLines(ls => [...ls, { productId: "", quantity: "" }])}
             style={{ fontSize: 12, padding: "5px 10px" }}>
             + Add product
@@ -532,6 +612,37 @@ export default function RetailDispatches({
             <Field label="Vehicle"><Input value={lr.vehicleNumber} onChange={e => setLr(p => ({ ...p, vehicleNumber: e.target.value }))} /></Field>
             <Field label="Driver phone"><Input value={lr.driverPhone} onChange={e => setLr(p => ({ ...p, driverPhone: e.target.value }))} /></Field>
           </div>
+          {err && <ErrorBanner msg={err} />}
+        </Modal>
+      )}
+
+      {/* ── what the shop's page needs about one garment ── */}
+      {filing && (
+        <Modal title={`File ${productName(filing.product)} for the shop`}
+          onClose={() => { setFiling(null); setErr(""); }}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => { setFiling(null); setErr(""); }}>Cancel</Button>
+              <Button variant="primary" onClick={saveFiling} disabled={busy}>
+                {busy ? "Saving…" : "Save"}
+              </Button>
+            </>
+          }>
+          <ShopListing
+            categories={shopCats ?? []}
+            draft={filing.draft}
+            onChange={draft => setFiling(f => (f ? { ...f, draft } : f))}
+            onCreateCategory={async name => {
+              const data = await onMutate(
+                `mutation C($name:String!){createShopCategory(name:$name){category{id name}}}`,
+                { name },
+              );
+              const made = data?.createShopCategory?.category;
+              if (!made?.id) throw new Error("The shop did not take the category.");
+              setShopCats(cs => [...(cs ?? []), made]);
+              return String(made.id);
+            }}
+          />
           {err && <ErrorBanner msg={err} />}
         </Modal>
       )}

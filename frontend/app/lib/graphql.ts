@@ -244,6 +244,7 @@ export const DASHBOARD_QUERY = `
     }
     finishedProducts {
       id name sku source quantity costPrice salePrice profitMargin barcode barcodeSvg tagsPrinted ageGroup size createdAt
+      shopCategoryId shopCategoryName shopDescription hsnCode gstPercentage shopChannel
       itemType { id name }
       clothCategory { id name }
       clothColor { id name hexCode }
@@ -369,3 +370,22 @@ export const AGING_REPORT_QUERY = `
     }
   }
 `;
+
+
+/** The shop's live category list — read from the site, never mirrored here. */
+export const SHOP_CATEGORIES_QUERY = `query { shopCategories { id name } }`;
+
+export const CREATE_SHOP_CATEGORY = `mutation ($name: String!) {
+  createShopCategory(name: $name) { category { id name } }
+}`;
+
+export const SET_SHOP_LISTING = `mutation (
+  $finishedProductId: ID!, $categoryId: Int, $categoryName: String,
+  $description: String, $hsnCode: String, $gstPercentage: Float, $channel: String
+) {
+  setShopListing(
+    finishedProductId: $finishedProductId, categoryId: $categoryId,
+    categoryName: $categoryName, description: $description,
+    hsnCode: $hsnCode, gstPercentage: $gstPercentage, channel: $channel
+  ) { finishedProduct { id shopCategoryId shopCategoryName shopChannel } }
+}`;

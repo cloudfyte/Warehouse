@@ -195,6 +195,11 @@ export interface FinishedProduct {
   clothColor?: ClothColor; ageGroup?: string; size: string; source: string; quantity: number
   warehouse: WarehouseLocation; costPrice: number; salePrice: number
   profitMargin: number; barcode: string; barcodeSvg: string; tagsPrinted: boolean; createdAt: string
+  // What the shop's own product page needs. Collected here so a garment is a
+  // listing the moment it lands, not a bare row somebody has to finish.
+  shopCategoryId?: number | null; shopCategoryName?: string
+  shopDescription?: string; hsnCode?: string; gstPercentage?: number | null
+  shopChannel?: "BOTH" | "ONLINE" | "WALKIN"
   /** Set at cutting for readymade work, carried here. Wholesale stock has none. */
   customerBillNumber?: string; handedOverAt?: string | null; handedOverTo?: string
   customerOrder?: CustomerOrder | null
@@ -424,3 +429,5 @@ export interface ConfirmState {
   confirmLabel?: string
   onConfirm: () => void
 }
+
+export interface ShopCategory { id: number; name: string }

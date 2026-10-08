@@ -773,6 +773,31 @@ class FinishedProduct(models.Model):
     # repricing has to mint a new one — but tags are already sewn onto garments
     # on the rack, and those have to keep scanning. Comma separated.
     previous_barcodes = models.TextField(blank=True, editable=False)
+    # What the shop's own product page needs, collected here so nobody types a
+    # garment in twice. The site itself only insists on a name and a price, but
+    # a garment with no category cannot be browsed to, so this end treats the
+    # category as required before it will let the garment go.
+    shop_category_id = models.IntegerField(
+        null=True, blank=True,
+        help_text="The category on the shop's site this garment is filed under.")
+    shop_category_name = models.CharField(
+        max_length=120, blank=True,
+        help_text="Kept only so the warehouse can show the name without asking the shop.")
+    shop_description = models.TextField(
+        blank=True, help_text="Shown on the shop's product page.")
+    hsn_code = models.CharField(max_length=20, blank=True, help_text="For GST invoices at the shop.")
+    gst_percentage = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True)
+
+    class ShopChannel(models.TextChoices):
+        BOTH = "BOTH", "Online and walk-in"
+        ONLINE = "ONLINE", "Online only"
+        WALKIN = "WALKIN", "Walk-in billing only"
+
+    shop_channel = models.CharField(
+        max_length=10, choices=ShopChannel.choices, default=ShopChannel.BOTH,
+        help_text="Where the shop may sell it once it arrives.")
+
     tags_printed = models.BooleanField(default=False)
     active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)

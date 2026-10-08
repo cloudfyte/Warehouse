@@ -5,10 +5,12 @@ from warehouse.services.retail import (
     add_store, cancel_dispatch, configure_channel, create_dispatch, link_product,
     create_return, pack_dispatch, pull_catalogue, pull_stores, resolve_subsite,
     scan_into_dispatch, send_dispatch, unlink_product,
+    create_shop_category, set_shop_listing,
 )
 from warehouse.schema.types import (
     RetailChannelType, RetailDispatchItemType, RetailDispatchType,
     RetailProductLinkType, RetailReturnType, RetailStoreType,
+    FinishedProductType,
 )
 
 
@@ -204,3 +206,46 @@ class CreateRetailReturn(graphene.Mutation):
     def mutate(self, info, lines, **kwargs):
         return CreateRetailReturn(retail_return=create_return(
             user=info.context.user, lines=[dict(l) for l in lines], **kwargs))
+
+
+class ShopCategoryType(graphene.ObjectType):
+    """A category on the shop's site, as the shop reports it."""
+    id = graphene.Int()
+    name = graphene.String()
+
+
+class CreateShopCategory(graphene.Mutation):
+    """Add a category to the shop's site from here.
+
+    A garment cannot go across uncategorised, and waiting for somebody at the
+    shop to add the category would stop the dispatch for no good reason.
+    """
+    class Arguments:
+        name = graphene.String(required=True)
+
+    category = graphene.Field(ShopCategoryType)
+
+    @login_required
+    def mutate(self, info, name):
+        made = create_shop_category(user=info.context.user, name=name)
+        return CreateShopCategory(category=ShopCategoryType(
+            id=(made or {}).get("id"), name=(made or {}).get("name")))
+
+
+class SetShopListing(graphene.Mutation):
+    """What the shop's product page should say about this garment."""
+    class Arguments:
+        finished_product_id = graphene.ID(required=True)
+        category_id = graphene.Int()
+        category_name = graphene.String()
+        description = graphene.String()
+        hsn_code = graphene.String()
+        gst_percentage = graphene.Float()
+        channel = graphene.String()
+
+    finished_product = graphene.Field(FinishedProductType)
+
+    @login_required
+    def mutate(self, info, **kwargs):
+        return SetShopListing(finished_product=set_shop_listing(
+            user=info.context.user, **kwargs))

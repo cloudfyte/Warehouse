@@ -20,6 +20,7 @@ from .retail import (
     AddRetailStore, CancelRetailDispatch, ConfigureRetailChannel,
     CreateRetailDispatch, LinkRetailProduct, PackRetailDispatch,
     CreateRetailReturn, PullRetailCatalogue, PullRetailStores,
+    CreateShopCategory, SetShopListing,
     ResolveRetailSubsite, ScanIntoRetailDispatch, SendRetailDispatch,
     UnlinkRetailProduct,
 )
@@ -114,6 +115,9 @@ class Mutation(graphene.ObjectType):
     add_retail_store = AddRetailStore.Field()
     resolve_retail_subsite = ResolveRetailSubsite.Field()
     create_retail_return = CreateRetailReturn.Field()
+    # Filing a garment on the shop's site, from here.
+    create_shop_category = CreateShopCategory.Field()
+    set_shop_listing = SetShopListing.Field()
     pull_retail_stores = PullRetailStores.Field()
     pull_retail_catalogue = PullRetailCatalogue.Field()
     link_retail_product = LinkRetailProduct.Field()

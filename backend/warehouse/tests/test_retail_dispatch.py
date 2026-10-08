@@ -1031,6 +1031,11 @@ class OneDoorInsteadOfThreeCalls(RetailFixture):
 
     def _packed(self, quantity=2):
         product = self._product(quantity=10, link=False)
+        # Filed for the shop, because an uncategorised garment is stopped before
+        # it ever reaches the door — that rule has its own tests.
+        product.shop_category_id = 61
+        product.shop_category_name = "KURTAS"
+        product.save(update_fields=["shop_category_id", "shop_category_name"])
         dispatch = self._dispatch(product, quantity=quantity)
         self._scan(dispatch, product, quantity)
         return product, pack_dispatch(user=self.admin, id=dispatch.id)
@@ -1143,3 +1148,148 @@ class OneDoorInsteadOfThreeCalls(RetailFixture):
         dispatch.refresh_from_db()
         self.assertEqual(dispatch.status, RetailDispatch.Status.FAILED)
         self.assertIn("That store is not ours.", dispatch.last_error)
+
+
+class TheShopNeedsMoreThanANameAndAPrice(RetailFixture):
+    """A garment nobody can browse to is not on sale, whatever the stock says."""
+
+    def setUp(self):
+        super().setUp()
+        from warehouse.services.retail import configure_channel
+
+        configure_channel(user=self.admin, subsite_id=7, subsite_name="sriweddings",
+                          api_url="https://shop.example/graphql/", api_key="whk_door")
+
+    def _sent(self, product, quantity=2):
+        seen = {}
+
+        def transport(channel, query, variables):
+            if "warehouseReceiveConsignment" in query:
+                seen["items"] = variables["i"]
+                return {"warehouseReceiveConsignment": {
+                    "success": True, "message": "", "alreadyDone": False,
+                    "receiptId": 1,
+                    "lines": [{"barcode": i["barcode"], "productId": 90,
+                               "created": True, "quantityAdded": i["quantity"],
+                               "stockNow": i["quantity"]} for i in variables["i"]]}}
+            raise AssertionError("only the door should be called")
+
+        dispatch = self._dispatch(product, quantity=quantity)
+        self._scan(dispatch, product, quantity)
+        dispatch = pack_dispatch(user=self.admin, id=dispatch.id)
+        send_dispatch(user=self.admin, id=dispatch.id, _transport=transport)
+        return seen
+
+    def _filed(self, **over):
+        product = self._product(quantity=10, link=False)
+        fields = {"shop_category_id": 61, "shop_category_name": "KURTAS",
+                  "shop_description": "Raw silk", "hsn_code": "6103",
+                  "gst_percentage": Decimal("5.00")}
+        fields.update(over)
+        for k, v in fields.items():
+            setattr(product, k, v)
+        product.save()
+        return product
+
+    def test_an_uncategorised_garment_is_stopped_before_it_leaves(self):
+        product = self._product(quantity=10, link=False)
+        dispatch = self._dispatch(product, quantity=1)
+        self._scan(dispatch, product, 1)
+        pack_dispatch(user=self.admin, id=dispatch.id)
+
+        with self.assertRaises(GraphQLError) as caught:
+            send_dispatch(user=self.admin, id=dispatch.id,
+                          _transport=lambda *a, **k: self.fail("should not have sent"))
+
+        self.assertIn("category", str(caught.exception).lower())
+
+    def test_what_the_godown_collected_is_what_crosses(self):
+        item = self._sent(self._filed())["items"][0]
+
+        self.assertEqual(item["categoryId"], 61)
+        self.assertEqual(item["description"], "Raw silk")
+        self.assertEqual(item["hsnCode"], "6103")
+        self.assertEqual(item["gstPercentage"], 5.0)
+
+    def test_online_only_is_sent_as_the_website_alone(self):
+        product = self._filed(shop_channel=FinishedProduct.ShopChannel.ONLINE)
+        self.assertEqual(self._sent(product)["items"][0]["salesChannels"], ["website"])
+
+    def test_walk_in_only_never_reaches_the_website(self):
+        product = self._filed(shop_channel=FinishedProduct.ShopChannel.WALKIN)
+        self.assertEqual(self._sent(product)["items"][0]["salesChannels"], ["pos"])
+
+    def test_both_is_the_website_and_the_counter(self):
+        self.assertEqual(self._sent(self._filed())["items"][0]["salesChannels"],
+                         ["website", "pos"])
+
+    def test_a_garment_is_never_sent_to_a_dine_in_menu(self):
+        """Every route has to leave dine_in out; this is a clothes shop."""
+        for choice in FinishedProduct.ShopChannel.values:
+            sent = self._sent(self._filed(shop_channel=choice))["items"][0]
+            self.assertNotIn("dine_in", sent["salesChannels"])
+
+
+class FilingAGarmentForTheShop(RetailFixture):
+    def setUp(self):
+        super().setUp()
+        from warehouse.services.retail import configure_channel
+
+        configure_channel(user=self.admin, subsite_id=7, subsite_name="sriweddings",
+                          api_url="https://shop.example/graphql/", api_key="whk_door")
+
+    def test_the_category_list_comes_from_the_shop_not_a_copy(self):
+        from warehouse.services.retail import shop_categories
+
+        def transport(channel, query, variables):
+            self.assertIn("warehouseShopCategories", query)
+            return {"warehouseShopCategories": [{"id": 61, "name": "KURTAS"}]}
+
+        got = shop_categories(user=self.admin, _transport=transport)
+        self.assertEqual(got[0]["name"], "KURTAS")
+
+    def test_a_new_category_is_made_at_the_shop(self):
+        from warehouse.services.retail import create_shop_category
+
+        def transport(channel, query, variables):
+            self.assertEqual(variables["n"], "SHERWANIS")
+            return {"warehouseCreateShopCategory": {
+                "success": True, "message": "",
+                "category": {"id": 70, "name": "SHERWANIS"}}}
+
+        made = create_shop_category(user=self.admin, name="SHERWANIS",
+                                    _transport=transport)
+        self.assertEqual(made["id"], 70)
+
+    def test_a_refusal_from_the_shop_is_passed_on_plainly(self):
+        from warehouse.services.retail import create_shop_category
+
+        def transport(channel, query, variables):
+            return {"warehouseCreateShopCategory": {
+                "success": False, "message": "A category needs a name."}}
+
+        with self.assertRaises(GraphQLError):
+            create_shop_category(user=self.admin, name="x", _transport=transport)
+
+    def test_filing_a_garment_keeps_what_it_was_told(self):
+        from warehouse.services.retail import set_shop_listing
+
+        product = self._product(quantity=5, link=False)
+        set_shop_listing(user=self.admin, finished_product_id=product.id,
+                         category_id=61, category_name="KURTAS",
+                         description="Raw silk", hsn_code="6103",
+                         gst_percentage=5.0,
+                         channel=FinishedProduct.ShopChannel.ONLINE)
+
+        product.refresh_from_db()
+        self.assertEqual(product.shop_category_id, 61)
+        self.assertEqual(product.shop_category_name, "KURTAS")
+        self.assertEqual(product.shop_channel, FinishedProduct.ShopChannel.ONLINE)
+
+    def test_a_channel_the_shop_does_not_know_is_refused(self):
+        from warehouse.services.retail import set_shop_listing
+
+        product = self._product(quantity=5, link=False)
+        with self.assertRaises(GraphQLError):
+            set_shop_listing(user=self.admin, finished_product_id=product.id,
+                             channel="dine_in")

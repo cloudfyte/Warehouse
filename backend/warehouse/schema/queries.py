@@ -92,6 +92,9 @@ class Query(graphene.ObjectType):
     customer_orders = graphene.List(CustomerOrderType, limit=graphene.Int())
     customer_bills = graphene.List(CustomerBillStatusType, limit=graphene.Int())
     retail_channel = graphene.Field(RetailChannelType)
+    shop_categories = graphene.List(
+        "warehouse.schema.mutations.retail.ShopCategoryType",
+        description="Categories on the shop's site, read live.")
     retail_stores = graphene.List(RetailStoreType)
     retail_dispatches = graphene.List(RetailDispatchType, status=graphene.String(), limit=graphene.Int())
     # Every piece that left a godown or came back, in one list.
@@ -330,6 +333,13 @@ class Query(graphene.ObjectType):
         return selectors.get_awaiting_collection(info.context.user)
 
     @login_required
+    def resolve_shop_categories(self, info):
+        from warehouse.schema.mutations.retail import ShopCategoryType
+        from warehouse.services.retail import shop_categories
+
+        return [ShopCategoryType(id=c.get("id"), name=c.get("name"))
+                for c in shop_categories(user=info.context.user)]
+
     def resolve_retail_channel(self, info):
         return selectors.get_retail_channel(info.context.user)
 

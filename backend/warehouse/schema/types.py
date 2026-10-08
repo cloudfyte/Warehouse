@@ -354,6 +354,8 @@ class StitchingJobType(DjangoObjectType):
 
 class FinishedProductType(DjangoObjectType):
     profit_margin = graphene.Float()
+    # A Decimal arrives as a string unless it is declared a Float here.
+    gst_percentage = graphene.Float()
 
     class Meta:
         model = FinishedProduct
@@ -361,6 +363,9 @@ class FinishedProductType(DjangoObjectType):
 
     def resolve_profit_margin(self, info):
         return float(self.profit_margin)
+
+    def resolve_gst_percentage(self, info):
+        return float(self.gst_percentage) if self.gst_percentage is not None else None
 
 
 class RetailReturnItemType(DjangoObjectType):
